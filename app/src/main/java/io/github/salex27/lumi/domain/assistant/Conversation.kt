@@ -3,23 +3,32 @@ package io.github.salex27.lumi.domain.assistant
 import io.github.salex27.lumi.domain.model.Task
 import java.text.Normalizer
 
-/** Idioma de una frase y de la respuesta. Lumi es español primero; el inglés se añadió para la versión pública 1.0. */
-enum class Lang { ES, EN }
+/** Language of a sentence and of its reply. Lumi started Spanish-only; English was added for the public 1.0. */
+enum class Lang {
+    ES, EN;
+
+    companion object {
+        /** From a locale language code ("es", "en", "fr"…): anything that isn't Spanish gets English. */
+        fun of(languageCode: String): Lang = if (languageCode.lowercase().startsWith("es")) ES else EN
+    }
+}
 
 /**
- * Idioma de la respuesta en curso. Lo fija el repositorio al recibir cada frase y lo leen las respuestas por reglas y
- * los prompts. Es global a propósito: Lumi atiende a una sola persona y una frase cada vez.
+ * Languages in use. [current] = the reply in progress: the repository sets it from each sentence and rule replies and
+ * prompts read it. [app] = the app's display language (notifications, reminder labels, screens).
+ * Global on purpose: Lumi serves one person, one sentence at a time.
  */
 object ReplyLanguage {
     @Volatile var current: Lang = Lang.ES
+    @Volatile var app: Lang = Lang.ES
 
-    /** Texto en el idioma actual. */
+    /** Text in the language of the reply in progress. */
     fun t(es: String, en: String) = if (current == Lang.EN) en else es
 }
 
 /**
- * ¿La frase está en inglés o en español? (puro, testeado). Cuenta palabras típicas de cada idioma; en caso de duda
- * (frases de 1-2 palabras sin pistas) devuelve [fallback].
+ * Is the sentence English or Spanish? (pure, tested). Counts words typical of each language; when unsure
+ * (1-2 word sentences without clues) returns [fallback].
  */
 object LanguageDetector {
 
@@ -41,7 +50,7 @@ object LanguageDetector {
 
     fun detect(text: String, fallback: Lang = Lang.ES): Lang {
         val t = Normalizer.normalize(text.lowercase(), Normalizer.Form.NFC)
-        // Letras propias del español: casi seguro español
+        // Letters only Spanish uses: almost certainly Spanish
         if (Regex("[ñ¿¡áéíóú]").containsMatchIn(t)) return Lang.ES
         val words = t.replace("'", "").split(Regex("[^\\p{L}]+")).filter { it.isNotBlank() }
         if (words.isEmpty()) return fallback
@@ -56,9 +65,9 @@ object LanguageDetector {
 }
 
 /**
- * Memoria corta de la conversación (v1.0): las últimas frases y la última tarea de la que se habló, para entender
- * «muévela a las 5», «ponle prioridad alta», «¿y mañana?». Caduca a los [ttlMillis] (una conversación nueva empieza
- * de cero). Solo vive en memoria.
+ * Short-term conversation memory: the last sentences and the last task mentioned, to understand "move it to 5pm",
+ * "make it high priority", "and tomorrow?". Expires after [ttlMillis] (a new conversation starts from scratch).
+ * Lives in memory only.
  */
 class ConversationContext(private val ttlMillis: Long = 10 * 60_000L, private val clock: () -> Long = System::currentTimeMillis) {
 
@@ -77,28 +86,28 @@ class ConversationContext(private val ttlMillis: Long = 10 * 60_000L, private va
         if (task != null && task.id > 0) { lastTaskId = task.id; lastTaskTitle = task.title; lastTaskAt = now }
     }
 
-    /** Id de la última tarea mencionada (creada, cambiada o elegida), si la conversación sigue viva. */
+    /** Id of the last task mentioned (created, changed or picked), while the conversation is alive. */
     @Synchronized
     fun lastTaskId(): Long? = lastTaskId?.takeIf { clock() - lastTaskAt < ttlMillis }
 
     @Synchronized
     fun lastTaskTitle(): String? = lastTaskTitle?.takeIf { clock() - lastTaskAt < ttlMillis }
 
-    /** Turnos recientes (los que no han caducado), del más antiguo al más nuevo. */
+    /** Recent turns (not expired), oldest first. */
     @Synchronized
     fun recent(): List<Turn> = turns.filter { clock() - it.at < ttlMillis }
 
-    /** Acción de la última frase («WEATHER», «ASK»…), para seguir el hilo («¿y mañana?»). */
+    /** Action of the last sentence ("WEATHER", "ASK"…), to follow the thread ("and tomorrow?"). */
     fun lastAction(): String? = recent().lastOrNull()?.action
 
-    /** Resumen para el LLM: «Usuario: … / Lumi: …» + la última tarea. Vacío si no hay conversación reciente. */
+    /** Note for the LLM: "User: … / Lumi: …" + the last task. Empty when there is no recent conversation. */
     fun promptNote(): String {
         val r = recent()
         if (r.isEmpty()) return ""
         return buildString {
-            append("[CONVERSACIÓN RECIENTE: ")
-            append(r.takeLast(2).joinToString(" | ") { "Usuario: «${it.user.take(120)}» → Lumi: «${it.reply.take(120)}»" })
-            lastTaskTitle()?.let { append(" | ÚLTIMA TAREA: «$it»") }
+            append("[RECENT CONVERSATION: ")
+            append(r.takeLast(2).joinToString(" | ") { "User: «${it.user.take(120)}» → Lumi: «${it.reply.take(120)}»" })
+            lastTaskTitle()?.let { append(" | LAST TASK: «$it»") }
             append("]")
         }
     }

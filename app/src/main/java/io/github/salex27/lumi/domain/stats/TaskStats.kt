@@ -1,14 +1,17 @@
 package io.github.salex27.lumi.domain.stats
 
+import io.github.salex27.lumi.domain.assistant.Lang
 import io.github.salex27.lumi.domain.model.Task
 import io.github.salex27.lumi.domain.model.TaskCategory
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
-enum class StatsRange(val days: Int, val label: String) {
-    WEEK(7, "Semana"),
-    MONTH(30, "Mes")
+enum class StatsRange(val days: Int, private val es: String, private val en: String) {
+    WEEK(7, "Semana", "Week"),
+    MONTH(30, "Mes", "Month");
+
+    fun label(lang: Lang): String = if (lang == Lang.EN) en else es
 }
 
 data class DayStat(val date: LocalDate, val completed: Int, val created: Int)
@@ -18,21 +21,21 @@ data class StatsSummary(
     val days: List<DayStat>,
     val completed: Int,
     val created: Int,
-    /** Completadas en el periodo anterior de igual duración (para la variación). */
+    /** Completed in the previous period of the same length (for the change). */
     val previousCompleted: Int,
-    /** Días seguidos (hasta hoy, o hasta ayer si hoy aún no hay ninguna) con al menos una tarea completada. */
+    /** Consecutive days (up to today, or yesterday if nothing is done yet today) with at least one completed task. */
     val streak: Int,
     val bestDay: DayStat?,
     val byCategory: List<Pair<TaskCategory, Int>>,
     val openNow: Int,
     val overdueNow: Int
 ) {
-    /** % de lo creado en el periodo que ya está completado. null si no se creó nada. */
+    /** % of what was created in the period that is already completed. Null if nothing was created. */
     val completionRate: Int? get() = if (created == 0) null else (completed * 100 / created).coerceAtMost(100)
     val delta: Int get() = completed - previousCompleted
 }
 
-/** Cálculo puro de estadísticas (testeable en JVM). */
+/** Pure statistics computation (JVM-testable). */
 object StatsCalculator {
 
     fun compute(

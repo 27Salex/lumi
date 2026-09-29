@@ -1,13 +1,19 @@
 package io.github.salex27.lumi.domain.model
 
+import io.github.salex27.lumi.domain.assistant.Lang
+import io.github.salex27.lumi.domain.assistant.ReplyLanguage
 import kotlinx.serialization.Serializable
 
-enum class TaskCategory(val label: String, val emoji: String) {
-    PERSONAL("Personal", "👤"),
-    WORK("Trabajo", "💼"),
-    STUDY("Estudios", "📚"),
-    HEALTH("Salud", "🏃"),
-    OTHER("Otro", "📌");
+enum class TaskCategory(private val es: String, private val en: String, val emoji: String) {
+    PERSONAL("Personal", "Personal", "👤"),
+    WORK("Trabajo", "Work", "💼"),
+    STUDY("Estudios", "Study", "📚"),
+    HEALTH("Salud", "Health", "🏃"),
+    OTHER("Otro", "Other", "📌");
+
+    /** Display name in [lang] (screens pass the app language; replies use the language of the conversation). */
+    fun label(lang: Lang): String = if (lang == Lang.EN) en else es
+    val label: String get() = label(ReplyLanguage.current)
 
     companion object {
         fun fromString(value: String?): TaskCategory? =
@@ -15,9 +21,12 @@ enum class TaskCategory(val label: String, val emoji: String) {
     }
 }
 
-/** Prioridad. NONE por defecto: las tareas antiguas no cambian. [rank] mayor = más importante. */
-enum class TaskPriority(val label: String, val rank: Int) {
-    NONE("Ninguna", 0), LOW("Baja", 1), MEDIUM("Media", 2), HIGH("Alta", 3);
+/** Priority. NONE by default so older tasks are unchanged. A higher [rank] means more important. */
+enum class TaskPriority(private val es: String, private val en: String, val rank: Int) {
+    NONE("Ninguna", "None", 0), LOW("Baja", "Low", 1), MEDIUM("Media", "Medium", 2), HIGH("Alta", "High", 3);
+
+    fun label(lang: Lang): String = if (lang == Lang.EN) en else es
+    val label: String get() = label(ReplyLanguage.current)
 
     companion object {
         fun fromString(value: String?): TaskPriority? =
@@ -26,10 +35,12 @@ enum class TaskPriority(val label: String, val rank: Int) {
 }
 
 /**
- * Lugar de una tarea (v3.3). [place] es la clave de un lugar guardado («casa») o, si trae coordenadas, el nombre de una
- * dirección suelta buscada en el editor. [notify] = avisar al llegar/salir ([onArrive]); si es false el lugar solo
- * sirve de referencia («Cómo llegar», agrupar tareas).
- * Serializado: "casa|ARRIVE" (formato v3.1) o "Mercadona Gran Vía|ARRIVE|40.42|-3.70|Gran Vía 12, Madrid".
+ * A task's place. [place] is the key of a saved place ("casa") or, when it carries coordinates, the name of a
+ * one-off address found in the editor. [notify] = remind on arrival/departure ([onArrive]); when false the place is
+ * just a reference ("Directions", grouping).
+ * Serialized as "casa|ARRIVE" or "Mercadona Gran Vía|ARRIVE|40.42|-3.70|Gran Vía 12, Madrid".
+ * Saved-place keys are Spanish words ("casa", "trabajo") because that is how the first users named them;
+ * [displayName] translates them for English replies.
  */
 data class PlaceTrigger(
     val place: String,
@@ -39,7 +50,7 @@ data class PlaceTrigger(
     val lng: Double? = null,
     val address: String? = null
 ) {
-    /** Dirección suelta (no es un lugar guardado): lleva sus propias coordenadas. */
+    /** A one-off address (not a saved place): carries its own coordinates. */
     val isAdHoc: Boolean get() = lat != null && lng != null
 
     fun serialize(): String {
@@ -48,15 +59,28 @@ data class PlaceTrigger(
         return if (isAdHoc) "$base|$lat|$lng|${address.orEmpty().replace('|', '/')}" else base
     }
 
-    /** «al llegar a casa», «al salir del trabajo». */
-    fun describe(): String = if (onArrive) "al llegar ${withArticle("a", place)}" else "al salir ${withArticle("de", place)}"
+    /** "al llegar a casa" / "when you get home", "al salir del trabajo" / "when you leave work". */
+    fun describe(lang: Lang = ReplyLanguage.current): String = if (lang == Lang.EN) {
+        val name = displayName(place, Lang.EN)
+        if (onArrive) (if (place == "casa") "when you get home" else "when you arrive at $name") else "when you leave $name"
+    } else {
+        if (onArrive) "al llegar ${withArticle("a", place)}" else "al salir ${withArticle("de", place)}"
+    }
 
     companion object {
         private val ARTICLES = mapOf(
             "casa" to "", "trabajo" to "el", "gimnasio" to "el", "universidad" to "la", "supermercado" to "el"
         )
+        private val ENGLISH = mapOf(
+            "casa" to "home", "trabajo" to "work", "gimnasio" to "the gym", "universidad" to "university",
+            "supermercado" to "the supermarket", "oficina" to "the office", "colegio" to "school"
+        )
 
-        /** "a" + "trabajo" → "al trabajo"; "de" + "casa" → "de casa"; lugares propios sin artículo. */
+        /** Name of a place key in [lang]: "trabajo" → "work". Unknown names are returned as they are. */
+        fun displayName(place: String, lang: Lang = ReplyLanguage.current): String =
+            if (lang == Lang.EN) ENGLISH[place] ?: place else place
+
+        /** Spanish contraction: "a" + "trabajo" → "al trabajo"; "de" + "casa" → "de casa"; own places without article. */
         fun withArticle(preposition: String, place: String): String = when (val article = ARTICLES[place] ?: "") {
             "el" -> when (preposition) {
                 "a" -> "al $place"
@@ -91,17 +115,17 @@ data class Task(
     val category: TaskCategory = TaskCategory.PERSONAL,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
-    /** Fecha límite / hora de la cita en epoch millis, o null si no tiene. */
+    /** Due date / appointment time in epoch millis, or null. */
     val dueAt: Long? = null,
-    /** true si el usuario indicó hora concreta ("a las 17:00"); false si solo día ("el viernes"). */
+    /** True when the user gave a specific time ("at 17:00"); false for a day only ("on Friday"). */
     val dueHasTime: Boolean = false,
-    /** Momento en que se completó (para las estadísticas). */
+    /** When it was completed (used by the stats). */
     val completedAt: Long? = null,
-    /** Repetición; al completarla se crea la siguiente. */
+    /** Repetition; completing it creates the next occurrence. */
     val recurrence: Recurrence? = null,
-    /** Reunión del calendario vinculada (preparación, seguimiento…). */
+    /** Linked calendar meeting (preparation, follow-up…). */
     val meeting: LinkedMeeting? = null,
-    /** Si Lumi decide los avisos automáticamente (además de los personalizados). */
+    /** Whether Lumi picks reminders automatically (on top of custom ones). */
     val autoReminders: Boolean = true,
     val priority: TaskPriority = TaskPriority.NONE,
     val placeTrigger: PlaceTrigger? = null
@@ -110,41 +134,43 @@ data class Task(
 }
 
 /**
- * Intención estructurada que devuelve cualquier [io.github.salex27.lumi.domain.ai.AssistantEngine].
- * Es el contrato entre el motor de IA (LLM o reglas) y el repositorio.
+ * Structured intent returned by any [io.github.salex27.lumi.domain.ai.AssistantEngine].
+ * It is the contract between the AI engine (LLM or rules) and the repository.
  */
 @Serializable
 data class TaskAICommand(
-    val action: String, // "CREATE" | "UPDATE_STATUS" | "SUMMARIZE" | "PLAN_DAY"
+    val action: String, // one of the constants below
     val targetTitle: String? = null,
     val newStatus: String? = null,
     val category: String? = null, // "PERSONAL" | "WORK" | "STUDY" | "HEALTH" | "OTHER"
-    val dueDate: String? = null,   // ISO local "2026-10-03T17:00" o "2026-10-03"
+    val dueDate: String? = null,   // local ISO: "2026-10-03T17:00" or "2026-10-03"
     val hasTime: Boolean = false,
-    /** Solo si el usuario dio detalles explícitos. Nunca se inventa (ver AssistantOrchestrator.reconcile). */
+    /** Only when the user dictated explicit details. Never invented (see AssistantOrchestrator.reconcile). */
     val description: String? = null,
-    /** Repetición serializada (ver [Recurrence.serialize]): "DAILY", "WEEKLY:MO,TH"… */
+    /** Serialized repetition (see [Recurrence.serialize]): "DAILY", "WEEKLY:MO,TH"… */
     val recurrence: String? = null,
-    /** Avisos extra pedidos por el usuario: minutos antes del vencimiento ("avísame 2 horas antes" → 120). */
+    /** Extra reminders the user asked for, in minutes before the due time ("remind me 2 hours before" → 120). */
     val remindBeforeMinutes: List<Int> = emptyList(),
-    /** RESCHEDULE relativo: "pospón una semana" → 10080. Si es null se usa [dueDate]. */
+    /** Relative RESCHEDULE: "postpone it a week" → 10080. When null, [dueDate] is used. */
     val postponeMinutes: Int? = null,
-    /** Pista de reunión a vincular: "la reunión del sprint", "la llamada con Ana". */
+    /** Hint of a meeting to link: "the sprint meeting", "the call with Ana". */
     val meeting: String? = null,
-    /** "NONE" | "LOW" | "MEDIUM" | "HIGH". También en SET_PRIORITY. */
+    /** "NONE" | "LOW" | "MEDIUM" | "HIGH". Also used by SET_PRIORITY. */
     val priority: String? = null,
-    /** Aviso por lugar: nombre del lugar ("casa", "trabajo") y si es al llegar o al salir. */
+    /** Place reminder: the place name ("casa", "trabajo") and whether it fires on arrival or departure. */
     val place: String? = null,
     val placeOnArrive: Boolean = true,
-    /** EDIT: nuevo título. Los demás cambios usan dueDate, category, priority, description, place. */
+    /** EDIT: new title. Other changes use dueDate, category, priority, description, place. */
     val newTitle: String? = null,
-    /** Renombrar: «X a Y» literal (ambiguo si X o Y contienen «a»); el repositorio elige el corte con RenameSplitter. */
+    /** Rename: the literal "X to Y" (ambiguous when X or Y contain the separator); the repository picks the split with RenameSplitter. */
     val renameSpec: String? = null,
-    /** Tarea ya elegida por el usuario («¿Te refieres a…?» → sí): se salta la búsqueda por título. */
+    /** Task already picked by the user ("Did you mean…?" → yes): skips the search by title. */
     val targetId: Long? = null,
-    /** DEVICE: acción serializada (ver DeviceCommand.serialize), p.ej. "ALARM|7|0|". */
+    /** The command is about the task we were just talking about ("move it to 5pm"). */
+    val refersToLast: Boolean = false,
+    /** DEVICE: serialized action (see DeviceCommand.serialize), e.g. "ALARM|7|0|". */
     val device: String? = null,
-    /** CREATE_MANY (brain dump): una entrada CREATE por tarea. */
+    /** CREATE_MANY (brain dump): one CREATE entry per task. */
     val items: List<TaskAICommand> = emptyList()
 ) {
     companion object {
@@ -155,32 +181,32 @@ data class TaskAICommand(
         const val SUMMARIZE = "SUMMARIZE"
         const val PLAN_DAY = "PLAN_DAY"
         const val SET_PRIORITY = "SET_PRIORITY"
-        /** «Llévame a casa», «¿cómo llego a la reunión?»: [targetTitle] = destino. */
+        /** "Take me home", "how do I get to the meeting?": [targetTitle] = destination. */
         const val NAVIGATE = "NAVIGATE"
-        /** Editar una tarea existente; sin cambios concretos → abre el editor. */
+        /** Edit an existing task; with no concrete change it opens the editor. */
         const val EDIT = "EDIT"
-        /** Memoria personal: guardar [targetTitle], responder una pregunta, u olvidar. */
+        /** Personal memory: save [targetTitle], answer a question, or forget. */
         const val REMEMBER = "REMEMBER"
         const val RECALL = "RECALL"
         const val FORGET = "FORGET"
-        /** Acción en el móvil: abrir app, alarma, temporizador, llamada, mensaje, música, búsqueda… */
+        /** Action on the phone: open an app, alarm, timer, call, message, music, search… */
         const val DEVICE = "DEVICE"
-        /** El tiempo: [targetTitle] = la pregunta tal cual (el repositorio la vuelve a analizar). */
+        /** Weather: [targetTitle] = the question as said (the repository parses it again). */
         const val WEATHER = "WEATHER"
-        /** Pregunta o petición general (no es sobre tus tareas): la responde el LLM, o se busca en la web. */
+        /** General question or request (not about your tasks): answered by the LLM, or searched on the web. */
         const val ASK = "ASK"
-        /** Resumen de un día («buenos días», «¿qué tengo mañana?»): [dueDate] = el día. */
+        /** Summary of a day ("good morning", "what do I have tomorrow?"): [dueDate] = the day. */
         const val DAY_BRIEF = "DAY_BRIEF"
-        /** Alarma según tu agenda de mañana. [newStatus] = "ASK" si lo preguntó (se confirma antes de ponerla). */
+        /** Alarm based on tomorrow's schedule. [newStatus] = "ASK" when it was a question (confirm before setting it). */
         const val SMART_ALARM = "SMART_ALARM"
-        /** Leer los mensajes sin leer (notificaciones). [targetTitle] = de quién ("" = todos). */
+        /** Read unread messages (notifications). [targetTitle] = from whom ("" = everyone). */
         const val NOTIFICATIONS = "NOTIFICATIONS"
     }
 }
 
 /**
- * Resultado de un comando. [reply] es la respuesta conversacional que se muestra al usuario
- * y [engine] el nombre del motor de IA que la generó (se muestra como "insignia" en la UI).
+ * Result of a command. [reply] is the conversational answer shown to the user and [engine] the name of the AI engine
+ * that produced it (shown as a badge in the UI).
  */
 sealed interface AIProcessingResult {
     val reply: String
@@ -192,21 +218,21 @@ sealed interface AIProcessingResult {
     data class Summary(override val reply: String, override val engine: String) : AIProcessingResult
     data class Plan(val suggestions: List<Task>, override val reply: String, override val engine: String) : AIProcessingResult
     data class Error(override val reply: String, override val engine: String = "") : AIProcessingResult
-    /** «¿Te refieres a…?»: la UI muestra [options]; al elegir una se ejecuta [command] con targetId. */
+    /** "Did you mean…?": the UI shows [options]; picking one runs [command] with targetId. */
     data class Choose(val options: List<Task>, val command: TaskAICommand, override val reply: String, override val engine: String) : AIProcessingResult
-    /** Falta un dato para terminar la orden («¿Qué le digo a Víctor?»): la siguiente frase rellena [slot]. */
+    /** Something is missing to finish the command ("What should I tell Víctor?"): the next sentence fills [slot]. */
     data class AskFollowUp(val command: TaskAICommand, val slot: String, override val reply: String, override val engine: String) : AIProcessingResult
-    /** Abrir el editor de esta tarea («edita lo del dentista»). */
+    /** Open this task's editor ("edit the dentist one"). */
     data class OpenTask(val task: Task, override val reply: String, override val engine: String) : AIProcessingResult
-    /** Respuesta de la memoria personal (o confirmación de guardar/olvidar). */
+    /** Answer from personal memory (or confirmation of remember/forget). */
     data class Memory(override val reply: String, override val engine: String) : AIProcessingResult
-    /** Acción en el móvil (la ejecuta la UI). */
+    /** Action on the phone (run by the UI). */
     data class Device(val command: io.github.salex27.lumi.domain.assistant.DeviceCommand, override val reply: String, override val engine: String) : AIProcessingResult
-    /** Respuesta de información (tiempo, pregunta general, resumen del día, mensajes). */
+    /** Information answer (weather, general question, day summary, messages). */
     data class Answer(override val reply: String, override val engine: String) : AIProcessingResult
-    /** Mensajes leídos; si son de una sola persona, [replyTo] permite «respóndele que…». */
+    /** Messages read out; when they come from one person, [replyTo] enables "reply that…". */
     data class Messages(val replyTo: io.github.salex27.lumi.domain.assistant.IncomingMessage?, override val reply: String, override val engine: String) : AIProcessingResult
-    /** Rutina: acciones del móvil en orden (primero las que no salen de Lumi) y, al final, una ruta. */
+    /** Routine or several commands: phone actions in order (the ones that stay in Lumi first) and, at the end, a route. */
     data class Routine(
         val devices: List<io.github.salex27.lumi.domain.assistant.DeviceCommand>,
         val navigate: NavDestination?,
@@ -214,6 +240,6 @@ sealed interface AIProcessingResult {
         override val engine: String,
         val tasks: List<Task> = emptyList()
     ) : AIProcessingResult
-    /** Abrir la ruta en la app de mapas elegida (la UI lanza el intent). */
+    /** Open the route in the chosen maps app (the UI fires the intent). */
     data class Navigate(val destination: NavDestination, override val reply: String, override val engine: String) : AIProcessingResult
 }

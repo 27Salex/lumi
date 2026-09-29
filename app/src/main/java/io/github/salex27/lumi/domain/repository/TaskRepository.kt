@@ -18,40 +18,40 @@ interface TaskRepository {
     suspend fun deleteTask(task: Task)
     suspend fun deleteTaskById(id: Long)
 
-    /** @param defaultCategory categoría a usar si ni la IA ni las palabras clave la determinan. */
+    /** @param defaultCategory category to use when neither the AI nor keywords decide one. */
     suspend fun processNaturalLanguageCommand(
         prompt: String,
         defaultCategory: TaskCategory? = null
     ): AIProcessingResult
 
-    /** Ejecuta un comando ya interpretado (p.ej. tras elegir en «¿Te refieres a…?», con targetId). */
+    /** Runs an already interpreted command (e.g. after picking in "Did you mean…?", with targetId). */
     suspend fun executeCommand(
         command: io.github.salex27.lumi.domain.model.TaskAICommand,
         defaultCategory: TaskCategory? = null
     ): AIProcessingResult
 
-    /** Resumen conversacional de la situación actual (lo redacta el motor de IA activo). */
+    /** Conversational summary of the current situation (written by the active AI engine). */
     suspend fun generateDailyBriefing(): AIProcessingResult
 
-    /** "¿Qué hago ahora?" según día de la semana, hora y fechas límite. */
+    /** "What should I do now?" based on weekday, time of day and due dates. */
     suspend fun planMyDay(): AIProcessingResult
 
-    /** «Buenos días» / «¿qué tengo mañana?»: tiempo, primera cita, tareas y (para mañana) la alarma propuesta. */
+    /** "Good morning" / "what do I have tomorrow?": weather, first appointment, tasks and (for tomorrow) the suggested alarm. */
     suspend fun dayBrief(date: java.time.LocalDate): AIProcessingResult
 
-    /** Alarma inteligente para [date] según calendario, tareas y horario (null = no hay nada temprano). */
+    /** Smart alarm for [date] from calendar, tasks and work hours (null = nothing early that day). */
     suspend fun smartAlarmPlan(date: java.time.LocalDate): io.github.salex27.lumi.domain.assistant.AlarmPlanner.Plan?
 
     suspend fun rescheduleAllReminders()
 
-    // Avisos múltiples
+    // Multiple reminders per task
     suspend fun remindersFor(taskId: Long): List<TaskReminder>
     suspend fun addCustomReminder(task: Task, offsetMinutes: Int)
     suspend fun removeReminder(reminderId: Long, task: Task)
 
-    /** Reuniones de los próximos [days] días (calendario del móvil) para vincular tareas. */
+    /** Meetings in the next [days] days (phone calendar), to link tasks to them. */
     suspend fun upcomingMeetings(days: Int = 14): List<AgendaEvent>
 
-    /** Respuesta desde la notificación de un aviso; devuelve lo que hizo Lumi. */
+    /** Reply typed into a reminder notification; returns what Lumi did. */
     suspend fun applyQuickReply(taskId: Long, text: String): String
 }

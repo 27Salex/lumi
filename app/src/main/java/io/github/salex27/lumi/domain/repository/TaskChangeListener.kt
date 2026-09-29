@@ -1,8 +1,8 @@
 package io.github.salex27.lumi.domain.repository
 
 /**
- * Se notifica tras cada cambio local de tareas (crear, editar, borrar).
- * Lo implementa la sincronización (calendario del móvil + Google Tasks) y el widget.
+ * Notified after every local task change (create, edit, delete).
+ * Implemented by sync (phone calendar + Google Tasks), place reminders, the live chip and the widget.
  */
 interface TaskChangeListener {
     suspend fun onTaskSaved(taskId: Long) {}

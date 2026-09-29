@@ -164,7 +164,7 @@ private fun RangeToggle(range: StatsRange, onChange: (StatsRange) -> Unit) {
         StatsRange.entries.forEach { r ->
             val sel = r == range
             Text(
-                r.label, style = MaterialTheme.typography.labelLarge, color = if (sel) Lumi.colors.textPrimary else k.secondary,
+                r.label(io.github.salex27.lumi.domain.assistant.ReplyLanguage.app), style = MaterialTheme.typography.labelLarge, color = if (sel) Lumi.colors.textPrimary else k.secondary,
                 modifier = Modifier.clip(RoundedCornerShape(50)).then(if (sel) Modifier.background(Lumi.colors.elevated) else Modifier)
                     .clickable { onChange(r) }.padding(horizontal = 14.dp, vertical = 6.dp)
             )

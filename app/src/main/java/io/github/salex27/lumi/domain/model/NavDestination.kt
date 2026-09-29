@@ -1,8 +1,8 @@
 package io.github.salex27.lumi.domain.model
 
 /**
- * Destino para «Cómo llegar». Con coordenadas si es un lugar guardado; si no, un texto de búsqueda
- * (dirección de una reunión, «Calle Mayor 5»…). Lo abre la app de mapas que elija el usuario.
+ * Destination for "Directions". Has coordinates when it is a saved place; otherwise a search query
+ * (a meeting's address, "Calle Mayor 5"…). Opened in the maps app the user picked.
  */
 data class NavDestination(
     val label: String,

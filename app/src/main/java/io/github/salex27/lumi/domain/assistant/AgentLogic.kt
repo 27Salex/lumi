@@ -3,14 +3,14 @@ package io.github.salex27.lumi.domain.assistant
 import io.github.salex27.lumi.domain.model.Task
 import java.text.Normalizer
 
-/** Texto sin acentos ni signos, en minúsculas. */
+/** Lower-case text without accents or punctuation. */
 internal fun plain(text: String): String = Normalizer.normalize(text.lowercase(), Normalizer.Form.NFD)
     .replace(Regex("\\p{Mn}+"), "")
     .replace(Regex("[^a-z0-9ñ ]"), " ")
     .replace(Regex("\\s+"), " ")
     .trim()
 
-/** Palabras con significado: sin artículos ni muletillas, y con un «stemming» mínimo (plurales). */
+/** Meaningful words: no articles or filler, with minimal stemming (plurals). */
 internal fun keywords(text: String, stop: Set<String>): List<String> =
     plain(text).split(" ").filter { it.length >= 2 && it !in stop }.map { w ->
         when {
@@ -37,9 +37,18 @@ private fun editDistance(a: String, b: String): Int {
     return d[b.length]
 }
 
+/** Filler words ignored when matching (Spanish and English). */
+private val COMMON_STOP = setOf(
+    // Spanish
+    "la", "el", "los", "las", "de", "del", "a", "al", "mi", "mis", "tu", "que", "se", "un", "una", "y", "en", "para",
+    "con", "por", "lo", "le", "me", "esa", "ese", "esta", "este",
+    // English
+    "the", "my", "to", "of", "an", "and", "in", "on", "for", "with", "it", "that", "this", "your", "at", "is"
+)
+
 /**
- * ¿A qué tarea se refiere el usuario? (puro, testeado). No exige el título exacto: «mi tarea sobre llevar a Víctor al
- * trabajo» encuentra «Llevar a Víctor». Si hay dudas, devuelve candidatas para preguntar «¿Te refieres a…?».
+ * Which task does the user mean? (pure, tested). It does not need the exact title: "my task about taking Víctor to
+ * work" finds "Take Víctor". When unsure it returns candidates so Lumi can ask "Did you mean…?".
  */
 object TaskMatcher {
 
@@ -51,10 +60,7 @@ object TaskMatcher {
         data object NotFound : Decision
     }
 
-    private val STOP = setOf(
-        "la", "el", "los", "las", "de", "del", "a", "al", "mi", "mis", "tu", "tarea", "tareas", "que", "se", "llama",
-        "sobre", "un", "una", "y", "en", "para", "con", "por", "lo", "le", "me", "esa", "ese", "esta", "este"
-    )
+    private val STOP = COMMON_STOP + setOf("tarea", "tareas", "llama", "sobre", "task", "tasks", "called", "about", "named")
 
     fun rank(query: String, tasks: List<Task>): List<Match> {
         val q = keywords(query, STOP).distinct()
@@ -64,14 +70,14 @@ object TaskMatcher {
             if (t.isEmpty()) return@mapNotNull null
             val common = t.count { tw -> q.any { similar(it, tw) } }
             if (common == 0) return@mapNotNull null
-            val recall = common.toDouble() / t.size          // cuánto del título has mencionado
+            val recall = common.toDouble() / t.size          // how much of the title was mentioned
             val precision = q.count { qw -> t.any { similar(it, qw) } }.toDouble() / q.size
             val score = 0.6 * recall + 0.4 * precision + if (task.isActive) 0.05 else 0.0
             Match(task, score)
         }.sortedByDescending { it.score }
     }
 
-    /** Segura si destaca claramente; si no, pregunta con las 3 mejores; si nada se parece, no encontrada. */
+    /** Sure when one clearly stands out; otherwise ask with the top 3; when nothing is similar, not found. */
     fun decide(query: String, tasks: List<Task>): Decision {
         val ranked = rank(query, tasks)
         val top = ranked.firstOrNull() ?: return Decision.NotFound
@@ -86,12 +92,12 @@ object TaskMatcher {
 }
 
 /**
- * «Cambia el nombre de llevar a Víctor a llevar a Víctor al trabajo»: prueba cada « a / por / como » como corte y se
- * queda con el que deja a la izquierda el texto que mejor encaja con una tarea real.
+ * "Rename take Víctor to take Víctor to work": tries every " a / por / como / to / as " as the split point and keeps the
+ * one whose left side best matches a real task.
  */
 object RenameSplitter {
     fun split(spec: String, tasks: List<Task>): Pair<String, String>? {
-        val seps = Regex("(?iu)\\s+(?:a|por|como)\\s+").findAll(spec).toList()
+        val seps = Regex("(?iu)\\s+(?:a|por|como|to|as)\\s+").findAll(spec).toList()
         if (seps.isEmpty()) return null
         return seps.map { m -> spec.substring(0, m.range.first).trim() to spec.substring(m.range.last + 1).trim() }
             .filter { (l, r) -> l.isNotBlank() && r.isNotBlank() }
@@ -100,24 +106,24 @@ object RenameSplitter {
 }
 
 /**
- * Memoria personal BAJO DEMANDA (puro, testeado): nunca se carga entera en el modelo; para cada petición se eligen
- * solo los 2-3 recuerdos que comparten palabras con ella (tipo BM25 simplificado: palabras raras pesan más).
+ * ON-DEMAND personal memory (pure, tested): never loaded into the model in full; for each request only the 2-3 memories
+ * sharing words with it are picked (a simplified BM25: rare words weigh more).
  */
 object MemoryRetriever {
 
     data class Memory(val id: Long, val text: String)
 
-    private val STOP = setOf(
-        "la", "el", "los", "las", "de", "del", "a", "al", "mi", "mis", "que", "es", "son", "un", "una", "y", "en", "se",
-        "cual", "como", "donde", "cuando", "quien", "llama", "esta", "tengo", "lo", "le", "me", "por", "para", "con",
-        "recuerda", "recuerdas", "dime", "sabes", "acuerdate", "oye", "lumi"
+    private val STOP = COMMON_STOP + setOf(
+        "es", "son", "cual", "como", "donde", "cuando", "quien", "llama", "tengo", "recuerda", "recuerdas", "dime", "sabes",
+        "acuerdate", "oye", "lumi", "what", "whats", "where", "when", "who", "which", "how", "do", "does", "remember", "tell",
+        "know", "hey", "are", "was", "have"
     )
 
     fun relevant(query: String, memories: List<Memory>, limit: Int = 3): List<Memory> {
         val q = keywords(query, STOP).distinct()
         if (q.isEmpty() || memories.isEmpty()) return emptyList()
         val docs = memories.associateWith { keywords(it.text, STOP).distinct() }
-        // Frecuencia de cada palabra en la memoria → peso inverso (idf)
+        // How many memories contain each word → inverse weight (idf)
         val df = HashMap<String, Int>()
         docs.values.forEach { words -> words.forEach { df[it] = (df[it] ?: 0) + 1 } }
         val n = memories.size.toDouble()

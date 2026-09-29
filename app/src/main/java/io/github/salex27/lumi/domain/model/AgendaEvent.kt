@@ -1,15 +1,15 @@
 package io.github.salex27.lumi.domain.model
 
-/** Evento del calendario del móvil (Google Calendar sincronizado por el sistema). */
+/** An event from the phone's calendar (Google Calendar synced by the system). */
 data class AgendaEvent(
     val id: Long,
     val title: String,
     val begin: Long,
     val end: Long,
     val allDay: Boolean,
-    /** Color ARGB del calendario/evento. */
+    /** ARGB color of the calendar/event. */
     val color: Int,
     val calendarName: String,
-    /** Dirección / lugar del evento (vacío si no tiene). Para «Cómo llegar». */
+    /** Event address/location (empty if none). Used for "Directions". */
     val location: String = ""
 )
