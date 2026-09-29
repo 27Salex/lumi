@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Logo de Lumi v3.2 «Mirada»: dos círculos que se solapan (azul cielo + magenta pastel), solape violeta y dos ojos. Mismo dibujo que LumiMark. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+<path android:pathData="M2.40,12.00 a6.48,6.48 0 1,0 12.96,0 a6.48,6.48 0 1,0 -12.96,0" android:strokeColor="#FFFFFFFF" android:strokeWidth="2.04"/>
+<path android:pathData="M8.64,12.00 a6.48,6.48 0 1,0 12.96,0 a6.48,6.48 0 1,0 -12.96,0" android:strokeColor="#FFFFFFFF" android:strokeWidth="2.04"/>
+<path android:fillColor="#FFFFFFFF" android:pathData="M10.32,12.00 a1.68,1.68 0 1,0 3.36,0 a1.68,1.68 0 1,0 -3.36,0"/>
+</vector>

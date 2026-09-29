@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Lumi</string>
+    <string name="assistant_label">Lumi</string>
+    <string name="widget_description">Lumi, tu luciérnaga de IA: próximas tareas y voz</string>
+</resources>

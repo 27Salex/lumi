@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Logo de Lumi v3.2 «Mirada»: dos círculos que se solapan (azul cielo + magenta pastel), solape violeta y dos ojos. Mismo dibujo que LumiMark. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" xmlns:aapt="http://schemas.android.com/aapt" android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+<path android:pathData="M3.36,24.00 a14.40,14.40 0 1,0 28.80,0 a14.40,14.40 0 1,0 -28.80,0"><aapt:attr name="android:fillColor"><gradient android:type="radial" android:centerX="12.72" android:centerY="18.96" android:gradientRadius="23.04"><item android:offset="0" android:color="#FF8FDBFB"/><item android:offset="1" android:color="#FF38BDF8"/></gradient></aapt:attr></path>
+<path android:pathData="M15.84,24.00 a14.40,14.40 0 1,0 28.80,0 a14.40,14.40 0 1,0 -28.80,0"><aapt:attr name="android:fillColor"><gradient android:type="radial" android:centerX="25.20" android:centerY="18.96" android:gradientRadius="23.04"><item android:offset="0" android:color="#FFF8CFE3"/><item android:offset="1" android:color="#FFF0A6CA"/></gradient></aapt:attr></path>
+<group><clip-path android:pathData="M3.36,24.00 a14.40,14.40 0 1,0 28.80,0 a14.40,14.40 0 1,0 -28.80,0"/><path android:pathData="M15.84,24.00 a14.40,14.40 0 1,0 28.80,0 a14.40,14.40 0 1,0 -28.80,0"><aapt:attr name="android:fillColor"><gradient android:type="radial" android:centerX="24.00" android:centerY="24.00" android:gradientRadius="12.96"><item android:offset="0" android:color="#FFB9B6FB"/><item android:offset="1" android:color="#FF8E9AF6"/></gradient></aapt:attr></path></group>
+<path android:fillColor="#FFFFFFFF" android:pathData="M20.69,24.00 a1.15,2.50 0 1,0 2.30,0 a1.15,2.50 0 1,0 -2.30,0"/>
+<path android:fillColor="#FFFFFFFF" android:pathData="M25.01,24.00 a1.15,2.50 0 1,0 2.30,0 a1.15,2.50 0 1,0 -2.30,0"/>
+</vector>
