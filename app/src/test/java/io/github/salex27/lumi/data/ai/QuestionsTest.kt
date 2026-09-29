@@ -39,6 +39,23 @@ class QuestionsTest {
         assertEquals(TaskAICommand.ASK, viaLlm(phrase, TaskAICommand(action = TaskAICommand.CREATE, targetTitle = "Natilla")).action)
     }
 
+    /** Real outputs from the 1.0 Gemma batch on the emulator. */
+    @Test
+    fun `an invented priority or a translated title from the LLM are ignored`() {
+        // Gemma: {"action":"CREATE","targetTitle":"revisar la caldera","category":"WORK","priority":"MEDIUM"}
+        val boiler = viaLlm("créame una tarea que se llama revisar la caldera",
+            TaskAICommand(action = TaskAICommand.CREATE, targetTitle = "revisar la caldera", category = "WORK", priority = "MEDIUM"))
+        assertEquals(null, boiler.priority)
+        // An explicit priority still counts
+        val urgent = viaLlm("revisar la caldera, es urgente",
+            TaskAICommand(action = TaskAICommand.CREATE, targetTitle = "revisar la caldera", priority = "MEDIUM"))
+        assertEquals("HIGH", urgent.priority)
+        // Gemma: "Dentista" for an English sentence → the rules' title
+        val dentist = viaLlm("I have the dentist tomorrow at 5",
+            TaskAICommand(action = TaskAICommand.CREATE, targetTitle = "Dentista", category = "HEALTH", dueDate = "2026-09-30T17:00", hasTime = true))
+        assertEquals("Dentist", dentist.targetTitle)
+    }
+
     /** Real raw outputs of Gemma 4 E2B on the emulator (the title came in newTitle). */
     @Test
     fun `Gemma's title is used even in newTitle and the rules compute the date`() {

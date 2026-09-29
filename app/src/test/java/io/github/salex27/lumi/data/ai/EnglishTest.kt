@@ -160,6 +160,11 @@ class EnglishTest {
         assertTrue(move.refersToLast)
         assertEquals(TaskAICommand.SET_PRIORITY, parse("make it urgent").action)
         assertTrue(parse("mark it as done").refersToLast)
+        // Fillers before the correction
+        assertTrue(parse("actually, move it to friday").refersToLast)
+        assertEquals(TaskAICommand.SET_PRIORITY, parse("no wait, make it urgent").action)
+        ReplyLanguage.current = Lang.ES
+        assertTrue(parse("mejor muévela al viernes").refersToLast)
     }
 
     @Test

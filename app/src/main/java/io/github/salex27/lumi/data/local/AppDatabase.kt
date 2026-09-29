@@ -94,7 +94,7 @@ abstract class AppDatabase : RoomDatabase() {
         private fun build(context: Context): AppDatabase = Room.databaseBuilder(
             context.applicationContext,
             AppDatabase::class.java,
-            "gemini_tasks_db"
+            "lumi.db"
         )
             .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
             .addCallback(object : Callback() {

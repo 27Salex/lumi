@@ -41,7 +41,8 @@ object LanguageDetector {
         "open", "add", "move", "mark", "delete", "cancel", "show", "read", "take", "wake", "turn", "need", "have", "should",
         "can", "do", "does", "did", "will", "weather", "rain", "alarm", "timer", "meeting", "task", "tasks", "done", "finished",
         "this", "next", "every", "morning", "afternoon", "evening", "am", "pm", "hey", "tell", "send", "message", "give",
-        "about", "of", "in", "an", "be", "get", "me", "go", "going", "want", "there", "that", "your", "from", "hi", "hello"
+        "about", "of", "in", "an", "be", "get", "me", "go", "going", "want", "there", "that", "your", "from", "hi", "hello",
+        "make", "wait", "actually", "urgent", "important", "later", "sorry", "yes", "thanks", "buy", "remember", "list", "week"
     )
     private val ES = setOf(
         "el", "la", "de", "que", "y", "en", "los", "las", "un", "una", "es", "por", "para", "con", "mi", "mis", "me", "te", "se",

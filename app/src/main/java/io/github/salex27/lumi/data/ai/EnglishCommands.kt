@@ -64,7 +64,8 @@ object EnglishCommands {
     // ── Follow-ups about the last task ("move it to 5pm") ─────────────────────
 
     private fun followUp(text: String, now: LocalDateTime): TaskAICommand? {
-        val t = text.trim()
+        // Fillers people put before a correction: "actually, move it to Friday", "no wait, make it urgent"
+        val t = text.trim().trimEnd('.', '!').replace(Regex("$I^(?:(?:actually|oh|no|wait|ok|okay|sorry|hmm|please|and|so)[,\\s]+)+"), "")
         Regex("$I^(?:and\\s+)?(?:move|push|reschedule|change|set)\\s+it\\s+(?:to\\s+|for\\s+)?(.+)$").find(t)?.let { m ->
             val date = EnglishDateParser.parse(m.groupValues[1], now) ?: return@let
             return TaskAICommand(action = TaskAICommand.RESCHEDULE, refersToLast = true, dueDate = date.isoDate(), hasTime = date.hasTime)

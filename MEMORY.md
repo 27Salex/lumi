@@ -6,6 +6,30 @@ translated when the project went public; version numbers before 1.0.0 refer to t
 
 ---
 
+## 2026-09-30 — 1.0.0: Gemma batch in both languages (emulator, CPU)
+
+20 phrases (`tools/gemma_phrases.txt`, 10 Spanish + 10 English) through the real Gemma 4 E2B:
+- **Interpretation 6.5–8.5 s** with the shorter English prompt (≈10 s before); answers 15–30 s end to end on CPU.
+- Decisions were right in both languages (tasks, place reminders, "done", questions answered, advice). Found and fixed:
+  - **Translated titles:** "I have the dentist tomorrow at 5" → Gemma copied the Spanish example and said «Dentista».
+    Now an English example sits next to the Spanish one, and `reconcile` rejects an LLM title with no word from the
+    sentence (`comesFrom`) → the rules' title. English titles drop a leading "the".
+  - **Unrequested priority:** Gemma adds `"priority":"MEDIUM"` to many tasks. The rules' priority wins; the LLM's only
+    counts when the rules found none and it isn't MEDIUM.
+  - **"I need to remember that…"** became a task: English "remember that / keep in mind / note that" now count as an
+    explicit request (`asksToRemember`) and the English rules read it as REMEMBER.
+  - **Shopping lists:** "add milk, bread and coffee to my shopping list" → "Buy milk / Buy bread / Buy coffee" (rules and
+    LLM titles; Spanish «añadir X a la lista de la compra» → «Comprar X»).
+  - "next month", "next year", "this/next weekend", "in N months" in `EnglishDateParser`.
+  - Follow-ups tolerate fillers ("actually, move it to Friday", «mejor muévela al viernes»).
+  - The contacts-permission note ("I need access to your contacts…") is no longer appended to the chat reply, since the
+    permission is requested on tap anyway; it stays on the task's card.
+- **The batch script** broke on apostrophes ("I'm…" never reached Lumi): phrases are now escaped with `printf %q`.
+- **Accent bug:** the Spanish follow-up regex expected «muevela», so the correctly written «muévela» never matched.
+  Fixed (`m[uú][eé]vela`), and the language detector knows more English words ("make", "wait", "urgent"…) so a
+  sentence like "no wait, make it urgent" isn't read as Spanish because of the leading "no".
+- **Database file renamed** `gemini_tasks_db` → `lumi.db` (safe: 1.0.0 is a fresh install under the new app id).
+
 ## 2026-09-29 — 1.0 prep: English codebase, bilingual app (en default + es)
 
 - **All code and comments are now English** (user decision for the public GitHub release). UI text lives in

@@ -14,8 +14,8 @@ android {
         applicationId = "io.github.salex27.lumi"
         minSdk = 29
         targetSdk = 36
-        versionCode = 20
-        versionName = "3.7.5"
+        versionCode = 1
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

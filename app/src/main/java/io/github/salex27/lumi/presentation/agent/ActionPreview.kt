@@ -20,7 +20,9 @@ object ActionPreview {
         val contactName: String?,
         val number: String?,
         /** What is missing for it to work ("I can't find Roberto in your contacts"…); null = all good. */
-        val problem: String?
+        val problem: String?,
+        /** The problem solves itself on tap (the contacts permission is requested then): shown on the card, not in the reply. */
+        val askedOnTap: Boolean = false
     ) {
         val command: DeviceCommand get() = action.command
     }
@@ -35,7 +37,7 @@ object ActionPreview {
         aliases.find(spoken)?.let { return Preview(action, it.name, it.number, null) }
         if (spoken.count(Char::isDigit) >= 6) return Preview(action, spoken, spoken, null)
         val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
-        if (!granted) return Preview(action, null, null, io.github.salex27.lumi.domain.assistant.ReplyLanguage.t("Necesito acceso a tus contactos para encontrar a «$spoken» (te lo pediré al tocar el botón).", "I need access to your contacts to find «$spoken» (I'll ask when you tap the button)."))
+        if (!granted) return Preview(action, null, null, io.github.salex27.lumi.domain.assistant.ReplyLanguage.t("Necesito acceso a tus contactos para encontrar a «$spoken» (te lo pediré al tocar el botón).", "I need access to your contacts to find «$spoken» (I'll ask when you tap the button)."), askedOnTap = true)
         val found = runCatching { DeviceActions.findContacts(context, spoken) }.getOrDefault(emptyList())
         return when {
             found.isEmpty() -> Preview(action, null, null, io.github.salex27.lumi.domain.assistant.ReplyLanguage.t("No encuentro a «$spoken» en tus contactos: revisa el nombre o añade un alias en Ajustes → Contactos rápidos.", "I can't find «$spoken» in your contacts: check the name or add an alias in Settings → Quick contacts."))
@@ -61,6 +63,6 @@ object ActionPreview {
         val whenText = if (task.placeTrigger != null) t("Entonces", "Then") else t("Cuando te avise", "When I remind you")
         val base = if (p.command is DeviceCommand.Call) t(" $whenText tendrás un botón para $what.", " $whenText you'll have a button to $what.")
         else t(" $whenText tendrás un botón para $what; solo tendrás que tocar enviar.", " $whenText you'll have a button to $what; you'll just have to tap send.")
-        return base + (p.problem?.let { t(" Ojo: $it", " Note: $it") } ?: "")
+        return base + (p.problem?.takeUnless { p.askedOnTap }?.let { t(" Ojo: $it", " Note: $it") } ?: "")
     }
 }

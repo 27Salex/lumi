@@ -167,8 +167,9 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
      * "cámbiale el nombre a X", "añádele una nota: …".
      */
     private fun followUp(text: String, now: LocalDateTime): TaskAICommand? {
-        val t = text.trim().trimEnd('.', '!')
-        Regex("(?iu)^(?:y\\s+)?(?:m[uú]evel[ao]|p[aá]sal[ao]|c[aá]mbial[ao]|p[oó]nl[ao])\\s+(?:para\\s+|a\\s+|al\\s+)?(.+)$").find(t)?.let { m ->
+        // Fillers before a correction: «mejor muévela al viernes», «no, espera, ponle prioridad alta»
+        val t = text.trim().trimEnd('.', '!').replace(Regex("(?iu)^(?:(?:mejor|no|espera|vale|oye|perdona|bueno|pues|y)[,\\s]+)+"), "")
+        Regex("(?iu)^(?:y\\s+)?(?:m[uú][eé]vel[ao]|p[aá]sal[ao]|c[aá]mbial[ao]|p[oó]nl[ao])\\s+(?:para\\s+|a\\s+|al\\s+)?(.+)$").find(t)?.let { m ->
             val date = SpanishDateParser.parse(m.groupValues[1], now) ?: return@let
             return TaskAICommand(action = TaskAICommand.RESCHEDULE, refersToLast = true, dueDate = date.isoDate(), hasTime = date.hasTime)
         }
@@ -574,7 +575,7 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
         private val EDIT_REGEX = Regex(
             "(?iu)^(?:ed[ií]ta(?:me)?|modifica(?:me)?|actualiza(?:me)?|abre(?:me)?(?=\\s+(?:la|mi)\\s+tarea))\\s+(?:la\\s+tarea|mi\\s+tarea)?\\s*(?:(?:que\\s+se\\s+llama|sobre|de|del|llamada)\\s+)?(.+)$"
         )
-        private val EDIT_CHANGES_SPLIT = Regex("(?iu)\\s+(?:y|para)\\s+(?:p[oó]nle|pon|c[aá]mbiale|cambia|p[aá]sala|m[uú]evela|que\\s+sea|que)\\s+")
+        private val EDIT_CHANGES_SPLIT = Regex("(?iu)\\s+(?:y|para)\\s+(?:p[oó]nle|pon|c[aá]mbiale|cambia|p[aá]sala|m[uú][eé]vela|que\\s+sea|que)\\s+")
         // Route imperatives; "ir al gimnasio" (infinitive) stays a task
         private val NAVIGATE_REGEX = Regex(
             "(?iu)^\\s*¿?\\s*(?:ll[eé]vame|c[oó]mo\\s+(?:llego|voy|se\\s+llega)|navega|ruta|indicaciones|direcciones)\\s+" +

@@ -9,9 +9,9 @@ Pending work. Finished items are removed; their history is in `MEMORY.md` and gi
 - [x] Lumi understands English (dates, commands, follow-ups, weather, device actions)
 - [x] Conversation context (follow-ups like "move it to Friday", "and tomorrow?")
 - [x] Create-task sheet asks before discarding real changes
-- [ ] Batch of Spanish + English phrases through the real Gemma (`tools/gemma_batch.sh`) and interpretation timing
-- [ ] README (en + es), LICENSE, THIRD_PARTY_NOTICES, screenshots, demo script
-- [ ] versionCode 1 / versionName 1.0.0, build, APK to Drive, tag `v1.0.0`
+- [x] Batch of Spanish + English phrases through the real Gemma (`tools/gemma_batch.sh`) and interpretation timing
+- [x] README (en + es), LICENSE, THIRD_PARTY_NOTICES, screenshots, demo script
+- [x] versionCode 1 / versionName 1.0.0, build, APK to Drive, tag `v1.0.0`
 - [ ] Publish on GitHub (ask the user first)
 
 ## To test on the Galaxy S25

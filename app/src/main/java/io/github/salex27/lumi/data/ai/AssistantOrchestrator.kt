@@ -161,7 +161,9 @@ class AssistantOrchestrator(
             recurrence = llm.recurrence?.takeIf { io.github.salex27.lumi.domain.model.Recurrence.parse(it) != null } ?: rules.recurrence,
             remindBeforeMinutes = (llm.remindBeforeMinutes + rules.remindBeforeMinutes).distinct().filter { it in 0..(60 * 24 * 30) },
             meeting = llm.meeting ?: rules.meeting,
-            priority = llm.priority?.takeIf { TaskPriority.fromString(it) != null && it.uppercase() != "NONE" } ?: rules.priority,
+            // Priority words are caught by the rules; Gemma adds an unrequested "MEDIUM" to many tasks, so the LLM's
+            // priority only counts when the rules found none and it isn't that default
+            priority = rules.priority ?: llm.priority?.takeIf { TaskPriority.fromString(it) != null && it.uppercase() !in setOf("NONE", "MEDIUM") },
             // The rules detect places better (they normalize "oficina" → "trabajo")
             place = rules.place ?: llm.place?.takeIf { it.isNotBlank() && it != "null" }?.let { TaskPhraseParser.normalizePlace(it) },
             placeOnArrive = if (rules.place != null) rules.placeOnArrive else llm.placeOnArrive
