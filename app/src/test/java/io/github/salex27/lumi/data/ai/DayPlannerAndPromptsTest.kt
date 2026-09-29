@@ -22,14 +22,14 @@ class DayPlannerAndPromptsTest {
     private val shopping = Task(id = 3, title = "Comprar regalo", category = TaskCategory.PERSONAL)
 
     @Test
-    fun `en horario laboral el trabajo va primero`() {
+    fun `during work hours work goes first`() {
         val plan = DayPlanner.plan(listOf(gym, shopping, work), LocalDateTime.of(2026, 9, 30, 11, 0), zone = zone)
         assertEquals(DayMode.WORK_HOURS, plan.mode)
         assertEquals(work, plan.suggestions.first())
     }
 
     @Test
-    fun `por la tarde el trabajo se aparca`() {
+    fun `in the evening work is parked`() {
         val plan = DayPlanner.plan(listOf(work, gym), LocalDateTime.of(2026, 9, 30, 20, 0), zone = zone)
         assertEquals(DayMode.AFTER_WORK, plan.mode)
         assertTrue(work !in plan.suggestions)
@@ -37,7 +37,7 @@ class DayPlannerAndPromptsTest {
     }
 
     @Test
-    fun `el trabajo que vence mañana no se aparca aunque sea fin de semana`() {
+    fun `work due tomorrow isn't parked even on a weekend`() {
         val sat = LocalDateTime.of(2026, 10, 3, 10, 0)
         val urgentWork = work.copy(dueAt = at(sat.plusDays(1)))
         val plan = DayPlanner.plan(listOf(urgentWork, gym), sat, zone = zone)
@@ -45,7 +45,7 @@ class DayPlannerAndPromptsTest {
     }
 
     @Test
-    fun `vencidas y de hoy se separan`() {
+    fun `overdue and today are separated`() {
         val now = LocalDateTime.of(2026, 9, 30, 12, 0)
         val overdue = shopping.copy(dueAt = at(now.minusHours(2)), dueHasTime = true)
         val today = gym.copy(dueAt = at(now.plusHours(6)), dueHasTime = true)
@@ -56,7 +56,7 @@ class DayPlannerAndPromptsTest {
     }
 
     @Test
-    fun `parseCommand tolera markdown y texto alrededor`() {
+    fun `parseCommand tolerates markdown and surrounding text`() {
         val raw = "Claro:\n```json\n{\"action\":\"create\",\"targetTitle\":\"Pagar luz\",\"category\":\"PERSONAL\",\"dueDate\":\"2026-10-01\"}\n```"
         val cmd = AssistantPrompts.parseCommand(raw)!!
         assertEquals(TaskAICommand.CREATE, cmd.action)
@@ -65,13 +65,13 @@ class DayPlannerAndPromptsTest {
     }
 
     @Test
-    fun `parseCommand rechaza acciones inventadas y JSON roto`() {
+    fun `parseCommand rejects made-up actions and broken JSON`() {
         assertNull(AssistantPrompts.parseCommand("{\"action\":\"DANCE\"}"))
         assertNull(AssistantPrompts.parseCommand("no sé qué decirte"))
     }
 
     @Test
-    fun `parseIso acepta fecha con y sin hora`() {
+    fun `parseIso accepts dates with and without time`() {
         assertEquals(LocalDateTime.of(2026, 10, 3, 17, 0), AssistantOrchestrator.parseIso("2026-10-03T17:00"))
         assertEquals(LocalDateTime.of(2026, 10, 3, 9, 0), AssistantOrchestrator.parseIso("2026-10-03"))
     }

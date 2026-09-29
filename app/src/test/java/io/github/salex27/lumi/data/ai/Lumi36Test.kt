@@ -28,7 +28,7 @@ import java.time.LocalTime
 import java.time.ZoneId
 import kotlin.random.Random
 
-/** v3.6: el tiempo, preguntas generales, resumen del día, alarma inteligente, mensajes y rutinas. */
+/** v3.6: weather, general questions, day brief, smart alarm, messages and routines. */
 class Lumi36Test {
 
     private val engine = RuleBasedEngine(Random(3))
@@ -37,10 +37,10 @@ class Lumi36Test {
     private fun parse(t: String) = engine.parse(t, now)
     private fun ms(dt: LocalDateTime) = dt.atZone(zone).toInstant().toEpochMilli()
 
-    // ── Reconocer las frases ────────────────────────────────────────────────
+    // ── Recognizing phrases ─────────────────────────────────────────────────
 
     @Test
-    fun `preguntas del tiempo`() {
+    fun `weather questions`() {
         listOf(
             "¿qué tiempo hace?", "¿va a llover esta tarde?", "¿necesito paraguas mañana?", "el tiempo en Madrid",
             "¿hará frío el sábado?", "¿me llevo chaqueta esta noche?", "qué tal el tiempo el fin de semana"
@@ -48,20 +48,20 @@ class Lumi36Test {
     }
 
     @Test
-    fun `lo que no es el tiempo`() {
+    fun `what isn't weather`() {
         assertEquals(TaskAICommand.CREATE, parse("recuérdame coger el paraguas mañana").action)
         assertFalse(AssistantIntents.isWeather("¿cuánto tiempo tengo libre hoy?"))
         assertFalse(AssistantIntents.isWeather("comprar un paraguas"))
     }
 
     @Test
-    fun `detalles de la pregunta del tiempo`() {
+    fun `weather question details`() {
         val q = AssistantIntents.weather("¿Va a llover mañana por la tarde en Madrid?", now)!!
         assertEquals(LocalDate.of(2026, 9, 29), q.date)
         assertEquals(PartOfDay.AFTERNOON, q.part)
         assertEquals(WeatherQuery.Topic.RAIN, q.topic)
         assertEquals("Madrid", q.place)
-        // «esta mañana» es hoy, no mañana
+        // "esta mañana" is today, not tomorrow
         val q2 = AssistantIntents.weather("¿hace frío esta mañana?", now)!!
         assertEquals(now.toLocalDate(), q2.date)
         assertEquals(PartOfDay.MORNING, q2.part)
@@ -70,33 +70,33 @@ class Lumi36Test {
     }
 
     @Test
-    fun `resumen del dia, alarma y mensajes`() {
+    fun `day brief, alarm and messages`() {
         assertEquals(TaskAICommand.DAY_BRIEF, parse("¿qué tengo mañana?").action)
         assertEquals("2026-09-29", parse("¿qué tengo mañana?").dueDate)
         assertEquals("2026-09-28", parse("resumen de hoy").dueDate)
         assertEquals(TaskAICommand.SMART_ALARM, parse("pon la alarma para mañana").action)
         assertEquals("ASK", parse("¿a qué hora me pongo la alarma?").newStatus)
-        // Con hora concreta sigue siendo una alarma normal
+        // With a specific time it is still a normal alarm
         assertEquals(TaskAICommand.DEVICE, parse("pon una alarma a las 7").action)
         assertEquals("", parse("¿qué me han escrito?").targetTitle)
         assertEquals("Víctor", parse("¿qué me ha dicho Víctor?").targetTitle)
         assertEquals(TaskAICommand.NOTIFICATIONS, parse("léeme los mensajes").action)
-        // «¿Cómo voy?» sigue siendo el resumen de tareas
+        // "¿Cómo voy?" is still the task summary
         assertEquals(TaskAICommand.SUMMARIZE, parse("¿cómo voy?").action)
     }
 
     @Test
-    fun `preguntas generales no son tareas`() {
+    fun `general questions aren't tasks`() {
         listOf("dame ideas para cenar algo ligero", "explícame qué es la inflación", "cuéntame un chiste", "¿cuánto es el 15% de 80?")
             .forEach { assertEquals(it, TaskAICommand.ASK, parse(it).action) }
-        // Preguntas con «¿» siguen yendo a RECALL (memoria → tareas → pregunta general)
+        // Questions with "¿" still go to RECALL (memory → tasks → general question)
         assertEquals(TaskAICommand.RECALL, parse("¿quién escribió el Quijote?").action)
-        // Y las tareas siguen siendo tareas
+        // And tasks are still tasks
         assertEquals(TaskAICommand.CREATE, parse("comprar pan mañana").action)
     }
 
     @Test
-    fun `cuentas sin IA`() {
+    fun `arithmetic without AI`() {
         assertEquals("El 15 % de 80 es 12.", QuickMath.answer("¿cuánto es el 15% de 80?"))
         assertEquals("234 × 12 = 2808", QuickMath.answer("234 por 12"))
         assertEquals("10 ÷ 4 = 2,5", QuickMath.answer("cuánto es 10 entre 4"))
@@ -104,14 +104,14 @@ class Lumi36Test {
     }
 
     @Test
-    fun `no molestar`() {
+    fun `do not disturb`() {
         assertEquals(DeviceCommand.DoNotDisturb(true), DeviceCommandParser.parse("activa no molestar"))
         assertEquals(DeviceCommand.DoNotDisturb(false), DeviceCommandParser.parse("desactiva el modo no molestar"))
         val reply = DeviceCommand.ReplyMessage("k|1", "Víctor", "Ya voy | bajo", "WhatsApp")
         assertEquals(reply, DeviceCommand.parse(reply.serialize()))
     }
 
-    // ── El tiempo ─────────────────────────────────────────────────────────────
+    // ── Weather ───────────────────────────────────────────────────────────────
 
     private fun report(rainFrom: Int = 18, rainProb: Int = 70): WeatherReport {
         val hours = (0 until 72).map { i ->
@@ -124,7 +124,7 @@ class Lumi36Test {
     }
 
     @Test
-    fun `respuestas del tiempo`() {
+    fun `weather answers`() {
         val r = report()
         val rain = WeatherAdvisor.answer(WeatherQuery(now.toLocalDate(), topic = WeatherQuery.Topic.RAIN), r, now)
         assertTrue(rain, rain.startsWith("Sí, coge paraguas") && rain.contains("18:00") && rain.contains("70 %"))
@@ -137,7 +137,7 @@ class Lumi36Test {
     }
 
     @Test
-    fun `avisa si una tarea al aire libre coincide con lluvia`() {
+    fun `warns when an outdoor task meets rain`() {
         val run = Task(id = 1, title = "Salir a correr", dueAt = ms(now.withHour(19)), dueHasTime = true)
         val office = Task(id = 2, title = "Revisar informe", dueAt = ms(now.withHour(19)), dueHasTime = true)
         val w = WeatherAdvisor.taskWarnings(listOf(run, office), report(), now, zone)
@@ -145,32 +145,32 @@ class Lumi36Test {
         assertTrue(w.first().message.contains("lluvia probable"))
     }
 
-    // ── Alarma inteligente ──────────────────────────────────────────────────
+    // ── Smart alarm ─────────────────────────────────────────────────────────
 
     private fun event(title: String, at: LocalDateTime, location: String = "") =
         AgendaEvent(1, title, ms(at), ms(at.plusHours(1)), false, 0, "", location)
 
     @Test
-    fun `alarma segun la primera cita`() {
+    fun `alarm from the first appointment`() {
         val tuesday = LocalDate.of(2026, 9, 29)
         val cfg = AlarmPlanner.Config(prepMinutes = 60, travelMinutes = 30, workStartHour = 9)
-        // Dentista a las 8:30 con dirección → 8:30 − 60 − 30 = 7:00
+        // Dentist at 8:30 with an address → 8:30 − 60 − 30 = 7:00
         val p = AlarmPlanner.plan(tuesday, listOf(event("Dentista", tuesday.atTime(8, 30), "C/ Mayor 5")), emptyList(), cfg, zone)!!
         assertEquals(LocalTime.of(7, 0), p.wake)
         assertTrue(p.reason, p.reason.contains("Dentista") && p.reason.contains("30 de trayecto"))
-        // Sin nada: entra a trabajar a las 9 → 7:30
+        // Nothing scheduled: starts work at 9 → 7:30
         assertEquals(LocalTime.of(7, 30), AlarmPlanner.plan(tuesday, emptyList(), emptyList(), cfg, zone)!!.wake)
-        // Sábado sin nada temprano → sin alarma
+        // Saturday with nothing early → no alarm
         assertNull(AlarmPlanner.plan(LocalDate.of(2026, 10, 3), listOf(event("Comida", LocalDate.of(2026, 10, 3).atTime(14, 0))), emptyList(), cfg, zone))
-        // Tarea con hora (sin lugar: sin trayecto) y redondeo a 5 min: 8:12 − 60 = 7:12 → 7:10
+        // Timed task (no place: no travel) rounded to 5 min: 8:12 − 60 = 7:12 → 7:10
         val t = Task(id = 1, title = "Llamada", dueAt = ms(LocalDate.of(2026, 10, 3).atTime(8, 12)), dueHasTime = true)
         assertEquals(LocalTime.of(7, 10), AlarmPlanner.plan(LocalDate.of(2026, 10, 3), emptyList(), listOf(t), cfg, zone)!!.wake)
-        // De madrugada, «mañana» es hoy
+        // In the small hours, "mañana" means today
         assertEquals(LocalDate.of(2026, 9, 28), AlarmPlanner.targetDate(LocalDateTime.of(2026, 9, 28, 1, 30)))
     }
 
     @Test
-    fun `resumen del dia con tiempo y primera cita`() {
+    fun `day brief with weather and first appointment`() {
         val tasks = listOf(Task(id = 1, title = "Salir a correr", dueAt = ms(now.withHour(19)), dueHasTime = true))
         val b = DayBriefComposer.compose(now.toLocalDate(), now, tasks, listOf(event("Sprint", now.withHour(11))), report(), "Buenos días", zone = zone)
         assertTrue(b.title, b.title.startsWith("Buenos días · 12–21°"))
@@ -178,13 +178,13 @@ class Lumi36Test {
         assertTrue(b.body, b.body.contains("Ojo: «Salir a correr»"))
     }
 
-    // ── Mensajes y rutinas ──────────────────────────────────────────────────
+    // ── Messages and routines ───────────────────────────────────────────────
 
     private fun msg(conv: String, sender: String, text: String, t: Long, group: Boolean = false) =
         IncomingMessage("k-$conv", "com.whatsapp", "WhatsApp", conv, sender, text, t, group, canReply = true)
 
     @Test
-    fun `resumen de mensajes`() {
+    fun `message summary`() {
         val list = listOf(
             msg("Víctor", "Víctor", "¿Bajas?", 1), msg("Víctor", "Víctor", "Estoy en la puerta", 3),
             msg("Familia", "Mamá", "Cena a las 9", 2, group = true)
@@ -194,19 +194,19 @@ class Lumi36Test {
         assertTrue(d, d.contains("Familia: «Mamá: Cena a las 9»"))
         assertEquals(2, MessageDigest.filter(list, "victor").size)
         assertEquals("Víctor", MessageDigest.replyTarget(MessageDigest.filter(list, "víctor"))?.conversation)
-        assertNull(MessageDigest.replyTarget(list)) // varias conversaciones → no se sabe a quién
+        assertNull(MessageDigest.replyTarget(list)) // several conversations → unknown recipient
         assertEquals("No tienes mensajes sin leer de Ana.", MessageDigest.compose(emptyList(), "Ana"))
     }
 
     @Test
-    fun `rutinas por frase`() {
+    fun `routines by phrase`() {
         val r = RoutineMatcher.DEFAULTS
         assertEquals("night", RoutineMatcher.match("Buenas noches, Lumi", r)?.id)
         assertEquals("morning", RoutineMatcher.match("oye lumi buenos días", r)?.id)
         assertEquals("home", RoutineMatcher.match("Me voy a casa.", r)?.id)
         assertNull(RoutineMatcher.match("buenas noches a todos los de la oficina", r))
         assertNull(RoutineMatcher.match("buenas noches", r.map { it.copy(enabled = false) }))
-        // Todos los pasos de las rutinas predefinidas los entienden las reglas (ninguno acaba creando una tarea)
+        // Every step of the default routines is understood by the rules (none ends up creating a task)
         r.flatMap { it.steps }.forEach { step ->
             val a = parse(step).action
             assertTrue("$step → $a", a != TaskAICommand.CREATE && a != TaskAICommand.CREATE_MANY)

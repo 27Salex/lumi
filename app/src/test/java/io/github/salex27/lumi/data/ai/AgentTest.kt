@@ -14,7 +14,7 @@ import org.junit.Test
 import java.time.LocalDateTime
 import kotlin.random.Random
 
-/** Modo agente: encontrar la tarea correcta, editar, memoria bajo demanda y acciones del móvil. */
+/** Agent mode: finding the right task, editing, on-demand memory and phone actions. */
 class AgentTest {
 
     private val engine = RuleBasedEngine(Random(3))
@@ -28,34 +28,34 @@ class AgentTest {
         Task(id = 4, title = "Llamar a Víctor por su cumpleaños")
     )
 
-    // ── Encontrar la tarea ────────────────────────────────────────────────
+    // ── Finding the task ──────────────────────────────────────────────────
 
     @Test
-    fun `encuentra la tarea aunque la frase tenga palabras de más`() {
+    fun `finds the task even with extra words`() {
         val d = TaskMatcher.decide("mi tarea sobre llevar a Víctor al trabajo", tasks)
         assertEquals(1L, (d as TaskMatcher.Decision.Sure).task.id)
     }
 
     @Test
-    fun `si hay dudas pregunta con las candidatas`() {
+    fun `when in doubt asks with the candidates`() {
         val d = TaskMatcher.decide("lo de Víctor", tasks)
         assertTrue(d is TaskMatcher.Decision.Ask)
         assertTrue((d as TaskMatcher.Decision.Ask).candidates.map { it.id }.containsAll(listOf(1L, 4L)))
     }
 
     @Test
-    fun `sin parecido no inventa`() {
+    fun `no match invents nothing`() {
         assertEquals(TaskMatcher.Decision.NotFound, TaskMatcher.decide("sacar al perro", tasks))
     }
 
     @Test
-    fun `plurales y tildes no importan`() {
+    fun `plurals and accents don't matter`() {
         val d = TaskMatcher.decide("la presentacion del sprint", tasks)
         assertEquals(2L, (d as TaskMatcher.Decision.Sure).task.id)
     }
 
     @Test
-    fun `respuestas a te refieres a`() {
+    fun `answers to did you mean`() {
         val labels = listOf("Llevar a Víctor", "Llamar a Víctor por su cumpleaños")
         assertEquals(0, io.github.salex27.lumi.presentation.assistant.parseChoiceAnswer("Sí", labels))
         assertEquals(1, io.github.salex27.lumi.presentation.assistant.parseChoiceAnswer("la segunda", labels))
@@ -64,10 +64,10 @@ class AgentTest {
         assertNull(io.github.salex27.lumi.presentation.assistant.parseChoiceAnswer("pon una alarma a las 7", labels))
     }
 
-    // ── Editar ────────────────────────────────────────────────────────────
+    // ── Editing ───────────────────────────────────────────────────────────
 
     @Test
-    fun `editar a secas abre el editor`() {
+    fun `plain edit opens the editor`() {
         val c = parse("edítame la tarea que se llama llevar a Víctor")
         assertEquals(TaskAICommand.EDIT, c.action)
         assertEquals("llevar a Víctor", c.targetTitle)
@@ -75,7 +75,7 @@ class AgentTest {
     }
 
     @Test
-    fun `editar con cambios`() {
+    fun `edit with changes`() {
         val c = parse("edita lo del dentista y ponle prioridad alta")
         assertEquals(TaskAICommand.EDIT, c.action)
         assertEquals("dentista", c.targetTitle)
@@ -86,10 +86,10 @@ class AgentTest {
     }
 
     @Test
-    fun `renombrar, nota y área`() {
+    fun `rename, note and area`() {
         val r = parse("cambia el nombre de llevar a Víctor a llevar a Víctor al trabajo")
         assertEquals(TaskAICommand.EDIT, r.action)
-        // El corte correcto lo decide el repositorio con las tareas reales
+        // The right split is decided by the repository with the real tasks
         assertEquals("llevar a Víctor" to "llevar a Víctor al trabajo", RenameSplitter.split(r.renameSpec!!, tasks))
 
         val n = parse("añade una nota a la presentación: incluir métricas de septiembre")
@@ -100,32 +100,32 @@ class AgentTest {
     }
 
     @Test
-    fun `mover a una fecha sigue siendo reprogramar`() {
+    fun `moving to a date is still rescheduling`() {
         assertEquals(TaskAICommand.RESCHEDULE, parse("pasa la presentación a mañana").action)
     }
 
-    // ── Memoria ───────────────────────────────────────────────────────────
+    // ── Memory ────────────────────────────────────────────────────────────
 
     @Test
-    fun `recordar hechos y no confundirlos con tareas`() {
+    fun `remember facts without confusing them with tasks`() {
         val r = parse("recuerda que el wifi de la oficina es Lumi2024")
         assertEquals(TaskAICommand.REMEMBER, r.action)
         assertEquals("El wifi de la oficina es Lumi2024", r.targetTitle)
         assertEquals(TaskAICommand.REMEMBER, parse("mi dentista es la doctora López").action)
-        // Obligación o fecha → tarea
+        // Obligation or date → task
         assertEquals(TaskAICommand.CREATE, parse("recuerda que tengo que llamar a mamá mañana").action)
         assertEquals(TaskAICommand.FORGET, parse("olvida que el wifi es Lumi2024").action)
     }
 
     @Test
-    fun `las preguntas se responden, no se convierten en tareas`() {
+    fun `questions are answered, not turned into tasks`() {
         assertEquals(TaskAICommand.RECALL, parse("¿cuál es el wifi de la oficina?").action)
         assertEquals(TaskAICommand.RECALL, parse("cómo se llama mi dentista").action)
         assertEquals(TaskAICommand.PLAN_DAY, parse("¿qué hago ahora?").action)
     }
 
     @Test
-    fun `la memoria solo trae lo relacionado`() {
+    fun `memory only brings related facts`() {
         val memory = listOf(
             MemoryRetriever.Memory(1, "El wifi de la oficina es Lumi2024"),
             MemoryRetriever.Memory(2, "Mi dentista es la doctora López"),
@@ -137,10 +137,10 @@ class AgentTest {
         assertTrue(MemoryRetriever.relevant("qué tiempo hace", memory).isEmpty())
     }
 
-    // ── Acciones del móvil ────────────────────────────────────────────────
+    // ── Phone actions ─────────────────────────────────────────────────────
 
     @Test
-    fun `acciones del móvil`() {
+    fun `phone actions`() {
         assertEquals(DeviceCommand.OpenApp("Spotify"), DeviceCommandParser.parse("abre Spotify"))
         assertEquals(DeviceCommand.Alarm(7, 30, null), DeviceCommandParser.parse("pon una alarma a las 7:30"))
         assertEquals(DeviceCommand.Alarm(19, 0, null), DeviceCommandParser.parse("ponme una alarma a las 7 de la tarde"))
@@ -153,29 +153,29 @@ class AgentTest {
     }
 
     @Test
-    fun `mensajes dichos de muchas formas nunca acaban como tarea`() {
+    fun `messages said many ways never become tasks`() {
         fun msg(t: String) = DeviceCommandParser.parse(t) as DeviceCommand.Message
         assertEquals(DeviceCommand.Message("Víctor", "Ya estoy abajo", true), msg("envíale un wasap a Víctor diciéndole que ya estoy abajo"))
         assertEquals(DeviceCommand.Message("mi madre", "Llego en 10 minutos", true), msg("escríbele a mi madre por WhatsApp que llego en 10 minutos"))
         assertEquals(DeviceCommand.Message("Ana", "Ya salgo", true), msg("manda un whatsapp a Ana: ya salgo"))
         assertEquals(DeviceCommand.Message("Víctor", "Llego tarde", true), msg("dile a Víctor que llego tarde"))
         assertEquals(DeviceCommand.Message("Ana", "Voy de camino", false), msg("envía un mensaje a Ana diciendo voy de camino"))
-        // Sin texto → incompleto (se pregunta «¿Qué le digo…?»)
+        // No text → incomplete (asks "What should I tell…?")
         assertEquals(DeviceCommand.Message("Víctor", "", true), msg("envía un WhatsApp a Víctor"))
-        // Frase rara pero con intención clara → incompleto para el LLM, nunca una tarea
+        // Odd sentence with a clear intent → incomplete for the LLM, never a task
         assertEquals(TaskAICommand.DEVICE, parse("oye mándale al grupo del curro por whatsapp lo de la reunión").action)
-        // Infinitivo («enviar WhatsApp a…», como lo dijo el usuario) → envío, no tarea
+        // Infinitive ("enviar WhatsApp a…", as the user said it) → send, not a task
         assertEquals(DeviceCommand.Message("Víctor", "Ya voy", true), msg("enviar whatsapp a Víctor que ya voy"))
         assertEquals(TaskAICommand.DEVICE, parse("enviar un WhatsApp a Víctor").action)
-        // Para más tarde sí es una tarea
+        // For later it is a task
         assertEquals(TaskAICommand.CREATE, parse("recuérdame enviar un WhatsApp a Ana mañana").action)
         assertEquals(TaskAICommand.CREATE, parse("enviar un whatsapp a Ana mañana").action)
-        // La fecha dentro del texto no lo convierte en tarea
+        // A date inside the text doesn't make it a task
         assertEquals(DeviceCommand.Message("Víctor", "Llego mañana a las 9", true), msg("dile a Víctor que llego mañana a las 9"))
     }
 
     @Test
-    fun `no confunde tareas con acciones del móvil`() {
+    fun `doesn't confuse tasks with phone actions`() {
         assertNull(DeviceCommandParser.parse("llama al banco mañana"))
         assertNull(DeviceCommandParser.parse("pon lo del dentista como urgente"))
         assertEquals(TaskAICommand.CREATE, parse("llama al banco mañana").action)

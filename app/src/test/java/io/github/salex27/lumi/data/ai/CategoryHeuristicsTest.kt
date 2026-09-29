@@ -8,33 +8,33 @@ import org.junit.Test
 class CategoryHeuristicsTest {
 
     @Test
-    fun `detecta trabajo ignorando tildes y mayúsculas`() {
+    fun `detects work ignoring accents and case`() {
         assertEquals(TaskCategory.WORK, CategoryHeuristics.infer("Reunión con el CLIENTE a las 10"))
     }
 
     @Test
-    fun `detecta estudios`() {
+    fun `detects study`() {
         assertEquals(TaskCategory.STUDY, CategoryHeuristics.infer("Estudiar para el examen de física"))
     }
 
     @Test
-    fun `workout es salud y no trabajo`() {
+    fun `workout is health, not work`() {
         assertEquals(TaskCategory.HEALTH, CategoryHeuristics.infer("30 min de workout"))
     }
 
     @Test
-    fun `detecta personal`() {
+    fun `detects personal`() {
         assertEquals(TaskCategory.PERSONAL, CategoryHeuristics.infer("Comprar leche en el supermercado"))
     }
 
     @Test
-    fun `no confunde prefijos cortos con palabras más largas`() {
-        // "calle" no debe activar WORK, "unión" no debe activar STUDY
+    fun `doesn't confuse short prefixes with longer words`() {
+        // "calle" must not trigger WORK, "unión" must not trigger STUDY
         assertNull(CategoryHeuristics.infer("Cruzar la calle de la unión"))
     }
 
     @Test
-    fun `texto vacío devuelve null`() {
+    fun `empty text returns null`() {
         assertNull(CategoryHeuristics.infer("   "))
     }
 }

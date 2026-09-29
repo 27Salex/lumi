@@ -24,7 +24,7 @@ class RuleBasedEngineTest {
     private fun parse(text: String) = engine.parse(text, monday10)
 
     @Test
-    fun `recuérdame con fecha crea tarea con título limpio, categoría y hora`() {
+    fun `recuérdame with a date creates a clean task with category and time`() {
         val cmd = parse("Recuérdame llamar a mamá mañana a las 6")
         assertEquals(TaskAICommand.CREATE, cmd.action)
         assertEquals("Llamar a mamá", cmd.targetTitle)
@@ -34,31 +34,31 @@ class RuleBasedEngineTest {
     }
 
     @Test
-    fun `preguntas de planificación`() {
+    fun `planning questions`() {
         listOf("¿Qué hago hoy?", "que puedo hacer ahora", "¿Por dónde empiezo?", "planifica mi día").forEach {
             assertEquals(it, TaskAICommand.PLAN_DAY, parse(it).action)
         }
     }
 
     @Test
-    fun `recuérdame que tengo que NO es planificar`() {
+    fun `recuérdame que tengo que is NOT planning`() {
         val cmd = parse("recuérdame que tengo que llamar al fontanero")
         assertEquals(TaskAICommand.CREATE, cmd.action)
     }
 
     @Test
-    fun `resumen`() {
+    fun `summary`() {
         assertEquals(TaskAICommand.SUMMARIZE, parse("¿cómo voy?").action)
         assertEquals(TaskAICommand.SUMMARIZE, parse("dame un resumen").action)
     }
 
     @Test
-    fun `cambiar el estado no es resumen`() {
+    fun `changing the status is not a summary`() {
         assertFalse(parse("cambia el estado de la reunión").action == TaskAICommand.SUMMARIZE)
     }
 
     @Test
-    fun `completar tarea`() {
+    fun `complete a task`() {
         val cmd = parse("ya terminé la presentación del sprint")
         assertEquals(TaskAICommand.UPDATE_STATUS, cmd.action)
         assertEquals(TaskStatus.COMPLETED.name, cmd.newStatus)
@@ -66,7 +66,7 @@ class RuleBasedEngineTest {
     }
 
     @Test
-    fun `respuesta de plan en fin de semana menciona el día y aparca el trabajo`() = runBlocking {
+    fun `weekend plan reply mentions the day and parks work`() = runBlocking {
         val saturday = LocalDateTime.of(2026, 10, 3, 11, 0)
         val tasks = listOf(
             Task(id = 1, title = "Informe trimestral", category = TaskCategory.WORK),
@@ -81,7 +81,7 @@ class RuleBasedEngineTest {
     }
 
     @Test
-    fun `briefing vacío invita a crear`() = runBlocking {
+    fun `empty briefing invites to create`() = runBlocking {
         val reply = engine.writeReply(ReplyRequest.Briefing(emptyList(), monday10))
         assertNotNull(reply)
         assertTrue(reply.contains("vacía"))

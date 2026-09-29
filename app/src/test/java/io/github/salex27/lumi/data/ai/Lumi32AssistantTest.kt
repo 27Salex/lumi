@@ -16,7 +16,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import kotlin.random.Random
 
-/** v3.2: huecos libres, repaso de la tarde y «llévame a…». */
+/** v3.2: free gaps, evening check-in and "take me to…". */
 class Lumi32AssistantTest {
 
     private val engine = RuleBasedEngine(Random(3))
@@ -26,35 +26,35 @@ class Lumi32AssistantTest {
     private fun event(id: Long, start: LocalDateTime, minutes: Long = 60) =
         AgendaEvent(id, "Reunión $id", millis(start), millis(start.plusMinutes(minutes)), false, 0, "Trabajo")
 
-    // ── Huecos libres ─────────────────────────────────────────────────────
+    // ── Free gaps ─────────────────────────────────────────────────────────
 
     @Test
-    fun `hueco hasta la siguiente reunión con la tarea sin hora propuesta`() {
+    fun `gap until the next meeting with a suggested untimed task`() {
         val informe = Task(id = 1, title = "Informe")
         val llamada = Task(id = 2, title = "Llamada", dueAt = millis(now.plusHours(3)), dueHasTime = true)
         val slot = FreeTimeFinder.find(now, listOf(event(10, now.plusMinutes(40))), listOf(informe, llamada), listOf(llamada, informe))
         assertNotNull(slot)
         assertEquals(40, slot!!.minutes)
-        assertEquals("Informe", slot.suggestion?.title) // la de hora fija no se propone para el hueco
+        assertEquals("Informe", slot.suggestion?.title) // the fixed-time one isn't suggested for the gap
     }
 
     @Test
-    fun `si ahora estás en una reunión, el hueco empieza al acabar`() {
+    fun `if you're in a meeting now, the gap starts when it ends`() {
         val slot = FreeTimeFinder.find(now, listOf(event(10, now.minusMinutes(30)), event(11, now.plusMinutes(90))), emptyList(), emptyList())
         assertEquals(millis(now.plusMinutes(30)), slot!!.start)
         assertEquals(60, slot.minutes)
     }
 
     @Test
-    fun `huecos cortos o de madrugada no cuentan`() {
+    fun `short or small-hours gaps don't count`() {
         assertNull(FreeTimeFinder.find(now, listOf(event(10, now.plusMinutes(15))), emptyList(), emptyList())?.takeIf { it.start == millis(now) })
         assertNull(FreeTimeFinder.find(now.withHour(23), emptyList(), emptyList(), emptyList()))
     }
 
-    // ── Repaso de la tarde ────────────────────────────────────────────────
+    // ── Evening check-in ──────────────────────────────────────────────────
 
     @Test
-    fun `repaso con lo hecho y lo pendiente, lo urgente primero`() {
+    fun `check-in with done and pending items, urgent first`() {
         val today = now.withHour(20)
         val tasks = listOf(
             Task(id = 1, title = "Hecha", status = TaskStatus.COMPLETED, completedAt = millis(today.withHour(11))),
@@ -69,14 +69,14 @@ class Lumi32AssistantTest {
     }
 
     @Test
-    fun `sin nada hoy no se molesta`() {
+    fun `with nothing today it doesn't bother`() {
         assertNull(CheckInComposer.compose(listOf(Task(id = 1, title = "Algún día")), now))
     }
 
-    // ── «Llévame a…» ──────────────────────────────────────────────────────
+    // ── "Take me to…" ─────────────────────────────────────────────────────
 
     @Test
-    fun `frases de ruta`() {
+    fun `route phrases`() {
         fun nav(t: String) = engine.parse(t, now)
         assertEquals(TaskAICommand.NAVIGATE, nav("llévame a casa").action)
         assertEquals("casa", nav("llévame a casa").targetTitle)
@@ -86,7 +86,7 @@ class Lumi32AssistantTest {
     }
 
     @Test
-    fun `no confunde rutas con tareas ni resúmenes`() {
+    fun `doesn't confuse routes with tasks or summaries`() {
         assertEquals(TaskAICommand.CREATE, engine.parse("ir al gimnasio mañana", now).action)
         assertEquals(TaskAICommand.SUMMARIZE, engine.parse("¿cómo voy?", now).action)
     }

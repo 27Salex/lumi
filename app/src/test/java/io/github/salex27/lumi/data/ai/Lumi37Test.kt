@@ -13,7 +13,7 @@ import org.junit.Test
 import java.time.LocalDateTime
 import kotlin.random.Random
 
-/** v3.7: varias órdenes en una frase, tareas «para cuando vuelva a casa», botón de acción en los avisos. */
+/** v3.7: several commands in one sentence, "for when I get home" tasks, action button in reminders. */
 class Lumi37Test {
 
     private val engine = RuleBasedEngine(Random(3))
@@ -21,7 +21,7 @@ class Lumi37Test {
     private fun parse(t: String) = engine.parse(t, now)
 
     @Test
-    fun `la frase del usuario crea la tarea limpia con aviso al llegar a casa`() {
+    fun `the user's sentence creates a clean task with an arrive-home reminder`() {
         val c = parse("Una tarea llamada escribir a Roberto para cuando vuelva a casa")
         assertEquals(TaskAICommand.CREATE, c.action)
         assertEquals("Escribir a Roberto", c.targetTitle)
@@ -34,18 +34,18 @@ class Lumi37Test {
     }
 
     @Test
-    fun `que se llama no acaba en el titulo`() {
+    fun `que se llama doesn't end up in the title`() {
         assertEquals("Hacer Installer BIOS sensor para Robert", parse("créame una tarea que se llama hacer Installer BIOS sensor para Robert").targetTitle)
-        // Lo que devolvió Gemma en el móvil del usuario
+        // What Gemma returned on the user's phone
         assertEquals("Hacer Installer BIOS sensor para Robert", TaskPhraseParser.cleanTitle("Que se llama hacer Installer BIOS sensor para Robert"))
         assertEquals("Comprar pan", TaskPhraseParser.cleanTitle("una tarea llamada comprar pan"))
         assertEquals("Revisar el informe", TaskPhraseParser.cleanTitle("Tarea: revisar el informe"))
-        assertEquals("Llamar a la tarea de Ana", TaskPhraseParser.cleanTitle("Llamar a la tarea de Ana")) // no toca lo que no empieza así
+        assertEquals("Llamar a la tarea de Ana", TaskPhraseParser.cleanTitle("Llamar a la tarea de Ana")) // leaves alone what doesn't start like that
         assertEquals("Hacer la tarea de mates", TaskPhraseParser.cleanTitle("Hacer la tarea de mates"))
     }
 
     @Test
-    fun `avisar a alguien al llegar es una tarea, no un mensaje ahora`() {
+    fun `letting someone know on arrival is a task, not a message now`() {
         assertNull(DeviceCommandParser.parse("dile a Roberto que ya estoy cuando llegue a casa"))
         val c = parse("avisa a Roberto cuando llegue a casa")
         assertEquals(TaskAICommand.CREATE, c.action)
@@ -53,7 +53,7 @@ class Lumi37Test {
     }
 
     @Test
-    fun `varias ordenes en una frase`() {
+    fun `several commands in one sentence`() {
         assertEquals(
             listOf("apunta comprar pan", "pon una alarma a las 7", "dile a Ana que llego tarde"),
             CommandSplitter.split("apunta comprar pan y pon una alarma a las 7 y luego dile a Ana que llego tarde")
@@ -62,19 +62,19 @@ class Lumi37Test {
             listOf("crea una tarea escribir a Roberto cuando llegue a casa", "llama a mamá"),
             CommandSplitter.split("crea una tarea escribir a Roberto y avísame cuando llegue a casa, y llama a mamá")
         )
-        // No se rompe lo que es una sola orden
+        // A single command isn't split
         listOf(
             "comprar pan y leche",
             "dile a Ana que compre pan y que me espere",
-            "comprar pan, llamar a Ana y acabar el informe", // lista de tareas → la trata el brain dump
+            "comprar pan, llamar a Ana y acabar el informe", // list of tasks → handled by the brain dump
             "pon el informe como urgente"
         ).forEach { assertEquals(it, 1, CommandSplitter.split(it).size) }
-        // «…y ponle prioridad alta» matiza la orden anterior
+        // "…y ponle prioridad alta" refines the previous command
         assertEquals(listOf("apunta llamar al banco prioridad alta"), CommandSplitter.split("apunta llamar al banco y ponle prioridad alta"))
     }
 
     @Test
-    fun `boton de accion segun la tarea`() {
+    fun `action button depends on the task`() {
         val write = TaskActions.detect(Task(title = "Escribir a Roberto", placeTrigger = PlaceTrigger("casa")))!!
         assertEquals(DeviceCommand.Message("Roberto", "", true), write.command)
         assertEquals("Escribir a Roberto", write.label)

@@ -9,14 +9,14 @@ import org.junit.Test
 import java.time.LocalDateTime
 import kotlin.random.Random
 
-/** v3.7.3: las preguntas se responden; la memoria solo se toca si el usuario lo pide. */
+/** v3.7.3: questions are answered; memory is only touched when the user asks. */
 class QuestionsTest {
 
     private val now = LocalDateTime.of(2026, 9, 29, 10, 0)
     private val rules = RuleBasedEngine(Random(1))
     private fun parse(t: String) = rules.parse(t, now)
 
-    /** Un LLM que siempre contesta lo mismo (como hizo Gemma en el móvil del usuario). */
+    /** An LLM that always answers the same (as Gemma did on the user's phone). */
     private class FakeLlm(val answer: TaskAICommand) : AssistantEngine {
         override val displayName = "Gemma falsa"
         override suspend fun isAvailable() = true
@@ -29,19 +29,19 @@ class QuestionsTest {
     }
 
     @Test
-    fun `la pregunta de la natilla se responde`() {
+    fun `the custard question gets answered`() {
         val phrase = "he dejado una natilla fuera de la nevera toda la noche me la puedo comer"
         assertEquals(TaskAICommand.ASK, parse(phrase).action)
-        // Aunque Gemma diga «recuérdalo», no se guarda en la memoria
+        // Even if Gemma says "remember it", nothing is saved to memory
         val c = viaLlm(phrase, TaskAICommand(action = TaskAICommand.REMEMBER, targetTitle = "He dejado una natilla en la nevera"))
         assertEquals(TaskAICommand.ASK, c.action)
-        // Ni aunque diga crear una tarea
+        // Not even if it says create a task
         assertEquals(TaskAICommand.ASK, viaLlm(phrase, TaskAICommand(action = TaskAICommand.CREATE, targetTitle = "Natilla")).action)
     }
 
-    /** Salidas crudas reales de Gemma 4 E2B en el emulador (el título venía en newTitle). */
+    /** Real raw outputs of Gemma 4 E2B on the emulator (the title came in newTitle). */
     @Test
-    fun `el titulo de Gemma se usa aunque venga en newTitle y la fecha la calculan las reglas`() {
+    fun `Gemma's title is used even in newTitle and the rules compute the date`() {
         val dentist = AssistantPrompts.parseCommand("""{"action":"CREATE","newTitle":"dentista","newStatus":"TODO","category":"HEALTH","dueDate":"2026-09-30T17:00","hasTime":true,"description":null}""")!!
         assertEquals("dentista", dentist.targetTitle)
         val c = viaLlm("mañana tengo dentista a las 5", dentist)
@@ -54,20 +54,20 @@ class QuestionsTest {
         assertEquals("trabajo", m.place)
         assertEquals(false, m.placeOnArrive)
 
-        // Gemma dijo domingo 4 para «el viernes»; las reglas saben que es el viernes 2
+        // Gemma said Sunday 4 for "el viernes"; the rules know it is Friday 2
         val dinner = AssistantPrompts.parseCommand("""{"action":"CREATE","newTitle":"Cena con los del trabajo","newStatus":"TODO","category":"WORK","dueDate":"2026-10-04","hasTime":false,"description":null}""")!!
         assertEquals("2026-10-02", viaLlm("el viernes cena con los del trabajo", dinner).dueDate)
     }
 
     @Test
-    fun `acordarme de que es un recuerdo`() {
+    fun `acordarme de que is a memory`() {
         val c = parse("tengo que acordarme de que el coche está en la planta 3")
         assertEquals(TaskAICommand.REMEMBER, c.action)
         assertEquals("El coche está en la planta 3", c.targetTitle)
     }
 
     @Test
-    fun `preguntas sin interrogaciones`() {
+    fun `questions without question marks`() {
         listOf(
             "es malo dormir con el móvil al lado",
             "el pollo de ayer estará bueno todavía",
@@ -78,10 +78,10 @@ class QuestionsTest {
     }
 
     @Test
-    fun `las ordenes y los recuerdos pedidos no cambian`() {
+    fun `commands and requested memories don't change`() {
         assertEquals(TaskAICommand.CREATE, parse("puedes apuntarme comprar natillas").action)
         assertEquals(TaskAICommand.REMEMBER, parse("recuerda que el wifi de la oficina es Lumi2024").action)
-        // Si lo pide expresamente, el LLM sí puede guardar
+        // If asked explicitly, the LLM may save
         val c = viaLlm("recuerda que he dejado el coche en la planta 2", TaskAICommand(action = TaskAICommand.REMEMBER, targetTitle = "El coche está en la planta 2"))
         assertEquals(TaskAICommand.REMEMBER, c.action)
     }

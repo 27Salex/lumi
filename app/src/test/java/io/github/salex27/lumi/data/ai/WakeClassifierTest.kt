@@ -8,13 +8,13 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** El detector «Oye Lumi» en Kotlin debe dar lo mismo que en PyTorch (casos exportados por train.py). */
+/** The Kotlin "Oye Lumi" detector must match PyTorch (cases exported by train.py). */
 class WakeClassifierTest {
 
     private fun resource(path: String) = javaClass.classLoader!!.getResourceAsStream(path)!!
 
     @Test
-    fun `mismas puntuaciones que el modelo entrenado en Python`() {
+    fun `same scores as the model trained in Python`() {
         val classifier = resource("oww/oye_lumi.bin").use { WakeClassifier.load(it) }
         val cases = JSONArray(resource("oww/parity.json").bufferedReader().readText())
         for (i in 0 until cases.length()) {
@@ -26,11 +26,11 @@ class WakeClassifierTest {
     }
 
     @Test
-    fun `la paciencia exige varias ventanas seguidas`() {
+    fun `patience requires several windows in a row`() {
         val t = WakeTrigger(0.5f, 2)
         assertFalse(t.update(0.9f))
         assertTrue(t.update(0.8f))      // 2 seguidas → activa
-        assertFalse(t.update(0.9f))     // se reinicia tras activar
+        assertFalse(t.update(0.9f))     // resets after triggering
         assertFalse(t.update(0.2f))
         assertFalse(t.update(null))
     }

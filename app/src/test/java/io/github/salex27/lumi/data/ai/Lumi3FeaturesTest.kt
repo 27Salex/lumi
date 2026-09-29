@@ -23,20 +23,20 @@ class Lumi3FeaturesTest {
     private val now = LocalDateTime.of(2026, 9, 28, 10, 0) // lunes
     private fun parse(t: String) = engine.parse(t, now)
 
-    // ── Recurrencia ────────────────────────────────────────────────────────
+    // ── Recurrence ─────────────────────────────────────────────────────────
 
     @Test
-    fun `gimnasio cada lunes y jueves a las 19`() {
+    fun `gym every Monday and Thursday at 19`() {
         val cmd = parse("gimnasio cada lunes y jueves a las 19:00")
         assertEquals(TaskAICommand.CREATE, cmd.action)
         assertEquals("Gimnasio", cmd.targetTitle)
         val r = Recurrence.parse(cmd.recurrence)!!
         assertEquals(setOf(DayOfWeek.MONDAY, DayOfWeek.THURSDAY), r.daysOfWeek)
-        assertEquals("2026-09-28T19:00", cmd.dueDate) // hoy es lunes y aún no son las 19
+        assertEquals("2026-09-28T19:00", cmd.dueDate) // today is Monday and it isn't 19:00 yet
     }
 
     @Test
-    fun `pagar alquiler el día 1 de cada mes`() {
+    fun `pay rent on the 1st of every month`() {
         val cmd = parse("pagar el alquiler el día 1 de cada mes")
         val r = Recurrence.parse(cmd.recurrence)!!
         assertEquals(Recurrence.Frequency.MONTHLY, r.frequency)
@@ -46,7 +46,7 @@ class Lumi3FeaturesTest {
     }
 
     @Test
-    fun `siguiente ocurrencia`() {
+    fun `next occurrence`() {
         val weekly = Recurrence(Recurrence.Frequency.WEEKLY, setOf(DayOfWeek.MONDAY, DayOfWeek.THURSDAY))
         assertEquals(LocalDate.of(2026, 10, 1), weekly.next(LocalDate.of(2026, 9, 28)))
         assertEquals(LocalDate.of(2026, 10, 5), weekly.next(LocalDate.of(2026, 10, 1)))
@@ -58,17 +58,17 @@ class Lumi3FeaturesTest {
     }
 
     @Test
-    fun `serializar y leer recurrencia`() {
+    fun `serialize and read recurrence`() {
         val r = Recurrence(Recurrence.Frequency.WEEKLY, setOf(DayOfWeek.THURSDAY, DayOfWeek.MONDAY))
         assertEquals("WEEKLY:MO,TH", r.serialize())
         assertEquals(r, Recurrence.parse("WEEKLY:MO,TH"))
         assertEquals("Cada lunes y jueves", r.label())
     }
 
-    // ── Reprogramar ────────────────────────────────────────────────────────
+    // ── Rescheduling ───────────────────────────────────────────────────────
 
     @Test
-    fun `mueve la reunión al jueves`() {
+    fun `move the meeting to Thursday`() {
         val cmd = parse("mueve la reunión al jueves")
         assertEquals(TaskAICommand.RESCHEDULE, cmd.action)
         assertEquals("reunión", cmd.targetTitle)
@@ -76,7 +76,7 @@ class Lumi3FeaturesTest {
     }
 
     @Test
-    fun `pospón lo del dentista una semana`() {
+    fun `postpone the dentist a week`() {
         val cmd = parse("pospón lo del dentista una semana")
         assertEquals(TaskAICommand.RESCHEDULE, cmd.action)
         assertEquals("dentista", cmd.targetTitle)
@@ -84,19 +84,19 @@ class Lumi3FeaturesTest {
     }
 
     @Test
-    fun `adelanta la llamada una hora es negativo`() {
+    fun `moving the call an hour earlier is negative`() {
         assertEquals(-60, parse("adelanta la llamada una hora").postponeMinutes)
     }
 
     @Test
-    fun `infinitivo pasar es tarea nueva`() {
+    fun `infinitive pasar is a new task`() {
         assertEquals(TaskAICommand.CREATE, parse("pasar la ITV mañana").action)
     }
 
     // ── Brain dump ─────────────────────────────────────────────────────────
 
     @Test
-    fun `varias tareas en una frase comparten la fecha`() {
+    fun `several tasks in one sentence share the date`() {
         val cmd = parse("mañana tengo que comprar pan, llamar a Ana y acabar el informe")
         assertEquals(TaskAICommand.CREATE_MANY, cmd.action)
         assertEquals(3, cmd.items.size)
@@ -105,23 +105,23 @@ class Lumi3FeaturesTest {
     }
 
     @Test
-    fun `comprar pan y leche es una sola tarea`() {
+    fun `buying bread and milk is a single task`() {
         val cmd = parse("comprar pan y leche")
         assertEquals(TaskAICommand.CREATE, cmd.action)
         assertEquals("Comprar pan y leche", cmd.targetTitle)
     }
 
-    // ── Avisos ─────────────────────────────────────────────────────────────
+    // ── Reminders ──────────────────────────────────────────────────────────
 
     @Test
-    fun `avísame 2 horas antes y 10 minutos antes`() {
+    fun `remind me 2 hours and 10 minutes before`() {
         val cmd = parse("cita con el médico el jueves a las 11, avísame 2 horas antes y 10 minutos antes")
         assertEquals(listOf(120, 10), cmd.remindBeforeMinutes)
         assertEquals("Cita con el médico", cmd.targetTitle)
     }
 
     @Test
-    fun `política automática para una cita importante`() {
+    fun `automatic policy for an important appointment`() {
         val zone = ZoneId.of("UTC")
         val nowMs = now.atZone(zone).toInstant().toEpochMilli()
         val due = LocalDateTime.of(2026, 10, 1, 11, 0).atZone(zone).toInstant().toEpochMilli()
@@ -131,7 +131,7 @@ class Lumi3FeaturesTest {
     }
 
     @Test
-    fun `política para fecha límite sin hora y reunión vinculada`() {
+    fun `policy for an untimed deadline and a linked meeting`() {
         val zone = ZoneId.of("UTC")
         val nowMs = now.atZone(zone).toInstant().toEpochMilli()
         val due = LocalDate.of(2026, 10, 2).atTime(9, 0).atZone(zone).toInstant().toEpochMilli()
@@ -142,16 +142,16 @@ class Lumi3FeaturesTest {
     }
 
     @Test
-    fun `tareas completadas no tienen avisos`() {
+    fun `completed tasks have no reminders`() {
         val task = Task(title = "x", dueAt = System.currentTimeMillis() + 3_600_000, dueHasTime = true,
             status = io.github.salex27.lumi.domain.model.TaskStatus.COMPLETED)
         assertTrue(ReminderPlanner.plan(task, System.currentTimeMillis()).isEmpty())
     }
 
-    // ── Reuniones ──────────────────────────────────────────────────────────
+    // ── Meetings ───────────────────────────────────────────────────────────
 
     @Test
-    fun `pista de reunión y emparejado con el calendario`() {
+    fun `meeting hint and calendar matching`() {
         assertEquals("reunión del sprint", TaskPhraseParser.extractMeetingHint("preparar slides para la reunión del sprint"))
         val nowMs = 1_000L
         val events = listOf(
@@ -160,7 +160,7 @@ class Lumi3FeaturesTest {
             AgendaEvent(3, "Reunión semanal", 3_000, 4_000, false, 0, "")
         )
         assertEquals(2L, MeetingMatcher.match("reunión del sprint", events, nowMs)?.id)
-        assertEquals(3L, MeetingMatcher.match("la reunión", events, nowMs)?.id) // genérica → próxima reunión
+        assertEquals(3L, MeetingMatcher.match("la reunión", events, nowMs)?.id) // generic → next meeting
         assertNull(MeetingMatcher.match("reunión con Marta", events, nowMs))
     }
 }

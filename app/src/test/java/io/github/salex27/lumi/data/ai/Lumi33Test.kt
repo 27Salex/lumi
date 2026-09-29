@@ -9,49 +9,49 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** v3.3: «Oye Lumi» más tolerante (frases aprendidas) y lugares con dirección propia. */
+/** v3.3: more tolerant "Oye Lumi" (learned phrases) and places with their own address. */
 class Lumi33Test {
 
-    // ── «Oye Lumi» ─────────────────────────────────────────────────────────
+    // ── "Oye Lumi" ─────────────────────────────────────────────────────────
 
     @Test
-    fun `transcripciones habituales de un oye rápido activan en Normal`() {
+    fun `usual transcriptions of a quick oye trigger on Normal`() {
         listOf("hoy lumi", "o lumi", "oiga lumi", "¡Oye, Lumí!", "hey lomi").forEach {
             assertTrue(it, WakePhrases.matches(it, emptyList(), Sensitivity.NORMAL))
         }
     }
 
     @Test
-    fun `Estricta solo acepta las palabras de llamada exactas`() {
+    fun `Strict only accepts the exact calling words`() {
         assertTrue(WakePhrases.matches("oye lumi", emptyList(), Sensitivity.STRICT))
         assertFalse(WakePhrases.matches("hoy lumi", emptyList(), Sensitivity.STRICT))
     }
 
     @Test
-    fun `la frase aprendida al entrenar activa aunque el modelo no oiga oye`() {
+    fun `the phrase learned in training triggers even if the model misses oye`() {
         val learned = listOf(WakePhrases.phraseFromSample("olé lumbre")!!)
         assertTrue(WakePhrases.matches("ole lumbre", learned, Sensitivity.NORMAL))
         assertFalse(WakePhrases.matches("ole lumbre", emptyList(), Sensitivity.NORMAL))
     }
 
     @Test
-    fun `Relajada acepta la llamada seguida de dos palabras más`() {
+    fun `Relaxed accepts the call followed by two more words`() {
         assertTrue(WakePhrases.matches("oye lumi qué tal", emptyList(), Sensitivity.RELAXED))
         assertFalse(WakePhrases.matches("oye lumi qué tal", emptyList(), Sensitivity.NORMAL))
     }
 
     @Test
-    fun `la conversación sigue sin activar en Normal`() {
+    fun `conversation still doesn't trigger on Normal`() {
         listOf(
             "oye luis mira esto", "hola luis mi", "hoy lunes tengo reunión", "oye lucía", "hola qué tal",
             "o luego", "hoy llueve", "oye mira", "lo mismo", "hola lucas", "hola luna llena", "hoy luna"
         ).forEach { assertFalse(it, WakePhrases.matches(it, emptyList(), Sensitivity.NORMAL)) }
     }
 
-    // ── Lugares ────────────────────────────────────────────────────────────
+    // ── Places ─────────────────────────────────────────────────────────────
 
     @Test
-    fun `formato antiguo de lugar sigue funcionando`() {
+    fun `old place format still works`() {
         val p = PlaceTrigger.parse("casa|LEAVE")!!
         assertEquals("casa", p.place)
         assertFalse(p.onArrive)
@@ -60,7 +60,7 @@ class Lumi33Test {
     }
 
     @Test
-    fun `dirección suelta y sin aviso se serializan y vuelven igual`() {
+    fun `ad hoc address without reminder survives serialization`() {
         val p = PlaceTrigger("Mercadona Gran Vía", onArrive = true, notify = false, lat = 40.42, lng = -3.70, address = "Gran Vía 12, Madrid")
         val back = PlaceTrigger.parse(p.serialize())!!
         assertEquals(p, back)
