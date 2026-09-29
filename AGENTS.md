@@ -1,113 +1,143 @@
-# 🤖 AGENTS.md — Lumi (Android)
+# AGENTS.md — Lumi (Android)
 
-Guía técnica y reglas operativas para agentes de IA y desarrolladores. Decisiones y su porqué: **`MEMORY.md`**.
-Trabajo pendiente: **`TODO.md`**. Todo el texto de la UI y los comentarios van en **español**.
-
----
-
-## 📌 Visión general
-
-**Lumi** es un gestor de tareas con asistente de IA (marca: logo de dos arcos entrelazados; diseño sobrio Manus × Revolut × Apple).
-Se habla o escribe en lenguaje natural («recuérdame llamar al dentista mañana a las 5»), entiende fechas,
-planifica el día según día de la semana y horario, avisa antes de citas y sincroniza con Google Calendar y Google Tasks.
-
-- **Stack:** Kotlin 2.4, Jetpack Compose (Material 3, tema claro/oscuro propio, edge-to-edge), Coroutines/Flow, Room v6, Glance, Vosk, Play Services Location (geovallas).
-- **IA:** cadena de motores (ver abajo). Dispositivo objetivo: Samsung Galaxy S25 (sin Gemini Nano Prompt API).
-- **Arquitectura:** capas `domain` / `data` / `presentation` + UDF con `StateFlow`. Sin DI: `TaskManagerApplication` es el service locator.
+Technical guide and working rules for AI agents and developers. Decisions and their reasons: **`MEMORY.md`**.
+Pending work: **`TODO.md`**. Code and comments are in **English**; UI text lives in string resources
+(`res/values` = English, default; `res/values-es` = Spanish).
 
 ---
 
-## 🏗️ Estructura (lo no evidente)
+## Overview
+
+**Lumi** is an AI assistant and task manager for Android. You talk or type in natural language, in English or Spanish
+("remind me to call the dentist tomorrow at 5", «recuérdame llamar al dentista mañana a las 5»). It understands dates,
+plans your day around your schedule, reminds you before appointments (by time or by place), answers questions, checks
+the weather, reads and replies to your messages, sets a smart alarm from your calendar, and syncs with Google Calendar
+and Google Tasks.
+
+- **Stack:** Kotlin 2.4, Jetpack Compose (Material 3, own light/dark theme, edge-to-edge), Coroutines/Flow, Room 7,
+  Glance, LiteRT (openWakeWord + LiteRT-LM), Vosk (voice print only), Play Services Location (geofences).
+- **AI:** an engine chain (see below). Reference device: Samsung Galaxy S25 (no Gemini Nano Prompt API).
+- **Architecture:** `domain` / `data` / `presentation` layers + unidirectional data flow with `StateFlow`. No DI
+  framework: `TaskManagerApplication` is the service locator.
+
+---
+
+## Layout (the non-obvious parts)
 
 ```
 domain/
-  ai/AssistantEngine.kt        # Contrato de motores + ReplyRequest + DayPlanResult
-  model/                       # Task, TaskCategory, TaskAICommand, AIProcessingResult, AgendaEvent, Recurrence, TaskReminder
-  reminder/ReminderPlanner.kt  # Política de avisos automáticos de Lumi (pura, testeada)
-  stats/TaskStats.kt           # StatsCalculator (puro, testeado)
-  time/DueDateFormatter.kt     # "hoy a las 17:00", saludos
-  repository/                  # TaskRepository + TaskChangeListener
+  ai/AssistantEngine.kt        # Engine contract + ReplyRequest + DayPlanResult
+  assistant/                   # Conversation (Lang, ReplyLanguage, LanguageDetector, ConversationContext),
+                               # DeviceCommand, MultiStep (CommandSplitter, TaskActions), Messages (routines),
+                               # DayAssistant (AlarmPlanner, DayBriefComposer), ProactiveAssistant (check-in)
+  model/                       # Task, TaskCategory, TaskPriority, TaskAICommand, AIProcessingResult, Recurrence, PlaceTrigger…
+  reminder/ReminderPlanner.kt  # Lumi's automatic reminder policy (pure, tested)
+  stats/  time/  weather/  live/   # StatsCalculator, DueDateFormatter, WeatherAdvisor, LiveUpdatePlanner (all pure)
 data/
-  ai/                          # RuleBasedEngine, SpanishDateParser, TaskPhraseParser, CategoryHeuristics, DayPlanner, MeetingMatcher (puros, testeados)
-                               # LlmEngine (base) → GeminiNanoEngine, GemmaLocalEngine(+GemmaModelManager), CloudGeminiEngine
-                               # AssistantOrchestrator (cadena + reconcile), AssistantPrompts (prompts compartidos)
-  local/                       # Room (v6: tasks, reminders, sync_tombstones) + BriefStore (resumen guardado)
+  ai/                          # RuleBasedEngine, SpanishDateParser, EnglishDateParser, EnglishCommands, TaskPhraseParser,
+                               # CategoryHeuristics, DayPlanner, MeetingMatcher, AssistantIntents, QuickMath (pure, tested)
+                               # LlmEngine (base) → GeminiNanoEngine, GemmaLocalEngine (+GemmaModelManager), CloudGeminiEngine
+                               # AssistantOrchestrator (chain + reconcile), AssistantPrompts (shared prompts)
+  local/                       # Room (v7: tasks, reminders, sync_tombstones, memories) + BriefStore (cached summary)
+  backup/BackupManager.kt      # Export / import everything to a JSON file (phone change, reinstall)
   sync/                        # DeviceCalendar/CalendarTaskSync (CalendarContract), GoogleTasksAuth/GoogleTasksSync (REST)
+  places/ routines/ weather/   # Saved places, routines store, Open-Meteo client
   settings/SettingsRepository  # SharedPreferences → StateFlow<AppSettings>
-service/reminder/              # AlarmManager (una alarma por aviso) + ReminderReceiver (Hecho / +1 h / Responder / reinicio)
-service/wakeword/              # «Oye Lumi»: WakeWordService (Vosk, micrófono en primer plano) + VoskModelManager
-service/LumiTileService.kt     # Tile de Ajustes rápidos
+service/
+  reminder/                    # AlarmManager (one alarm per reminder) + ReminderReceiver (Done / +1 h / Reply / reboot)
+  wakeword/                    # "Oye Lumi": WakeWordService (openWakeWord detector, mic foreground service), Voice Match
+  checkin/ live/ notify/ place/  # Evening check-in + morning summary, Now Bar chip, message reading, geofences
 presentation/
-  main/                        # MainActivity (navegación inferior), HomeScreen, MainViewModel
+  main/                        # MainActivity (bottom nav), HomeScreen, MainViewModel
   tasks/ agenda/ stats/ settings/
-  assistant/                   # AssistantActivity translúcida: modo compacto (píldora, voz) y completo (chat); ACTION_ASSIST y SEND
-  components/LumiMark.kt       # Logo animado (LumiState), brillo de borde, TypewriterText
-  components/AssistantBits.kt  # Kit UI: TaskRow (deslizar), SmartBar, ListGroup/ListRow, PillButton, SectionHeader…
-  theme/LumiTheme.kt           # Tokens LumiColors claro/oscuro, Inter, iconos/colores de categoría
+  assistant/                   # Translucent AssistantActivity: compact (pill, voice) and full (chat); ACTION_ASSIST and SEND
+  agent/                       # DeviceActions (calls, messages, alarms…), ContactAliases, ActionPreview
+  components/                  # LumiMark (animated logo), AssistantBits (UI kit), UiLabels (labels in the app language)
+  theme/LumiTheme.kt           # LumiColors light/dark tokens, Inter, category icons/colors
   widget/QuickTaskWidget.kt    # Glance + WidgetUpdater
-docs/GOOGLE_TASKS_SETUP.md     # Cliente OAuth para Google Tasks (lo hace el usuario una vez)
+docs/GOOGLE_TASKS_SETUP.md     # OAuth client for Google Tasks (the user does it once)
+tools/gemma_batch.sh           # Runs a batch of phrases through the real Gemma on a device and greps the log
 ```
 
 ---
 
-## ⚙️ Compilación (Windows / PowerShell, solo existe `gradlew.bat`)
+## Building (Windows / PowerShell; `gradlew` also exists for Linux/macOS)
 
 ```powershell
 .\gradlew.bat compileDebugKotlin --console=plain
 .\gradlew.bat assembleDebug
 .\gradlew.bat testDebugUnitTest
-.\gradlew.bat testDebugUnitTest --tests "io.github.salex27.lumi.data.ai.SpanishDateParserTest"
+.\gradlew.bat testDebugUnitTest --tests "io.github.salex27.lumi.data.ai.EnglishTest"
 ```
 
-- **JDK 17** fijado en `gradle.properties`. AGP 8.13.2 · Gradle 8.14.3 · Kotlin 2.4.20 · KSP 2.3.12 · compileSdk/targetSdk 36.
-- **No subir** core-ktx ≥1.19, lifecycle ≥2.11, activity ≥1.13 ni Compose BOM ≥2026.08: exigen compileSdk 37 + AGP 9.1.
-- No editar ficheros con `Set-Content` de PowerShell 5 (rompe UTF-8). Usar las herramientas de edición o Python.
+- **JDK 17** is pinned in `gradle.properties`. AGP 8.13.2 · Gradle 8.14.3 · Kotlin 2.4.20 · KSP 2.3.12 · compileSdk/targetSdk 36.
+- **Don't bump** core-ktx ≥1.19, lifecycle ≥2.11, activity ≥1.13 or Compose BOM ≥2026.08: they require compileSdk 37 + AGP 9.1.
+- Don't edit files with PowerShell 5 `Set-Content` (it breaks UTF-8). Use the editing tools or Python.
 
 ---
 
-## 🧠 Reglas clave
+## Key rules
 
-### 1. Motores de IA
-- Orden: Gemini Nano → **Gemma (sin timeout)** → Gemini cloud (opcional) → reglas. Un motor devuelve `null` si no puede → siguiente.
-- El LLM **solo interpreta y redacta**; plan del día, fechas y estadísticas los calcula el código. Así un modelo pequeño no inventa datos.
-- `AssistantOrchestrator.reconcile`: si el LLM omite fecha/categoría que las reglas detectaron, se completan; la descripción del LLM
-  solo se acepta si sale literalmente de lo que dijo el usuario.
-- Si se añade un campo a `TaskAICommand`: actualizar esquema de `AssistantPrompts.INTERPRET_SYSTEM`, `RuleBasedEngine.parse` y `reconcile`.
-- **Gemma (LiteRT-LM):** siempre `ThinkingConfig(enableThinking = false)` y `maxOutputToken`; al cancelar, `conversation.cancelProcess()`.
-- GPU de Gemma: el manifest DEBE declarar `<uses-native-library>` para `libOpenCL.so` y `libvndksupport.so`; si la GPU falla al generar se pasa a CPU automáticamente.
-- **AICore/Gemini Nano** solo infiere con una Activity en primer plano → nunca llamar a la IA desde un `Service`.
-- Respuestas del LLM en JSON puro; `AssistantPrompts.parseCommand` tolera ```json y texto alrededor.
+### 1. AI engines
+- Order: Gemini Nano → **Gemma (no timeout)** → Gemini cloud (optional) → rules. An engine returns `null` if it can't
+  answer → the next one tries.
+- The LLM **only interprets and phrases**; day plans, dates and stats are computed by code, so a small model can't make
+  data up. Intents that the rules recognise reliably (weather, device actions, follow-ups, routines…) are RULES_FIRST
+  and skip the LLM.
+- `AssistantOrchestrator.reconcile`: fills in what the LLM left out; the rules' date wins (Gemma gets weekdays wrong);
+  the LLM description is only accepted if it literally comes from what the user said.
+- Adding a field to `TaskAICommand`: update the schema in `AssistantPrompts.INTERPRET_SYSTEM`, `RuleBasedEngine.parse`,
+  `EnglishCommands.parse` and `reconcile`.
+- **Gemma (LiteRT-LM):** always `ThinkingConfig(enableThinking = false)` and `maxOutputToken`; on cancel,
+  `conversation.cancelProcess()`. The emulator's WebGPU crashes → CPU on emulators; a `gpu_trial_pending` flag switches
+  to CPU after a GPU crash.
+- The manifest MUST declare `<uses-native-library>` for `libOpenCL.so` and `libvndksupport.so` (Gemma on GPU).
+- **AICore/Gemini Nano** only runs inference with an Activity in the foreground → never call the AI from a `Service`.
+- LLM output is plain JSON; `AssistantPrompts.parseCommand` tolerates ```json fences and text around it.
 
-### 2. Datos
-- Room v6 con migraciones manuales (`exportSchema = false`): cualquier cambio de esquema = subir versión + `Migration`.
-- Actualizar tareas con `TaskEntity.mergeFrom(task)` (conserva `google_task_id`, `calendar_event_id`…), nunca `toEntity()`.
-- Toda escritura pasa por `TaskRepository` → notifica a `TaskChangeListener` (calendario, Google Tasks, widget) y a recordatorios.
-- `completedAt` lo sella el repositorio según el estado (las estadísticas dependen de ello).
+### 2. Languages
+- `ReplyLanguage.app` = the UI language (from the configuration; per-app language on Android 13+).
+  `ReplyLanguage.current` = the language of the conversation in progress (detected per sentence).
+- Android layers use string resources. Pure Kotlin uses `ReplyLanguage.t(es, en)` (conversation) or
+  `ReplyLanguage.ui(es, en)` (UI/notifications).
+- Screens must show domain labels in the app language: `uiLabel`, `uiLocale`, `DueDateFormatter.format(…, lang = ReplyLanguage.app)`.
+  Never the plain `label` getter in UI code.
+- Resource names can't be Java keywords (`import`, `package`…): the resource merger fails.
 
-### 3. Coroutines / Flow
-- `combine` tipado admite **máximo 5 flujos**: agrupar en sub-estados (ver `SettingsExtras`, `Filters`, `BriefingState`).
+### 3. Data
+- Room v7 with hand-written migrations (`exportSchema = false`): any schema change = bump the version + a `Migration`.
+- Update tasks with `TaskEntity.mergeFrom(task)` (keeps `google_task_id`, `calendar_event_id`…), never `toEntity()`.
+- Every write goes through `TaskRepository` → notifies `TaskChangeListener`s (calendar, Google Tasks, widget, places,
+  live update) and the reminders.
+- `completedAt` is stamped by the repository from the status (stats depend on it).
+- A new preference or table must be added to `BackupManager` (and to its exclusion list if it is tied to the phone or secret).
 
-### 4. Compose y diseño
-- Colores SIEMPRE desde `Lumi.colors` (nunca hex sueltos en pantallas). Texto de acento con `accentText`, rellenos con `accent`.
-- Sin degradados en textos ni botones; el degradado es exclusivo de `LumiMark` y `ScreenEdgeGlow`. Sin emojis en la UI.
-- Categorías: `category.icon()` + `category.color(isDark)` + nombre (el color nunca va solo).
-- `LumiState` alimenta logo y brillo de borde. Nuevos estados → revisar todos los `when` sobre `LumiState`.
-- Para que un contenedor bloquee toques usar `clickable(indication = null, …) {}`; `clickable(enabled = false)` NO consume eventos.
+### 4. Coroutines / Flow
+- Typed `combine` takes **at most 5 flows**: group into sub-states (see `SettingsExtras`, `Filters`, `BriefingState`).
 
-### 5. Glance (widget)
-- Colores con `ColorProvider(day = …, night = …)` de `androidx.glance.color`.
-- Abrir Activities con `actionStartActivity(intent)` (un `startActivity` desde `ActionCallback` es "background activity launch" en Android 14+).
-- El widget se refresca desde `WidgetUpdater` (listener del repositorio), no por polling. Fondos con variantes `drawable-night`.
+### 5. Compose and design
+- Colors ALWAYS from `Lumi.colors` (never loose hex values in screens). Accent text with `accentText`, fills with `accent`.
+- No gradients on text or buttons; the gradient belongs only to `LumiMark` and `ScreenEdgeGlow`. No emojis in the UI.
+- Categories: `category.icon()` + `category.color(isDark)` + name (color never alone).
+- `LumiState` drives the logo and edge glow. New states → review every `when` over `LumiState`.
+- To make a container swallow taps use `clickable(indication = null, …) {}`; `clickable(enabled = false)` does NOT consume events.
 
-### 6. Gráficos
-- Seguir la skill dataviz: serie única sin leyenda, ≥2 series con leyenda, un solo eje, texto en colores de tinta, tabla de datos accesible.
-- Colores de series: azul `#3987E5`, naranja `#D95926` (pasos oscuros validados). Estados (verde/rojo) no se usan como series.
+### 6. Glance (widget)
+- Colors with `ColorProvider(day = …, night = …)` from `androidx.glance.color`.
+- Open Activities with `actionStartActivity(intent)` (a `startActivity` from an `ActionCallback` is a background
+  activity launch on Android 14+).
+- The widget is refreshed by `WidgetUpdater` (a repository listener), not by polling. Backgrounds have `drawable-night` variants.
 
-### 7. Avisos, recurrencia y voz
-- Los avisos se gestionan por `ReminderScheduler.schedule(task)` (recalcula AUTO, conserva CUSTOM). Borrar tarea: `cancel` ANTES de borrar.
-- Completar una tarea recurrente crea la siguiente en `TaskRepositoryImpl.updateTask` (no duplicar esa lógica en la UI).
-- `WakeWordService` solo se arranca con la app en primer plano (Android 14) y se pausa con `WakeWordService.pause/resume`
-  mientras cualquier otra cosa use el micrófono.
+### 7. Charts
+- Follow the dataviz skill: single series without a legend, ≥2 series with a legend, one axis, text in ink colors,
+  an accessible data table.
+- Series colors: blue `#3987E5`, orange `#D95926` (validated dark steps). Status colors (green/red) are not series colors.
 
-### 8. Ahorro de peticiones a la IA
-- El resumen diario se guarda (`BriefStore`) y no se regenera al abrir la app; las estadísticas nunca llaman a la IA.
+### 8. Reminders, recurrence and voice
+- Reminders go through `ReminderScheduler.schedule(task)` (recomputes AUTO, keeps CUSTOM). Deleting a task: `cancel` BEFORE deleting.
+- Completing a recurring task creates the next one in `TaskRepositoryImpl.updateTask` (don't duplicate that in the UI).
+- `WakeWordService` can only start with the app in the foreground (Android 14) and is paused with
+  `WakeWordService.pause/resume` while anything else uses the microphone.
+
+### 9. Saving AI requests
+- The daily summary is cached (`BriefStore`, per day and language) and not regenerated on every app start; stats never call the AI.

@@ -1,3 +1,4 @@
+# Spanish
 créame una tarea que se llama revisar la caldera
 mañana tengo dentista a las 5
 estoy cansadísimo hoy
@@ -8,3 +9,14 @@ oye lo del informe ya lo he terminado
 cuánto tarda en cocerse un huevo
 me duele la cabeza desde esta mañana qué me tomo
 necesito que me recuerdes llamar a mi madre cuando salga del trabajo
+# English
+remind me to renew my passport next month
+I have the dentist tomorrow at 5
+I'm so tired today
+what can I cook tonight with eggs and potatoes
+I need to remember that the car is on level 3
+dinner with the work people on friday
+hey, the report is done
+how long does it take to boil an egg
+remind me to call my mum when I leave work
+add milk, bread and coffee to my shopping list

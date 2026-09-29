@@ -1,37 +1,34 @@
-# Conectar Lumi con Google Tasks (gratis, ~10 min)
+# Connecting Lumi to Google Tasks (free, ~10 min)
 
-La API de Google Tasks es gratuita (límite de cortesía: 50.000 peticiones/día). Solo hay que
-decirle a Google que la app Lumi puede pedir permiso a tu cuenta. **No hace falta tarjeta.**
+The Google Tasks API is free (courtesy limit: 50,000 requests/day). You only need to tell Google that the Lumi app
+may ask your account for permission. **No credit card needed.**
 
-> Google Calendar **no** necesita nada de esto: Lumi usa los calendarios que ya están en el móvil
-> (Ajustes → Google Calendar → «Dar permiso de calendario»).
+> Google Calendar does **not** need any of this: Lumi uses the calendars already on the phone
+> (Settings → Google Calendar → Connect).
 
-## Pasos
+## Steps
 
-1. Entra en <https://console.cloud.google.com> con tu cuenta de Google y crea un proyecto
-   (p. ej. «Lumi»).
-2. **APIs y servicios → Biblioteca** → busca **Google Tasks API** → **Habilitar**.
-3. **APIs y servicios → Pantalla de consentimiento de OAuth**
-   - Tipo de usuario: **Externo**.
-   - Nombre de la app: «Lumi», email de asistencia y de contacto: el tuyo.
-   - En **Usuarios de prueba** añade tu propia cuenta de Google.
-   - No hace falta publicar la app ni verificarla (uso personal en modo «prueba»).
-4. **APIs y servicios → Credenciales → Crear credenciales → ID de cliente de OAuth**
-   - Tipo de aplicación: **Android**.
-   - Nombre del paquete: `io.github.salex27.lumi`
-   - Huella SHA-1: cópiala desde la app (**Ajustes → Google Tasks → Configuración única**,
-     botón «Copiar»). Cada certificado de firma tiene su SHA-1: el APK de depuración de este PC
-     tiene uno; si algún día firmas un APK de release, añade también su SHA-1.
-5. En la app: **Ajustes → Google Tasks → Conectar con Google Tasks** → elige tu cuenta → Permitir.
+1. Go to <https://console.cloud.google.com> with your Google account and create a project (e.g. "Lumi").
+2. **APIs & Services → Library** → search for **Google Tasks API** → **Enable**.
+3. **APIs & Services → OAuth consent screen**
+   - User type: **External**.
+   - App name: "Lumi"; support and contact email: yours.
+   - Under **Test users**, add your own Google account.
+   - You don't need to publish or verify the app (personal use in "testing" mode).
+4. **APIs & Services → Credentials → Create credentials → OAuth client ID**
+   - Application type: **Android**.
+   - Package name: `io.github.salex27.lumi`
+   - SHA-1 fingerprint: copy it from the app (**Settings → Google Tasks setup**, "Copy" button). Each signing
+     certificate has its own SHA-1: a debug APK built on your PC has one; if you sign a release APK, add its SHA-1 too.
+5. In the app: **Settings → Google Tasks → Connect** → choose your account → Allow.
 
-Lumi crea una lista **«Lumi»** en Google Tasks y sincroniza en los dos sentidos
-(al abrir la app y unos segundos después de cada cambio).
+Lumi creates a **"Lumi"** list in Google Tasks and syncs both ways (when the app opens and a few seconds after each
+change).
 
-## Limitaciones conocidas
+## Known limitations
 
-- Google Tasks solo guarda la **fecha** de vencimiento, no la hora. Lumi conserva la hora en el
-  móvil mientras el día no cambie.
-- Las tareas **canceladas** se borran de Google Tasks (allí no existe ese estado).
-- En modo «prueba», Google puede volver a pedir el permiso de vez en cuando: Ajustes mostrará
-  «Hay que volver a dar permiso» con un botón para hacerlo.
-- Error «Falta configurar el cliente OAuth…» = el paquete o el SHA-1 del paso 4 no coinciden.
+- Google Tasks only stores the due **date**, not the time. Lumi keeps the time on the phone while the day doesn't change.
+- **Cancelled** tasks are deleted from Google Tasks (that status doesn't exist there).
+- In "testing" mode Google may ask for the permission again now and then: Settings will show "Permission needs to be
+  granted again" with a button to do it.
+- An "OAuth client isn't configured" error means the package name or the SHA-1 from step 4 don't match.
