@@ -48,6 +48,8 @@ object EnglishCommands {
         // A question is never a task: memory → tasks → general knowledge
         if (QUESTION.containsMatchIn(text)) return TaskAICommand(action = TaskAICommand.RECALL, targetTitle = text)
 
+        shoppingList(text)?.let { return it }
+
         val chunks = splitList(text)
         if (chunks.size > 1) {
             val shared = EnglishDateParser.parse(text, now)
@@ -275,7 +277,7 @@ object EnglishCommands {
 
     private fun memory(text: String, now: LocalDateTime): TaskAICommand? {
         Regex("$I^forget\\s+(?:that\\s+|about\\s+)(.+)$").find(text)?.let { return TaskAICommand(action = TaskAICommand.FORGET, targetTitle = it.groupValues[1].trim()) }
-        val fact = Regex("$I^(?:hey\\s+)?(?:remember|keep\\s+in\\s+mind|note)\\s+that\\s+(.+)$").find(text)?.groupValues?.get(1)?.trim()
+        val fact = Regex("$I^(?:hey\\s+)?(?:please\\s+)?(?:i\\s+(?:need|have|want)\\s+to\\s+|don'?t\\s+(?:let\\s+me\\s+)?forget\\s+|you\\s+should\\s+)?(?:remember|keep\\s+in\\s+mind|note)?\\s*(?:that\\s+)(.+)$").takeIf { AssistantIntents.asksToRemember(text) }?.find(text)?.groupValues?.get(1)?.trim()
             ?: text.takeIf { Regex("$I^my\\s+[\\p{L} ]{2,40}?\\s+(?:is|are|lives\\s+in|is\\s+called)\\s+.+$").matches(it.trim()) && !QUESTION.containsMatchIn(it) }?.trim()
             ?: return null
         val looksLikeTask = Regex("$I\\b(?:i\\s+(?:need|have)\\s+to|must|should)\\b").containsMatchIn(fact) || EnglishDateParser.parse(fact, now) != null
@@ -399,6 +401,14 @@ object EnglishCommands {
         "buy", "call", "send", "finish", "pay", "book", "clean", "pick", "take", "write", "read", "email", "fix", "prepare",
         "check", "get", "go", "make", "do", "cook", "study", "walk", "visit", "order", "return", "wash", "text", "print", "review"
     )
+
+    /** "add milk, bread and coffee to my shopping list" → one "Buy …" task per item. */
+    private fun shoppingList(text: String): TaskAICommand? {
+        val m = Regex("$I^(?:please\\s+)?(?:add|put)\\s+(.+?)\\s+(?:to|on)\\s+(?:my|the)\\s+(?:shopping|grocery|groceries)\\s+list\\.?$").find(text.trim()) ?: return null
+        val items = m.groupValues[1].split(Regex("$I\\s*(?:,|\\s+and\\s+)\\s*")).map { it.trim().removePrefix("some ") }.filter { it.isNotBlank() }
+        val tasks = items.map { TaskAICommand(action = TaskAICommand.CREATE, targetTitle = "Buy $it", category = "PERSONAL") }
+        return if (tasks.size == 1) tasks.first() else TaskAICommand(action = TaskAICommand.CREATE_MANY, items = tasks)
+    }
 
     private fun splitList(text: String): List<String> {
         val body = text.replace(CREATE_PREFIX, "")

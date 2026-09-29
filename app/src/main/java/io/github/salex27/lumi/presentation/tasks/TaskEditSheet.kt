@@ -401,6 +401,7 @@ private fun PlaceEditor(
         if (!loading && query.trim().length >= 3 && results.isEmpty()) {
             Text(stringResource(R.string.place_no_results), style = MaterialTheme.typography.bodySmall, color = c.textTertiary)
         }
+        if (results.isNotEmpty()) Text(stringResource(R.string.place_attribution), style = MaterialTheme.typography.labelSmall, color = c.textTertiary)
     }
 
     if (current != null && !searching) {

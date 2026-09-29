@@ -5,6 +5,7 @@ ADB="${ADB:-$HOME/AppData/Local/Android/Sdk/platform-tools/adb.exe}"
 P=io.github.salex27.lumi
 OUT="${OUT:-gemma_batch_out.txt}"
 : > "$OUT"
+# The phrase is shell-escaped with printf %q (apostrophes like "I'm" broke plain quoting).
 # Phrases are read from fd 3: adb would otherwise swallow stdin and only the first phrase would run
 while IFS= read -r phrase <&3; do
   [ -z "$phrase" ] && continue
@@ -12,7 +13,7 @@ while IFS= read -r phrase <&3; do
   $ADB </dev/null shell am force-stop $P
   $ADB </dev/null logcat -c
   START=$(date +%s)
-  MSYS_NO_PATHCONV=1 $ADB </dev/null shell am start -n $P/.presentation.assistant.AssistantActivity --es prompt "'$phrase'" >/dev/null
+  MSYS_NO_PATHCONV=1 $ADB </dev/null shell am start -n $P/.presentation.assistant.AssistantActivity --es prompt "$(printf '%q' "$phrase")" >/dev/null
   # Wait for the interpretation and the reply (4 min at most)
   for i in $(seq 1 48); do
     sleep 5

@@ -4,7 +4,7 @@
         <item name="android:windowBackground">#07080D</item>
     </style>
 
-    <!-- Panel del asistente: ventana translúcida sobre la app que estuviera abierta (como Gemini) -->
+    <!-- Assistant panel: a translucent window over whatever app was open (like Gemini) -->
     <style name="Theme.Lumi.Assistant" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>

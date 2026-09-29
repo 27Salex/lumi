@@ -1,40 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Descarga de Gemma y Gemini cloud (opcional) -->
+    <!-- Gemma download and Gemini cloud (optional) -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <!-- «Oye Lumi»: escucha en primer plano + abrir el asistente sobre otras apps al oír la palabra -->
+    <!-- "Oye Lumi": foreground listening + opening the assistant over other apps when the phrase is heard -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <!-- Recordatorios -->
+    <!-- Reminders -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
-    <!-- Google Calendar a través del calendario del sistema (Agenda + citas como eventos) -->
+    <!-- Google Calendar through the system calendar (Agenda + appointments as events) -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
-    <!-- Avisos por lugar («cuando llegue a casa»): geovallas, también con la app cerrada -->
+    <!-- Place reminders ("when I get home"): geofences, also with the app closed -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-    <!-- Actualizaciones en directo (Android 16 / Now Bar de Samsung) -->
+    <!-- Live updates (Android 16 / Samsung Now Bar) -->
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
-    <!-- Modo agente: llamar a contactos por nombre, alarmas y temporizadores -->
+    <!-- Agent mode: calling contacts by name, alarms and timers -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.CALL_PHONE" />
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
-    <!-- Rutinas: «buenas noches» activa No molestar (el usuario da el acceso una vez) -->
+    <!-- Routines: "good night" turns on Do Not Disturb (the user grants access once) -->
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
 
-    <!-- Reconocimiento de voz: necesario para consultar el servicio en Android 11+ -->
+    <!-- Speech recognition: needed to query the service on Android 11+ -->
     <queries>
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
-        <!-- «Cómo llegar»: ver qué apps de mapas hay (Google Maps, Waze…) y la voz del sistema -->
+        <!-- "Directions": see which maps apps exist (Google Maps, Waze…) and the system TTS -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="geo" />
@@ -43,7 +43,7 @@
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
         <package android:name="com.waze" />
-        <!-- «Abre X»: ver las apps instaladas; música, búsqueda, llamadas y WhatsApp -->
+        <!-- "Open X": see installed apps; music, search, calls and WhatsApp -->
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
@@ -62,7 +62,7 @@
         <package android:name="com.google.android.apps.maps" />
     </queries>
 
-    <!-- allowBackup=false: la API key de Gemini no debe viajar en copias de seguridad -->
+    <!-- allowBackup=false: the Gemini API key must not travel in system backups (Lumi has its own backup) -->
     <application
         android:name=".TaskManagerApplication"
         android:allowBackup="false"
@@ -74,8 +74,8 @@
         android:theme="@style/Theme.Lumi">
 
         <!--
-            GPU de Gemma (LiteRT-LM): desde Android 12 las librerías nativas del fabricante no son visibles
-            para las apps salvo que se declaren. Sin esto: "Can not find OpenCL library on this device".
+            Gemma on GPU (LiteRT-LM): since Android 12, vendor native libraries aren't visible to apps unless
+            declared. Without this: "Can not find OpenCL library on this device".
         -->
         <uses-native-library android:name="libOpenCL.so" android:required="false" />
         <uses-native-library android:name="libvndksupport.so" android:required="false" />
@@ -92,9 +92,9 @@
         </activity>
 
         <!--
-            Panel del asistente (estilo Gemini). ACTION_ASSIST hace que la app aparezca en
-            Ajustes → Aplicaciones predeterminadas → Asistente digital; así se abre con el botón
-            lateral / gesto de esquina sobre cualquier app. Tarea propia para no arrastrar la app principal.
+            Assistant panel (Gemini style). ACTION_ASSIST makes the app appear in Settings → Default apps →
+            Digital assistant, so it opens with the side button / corner gesture over any app. Its own task so it
+            doesn't drag the main app along.
         -->
         <activity
             android:name=".presentation.assistant.AssistantActivity"
@@ -113,15 +113,15 @@
                 <action android:name="android.intent.action.VOICE_COMMAND" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
-            <!-- Compartir → Lumi desde cualquier app (textos y enlaces) -->
-            <intent-filter android:label="Añadir a Lumi">
+            <!-- Share → Lumi from any app (text and links) -->
+            <intent-filter android:label="@string/share_label">
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
 
-        <!-- Tile de Ajustes rápidos -->
+        <!-- Quick Settings tile -->
         <service
             android:name=".service.LumiTileService"
             android:exported="true"
@@ -133,7 +133,7 @@
             </intent-filter>
         </service>
 
-        <!-- «Oye Lumi»: palabra de activación offline (solo si el usuario la activa en Ajustes) -->
+        <!-- "Oye Lumi": offline wake word (only if the user turns it on in Settings) -->
         <service
             android:name=".service.wakeword.WakeWordService"
             android:exported="false"
@@ -166,18 +166,18 @@
             android:name=".service.checkin.MorningReceiver"
             android:exported="false" />
 
-        <!-- «¿Qué me han escrito?»: lee las notificaciones de mensajes (solo si el usuario da el acceso) -->
+        <!-- "What did they write to me?": reads message notifications (only if the user grants access) -->
         <service
             android:name=".service.notify.LumiNotificationListener"
             android:exported="true"
-            android:label="Lumi · leer mensajes"
+            android:label="@string/notification_listener_label"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
 
-        <!-- Diagnóstico del detector «Oye Lumi»: solo lo puede llamar adb/el sistema (permiso DUMP), nunca otra app -->
+        <!-- "Oye Lumi" detector diagnostics: only adb/the system can call it (DUMP permission), never another app -->
         <receiver
             android:name=".service.wakeword.WakeSelfTestReceiver"
             android:exported="true"

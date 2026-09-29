@@ -68,6 +68,16 @@ class EnglishTest {
     }
 
     @Test
+    fun `next month, weekends and months ahead`() {
+        val m = EnglishDateParser.parse("renew my passport next month", now)!!
+        assertEquals(LocalDate.of(2026, 10, 28), m.dateTime.toLocalDate())
+        assertEquals("renew my passport", m.remainingText)
+        assertEquals(LocalDate.of(2026, 10, 3), EnglishDateParser.parse("clean the garage this weekend", now)!!.dateTime.toLocalDate())
+        assertEquals(LocalDate.of(2026, 10, 10), EnglishDateParser.parse("visit grandma next weekend", now)!!.dateTime.toLocalDate())
+        assertEquals(LocalDate.of(2026, 12, 28), EnglishDateParser.parse("dentist check-up in 3 months", now)!!.dateTime.toLocalDate())
+    }
+
+    @Test
     fun `no date in English returns null`() {
         assertNull(EnglishDateParser.parse("buy milk", now))
     }
@@ -81,6 +91,30 @@ class EnglishTest {
         assertEquals("Call the bank", c.targetTitle)
         assertEquals("2026-09-29T17:00", c.dueDate)
         assertTrue(c.hasTime)
+    }
+
+    @Test
+    fun `English titles drop a leading the`() {
+        assertEquals("Dentist", parse("I have the dentist tomorrow at 5").targetTitle)
+        assertEquals("Dentist", TaskPhraseParser.cleanTitle("the dentist"))
+    }
+
+    @Test
+    fun `remember that is a memory, not a task`() {
+        val c = parse("I need to remember that the car is on level 3")
+        assertEquals(TaskAICommand.REMEMBER, c.action)
+        assertEquals("The car is on level 3", c.targetTitle)
+        assertTrue(AssistantIntents.asksToRemember("I need to remember that the car is on level 3"))
+        assertEquals(TaskAICommand.CREATE, parse("remind me to buy bread").action)
+    }
+
+    @Test
+    fun `shopping list items become buy tasks`() {
+        val c = parse("add milk, bread and coffee to my shopping list")
+        assertEquals(TaskAICommand.CREATE_MANY, c.action)
+        assertEquals(listOf("Buy milk", "Buy bread", "Buy coffee"), c.items.map { it.targetTitle })
+        assertEquals("Buy milk", TaskPhraseParser.cleanTitle("Add milk to shopping list"))
+        assertEquals("Comprar leche", TaskPhraseParser.cleanTitle("añadir leche a la lista de la compra"))
     }
 
     @Test

@@ -59,7 +59,7 @@ class PlaceSearch(private val context: Context, private val places: PlacesStore)
 
     private suspend fun photon(q: String, max: Int, near: Pair<Double, Double>?): List<Result> = withContext(Dispatchers.IO) {
         val bias = near?.let { "&lat=${"%.4f".format(java.util.Locale.US, it.first)}&lon=${"%.4f".format(java.util.Locale.US, it.second)}" }.orEmpty()
-        val url = java.net.URL("https://photon.komoot.io/api/?q=${android.net.Uri.encode(q)}&limit=${max + 3}$bias")
+        val url = java.net.URL("https://photon.komoot.io/api/?q=${android.net.Uri.encode(q)}&limit=${max + 3}&lang=${if (io.github.salex27.lumi.domain.assistant.ReplyLanguage.app == io.github.salex27.lumi.domain.assistant.Lang.EN) "en" else "default"}$bias")
         val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
             connectTimeout = 6_000; readTimeout = 8_000
             setRequestProperty("User-Agent", "Lumi-Android/1.0 (personal assistant; github.com/27Salex/lumi)")
@@ -90,7 +90,7 @@ class PlaceSearch(private val context: Context, private val places: PlacesStore)
     }
 
     private suspend fun geocoder(q: String, max: Int): List<Result> {
-        val geocoder = Geocoder(context, Locale.forLanguageTag("es-ES"))
+        val geocoder = Geocoder(context, Locale.forLanguageTag(if (io.github.salex27.lumi.domain.assistant.ReplyLanguage.app == io.github.salex27.lumi.domain.assistant.Lang.EN) "en" else "es-ES"))
         // A ~50 km box around your places (if any); otherwise an unbiased search
         val anchor = places.places.value.firstOrNull()
         val addresses = runCatching {

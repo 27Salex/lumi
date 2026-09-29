@@ -147,7 +147,10 @@ class AssistantOrchestrator(
         val llmDateValid = llm.dueDate?.let { runCatching { parseIso(it) }.isSuccess } == true
         return llm.copy(
             // "Uncleaned" title (the sentence was copied: "una tarea llamada … para cuando vuelva a casa") → the rules' one
-            targetTitle = llm.targetTitle?.let(TaskPhraseParser::cleanTitle)?.takeIf { it.isNotBlank() && !looksUncleaned(it) } ?: rules.targetTitle,
+            // A title with no word from the sentence was copied from an example or translated ("Dentista" for "I have
+            // the dentist…") → the rules' one
+            targetTitle = llm.targetTitle?.let(TaskPhraseParser::cleanTitle)
+                ?.takeIf { it.isNotBlank() && !looksUncleaned(it) && comesFrom(it, prompt) } ?: rules.targetTitle,
             // The LLM's description only counts if it comes literally from what the user said (not invented)
             description = llm.description?.takeIf { isQuotedFrom(it, prompt) } ?: rules.description,
             category = llm.category ?: rules.category,
@@ -169,6 +172,13 @@ class AssistantOrchestrator(
         "(?iu)\\btarea\\s+(?:llamada|que\\s+se\\s+llame)|\\b(?:cuando|en\\s+cuanto)\\s+(?:llegue|vuelva|salga|regrese)\\b|^recu[eé]rdame\\b|\\bav[ií]same\\b|^(?:crea|apunta|a[ñn]ade)\\s+|" +
             "\\btask\\s+(?:called|named)|\\bwhen\\s+i\\s+(?:get|arrive|leave)\\b|^remind\\s+me\\b|^(?:create|add)\\s+"
     ).containsMatchIn(title)
+
+    /** True when at least one meaningful word of [title] appears in [source] (so it wasn't invented or translated). */
+    private fun comesFrom(title: String, source: String): Boolean {
+        val src = CategoryHeuristics.normalize(source)
+        val words = CategoryHeuristics.normalize(title).split(Regex("\\W+")).filter { it.length >= 3 }
+        return words.isEmpty() || words.any { src.contains(it) }
+    }
 
     /** True when at least 80 % of the words of [text] appear in [source]. */
     private fun isQuotedFrom(text: String, source: String): Boolean {

@@ -489,6 +489,7 @@ private fun AddPlaceBySearch(actions: SettingsActions) {
             Text(stringResource(R.string.save), style = MaterialTheme.typography.labelLarge, color = c.accentText)
         }
     }
+    if (results.isNotEmpty()) Text(stringResource(R.string.place_attribution), style = MaterialTheme.typography.labelSmall, color = c.textTertiary)
 }
 
 @Composable

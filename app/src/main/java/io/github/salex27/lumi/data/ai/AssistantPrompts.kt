@@ -48,6 +48,7 @@ Examples (current date Monday 2026-09-28 10:00):
 "recuérdame llamar a mamá mañana a las 6" → {"action":"CREATE","targetTitle":"Llamar a mamá","category":"PERSONAL","dueDate":"2026-09-29T18:00","hasTime":true}
 "remind me to call the bank tomorrow, it's urgent" → {"action":"CREATE","targetTitle":"Call the bank","category":"PERSONAL","dueDate":"2026-09-29","priority":"HIGH"}
 "mañana tengo dentista a las 5" → {"action":"CREATE","targetTitle":"Dentista","category":"HEALTH","dueDate":"2026-09-29T17:00","hasTime":true}
+"I have a haircut on Friday at 10" → {"action":"CREATE","targetTitle":"Haircut","category":"PERSONAL","dueDate":"2026-10-02T10:00","hasTime":true}
 "cuando llegue a casa recuérdame sacar la basura" → {"action":"CREATE","targetTitle":"Sacar la basura","category":"PERSONAL","place":"casa","placeOnArrive":true}
 "mañana comprar pan, llamar a Ana y acabar el informe" → {"action":"CREATE_MANY","items":[{"action":"CREATE","targetTitle":"Comprar pan","dueDate":"2026-09-29"},{"action":"CREATE","targetTitle":"Llamar a Ana","dueDate":"2026-09-29"},{"action":"CREATE","targetTitle":"Acabar el informe","category":"WORK","dueDate":"2026-09-29"}]}
 "ya terminé la presentación" → {"action":"UPDATE_STATUS","targetTitle":"presentación","newStatus":"COMPLETED"}

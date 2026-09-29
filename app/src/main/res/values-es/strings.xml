@@ -223,6 +223,7 @@
     <string name="notif_arrived_at">Ya estás %1$s</string>
     <string name="notif_for_meeting">Para «%1$s»</string>
     <string name="notif_leaving">Saliendo %1$s</string>
+    <string name="notification_listener_label">Lumi · leer mensajes</string>
     <string name="notifications_off">Notificaciones desactivadas</string>
     <string name="notifications_off_sub">Sin ellas no hay avisos</string>
     <string name="ok">Aceptar</string>
@@ -236,6 +237,7 @@
     <string name="package_name_label">Paquete</string>
     <string name="place_add_by_address">Añadir buscando la dirección</string>
     <string name="place_address_hint">Dirección o sitio</string>
+    <string name="place_attribution">Búsqueda con Photon · © colaboradores de OpenStreetMap</string>
     <string name="place_custom_hint">Nombre (gimnasio, universidad…)</string>
     <string name="place_empty_hint">Busca una dirección con «Otra dirección…» o guarda tus lugares (casa, trabajo…) en Ajustes → Lugares.</string>
     <string name="place_home">Casa</string>
@@ -326,6 +328,7 @@
     <string name="set_work_hours">Contar mi horario de trabajo</string>
     <string name="set_work_hours_sub">De lunes a viernes, entrar a las %1$d:00 cuenta como lo primero</string>
     <string name="settings">Ajustes</string>
+    <string name="share_label">Añadir a Lumi</string>
     <string name="show">Mostrar</string>
     <string name="smartbar_placeholder">Pregunta o añade una tarea…</string>
     <string name="sort_by_date">Orden: fecha</string>

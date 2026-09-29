@@ -170,6 +170,9 @@ object TaskPhraseParser {
         t = t.replace(Regex("$I^(?:una\\s+|la\\s+|a\\s+|the\\s+)?(?:nueva\\s+|new\\s+)?(?:tarea|task)\\b\\s*"), "")
         t = t.replace(Regex("$I^(?:que\\s+se\\s+(?:llam[ae]|titul[ae])|llamada|titulada|con\\s+el\\s+(?:nombre|t[ií]tulo)(?:\\s+de)?|que\\s+diga|de\\s+nombre|que\\s+ponga|called|named|titled|that\\s+says)\\b\\s*:?\\s*"), "")
         t = t.trimStart(':', ' ', ',').trim()
+        t = t.replace(Regex("$I^the\\s+(?=\\S)"), "")
+        Regex("$I^(?:add|put)\\s+(.+?)\\s+(?:to|on)\\s+(?:my\\s+|the\\s+)?(?:shopping|grocery)\\s+list$").find(t)?.let { t = "Buy " + it.groupValues[1] }
+        Regex("$I^(?:a[ñn]adir|poner|apuntar)\\s+(.+?)\\s+(?:a|en)\\s+la\\s+lista\\s+de\\s+la\\s+compra$").find(t)?.let { t = "Comprar " + it.groupValues[1] }
         return (t.ifBlank { title.trim() }).replaceFirstChar { it.uppercase() }
     }
 

@@ -44,7 +44,7 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
-        // LiteRT-LM trae librerías nativas grandes; se extraen para que el runtime pueda cargarlas
+        // LiteRT-LM ships large native libraries; they are extracted so the runtime can load them
         jniLibs {
             useLegacyPackaging = true
         }
@@ -72,7 +72,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-service:2.10.0")
     implementation("androidx.activity:activity-compose:1.12.4")
 
-    // Jetpack Compose & Material 3 (Dark Theme Default)
+    // Jetpack Compose & Material 3
     val composeBom = platform("androidx.compose:compose-bom:2026.06.01")
     implementation(composeBom)
     androidTestImplementation(composeBom)
@@ -97,19 +97,19 @@ dependencies {
     implementation("androidx.glance:glance-appwidget:$glanceVersion")
     implementation("androidx.glance:glance-material3:$glanceVersion")
 
-    // ── Motores de IA (ver domain/ai/AssistantEngine.kt) ─────────────────────
-    // Gemini Nano vía AICore (solo dispositivos con Prompt API)
+    // ── AI engines (see domain/ai/AssistantEngine.kt) ─────────────────────────
+    // Gemini Nano through AICore (only devices with the Prompt API)
     implementation("com.google.mlkit:genai-prompt:1.0.0-beta4")
-    // Gemma on-device (LiteRT-LM), modelo descargado en tiempo de ejecución
+    // On-device Gemma (LiteRT-LM), model downloaded at runtime
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.17.1")
-    // «Oye Lumi»: reconocimiento offline de la palabra de activación (Apache 2.0, gratis)
+    // Vosk: offline speech model, used for the "Train my voice" voice print (Apache 2.0)
     implementation("com.alphacephei:vosk-android:0.3.75")
-    // «Oye Lumi» con openWakeWord: modelos melspectrogram/embedding en TFLite
+    // "Oye Lumi" with openWakeWord: melspectrogram/embedding models in TFLite
     implementation("com.google.ai.edge.litert:litert:1.4.0")
-    // Gemini cloud y Google Tasks se llaman por REST (HttpURLConnection) → sin SDK extra
-    // OAuth para Google Tasks (Authorization API de Google Identity Services)
+    // Gemini cloud and Google Tasks are called over REST (HttpURLConnection) → no extra SDK
+    // OAuth for Google Tasks (Google Identity Services Authorization API)
     implementation("com.google.android.gms:play-services-auth:22.0.0")
-    // Avisos por lugar (geovallas) y «Guardar aquí»
+    // Place reminders (geofences) and "Save here"
     implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
 

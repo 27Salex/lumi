@@ -152,7 +152,8 @@ object AssistantIntents {
 
     /** The user explicitly asks Lumi to remember something (only then is it saved to memory). */
     fun asksToRemember(text: String) = Regex(
-        "$I\\b(?:recuerda|acu[eé]rdate|acordarme\\s+de\\s+que|ten\\s+en\\s+cuenta|memoriza|gu[aá]rda(?:te|lo)?\\s+(?:en\\s+(?:tu\\s+)?memoria|que)|apunta\\s+que|que\\s+sepas|no\\s+(?:te\\s+)?olvides\\s+(?:de\\s+)?que)\\b"
+        "$I\\b(?:recuerda|acu[eé]rdate|acordarme\\s+de\\s+que|ten\\s+en\\s+cuenta|memoriza|gu[aá]rda(?:te|lo)?\\s+(?:en\\s+(?:tu\\s+)?memoria|que)|apunta\\s+que|que\\s+sepas|no\\s+(?:te\\s+)?olvides\\s+(?:de\\s+)?que|" +
+            "remember\\s+that|keep\\s+in\\s+mind|note\\s+that|don'?t\\s+(?:let\\s+me\\s+)?forget\\s+that|for\\s+the\\s+record)\\b"
     ).containsMatchIn(text) || Regex("$I^(?:mi|mis)\\s+\\p{L}+").containsMatchIn(text.trim())
 
     /** A question that needs current data (better with web search when Gemini online is on). Works for both languages. */

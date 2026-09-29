@@ -46,7 +46,7 @@ object EnglishDateParser {
 
         // ── Relative offsets: "in 20 minutes", "in 2 hours", "in a week" ─────────
         var relative: LocalDateTime? = null
-        consume(Regex("$I\\b(?:in|within)\\s+(\\d+|a|an|one|two|three|four|five|ten|fifteen|twenty|thirty|half\\s+an)\\s+(minutes?|mins?|hours?|hrs?|days?|weeks?)\\b")) { m ->
+        consume(Regex("$I\\b(?:in|within)\\s+(\\d+|a|an|one|two|three|four|five|ten|fifteen|twenty|thirty|half\\s+an)\\s+(minutes?|mins?|hours?|hrs?|days?|weeks?|months?)\\b")) { m ->
             val raw = m.groupValues[1].lowercase()
             val unit = m.groupValues[2].lowercase()
             relative = if (raw.startsWith("half")) now.plusMinutes(30) else {
@@ -55,6 +55,7 @@ object EnglishDateParser {
                     unit.startsWith("min") -> now.plusMinutes(n)
                     unit.startsWith("h") -> now.plusHours(n)
                     unit.startsWith("d") -> now.plusDays(n)
+                    unit.startsWith("mo") -> now.plusMonths(n)
                     else -> now.plusWeeks(n)
                 }
             }
@@ -79,6 +80,20 @@ object EnglishDateParser {
         if (date == null) consume(Regex("$I\\b${DEADLINE}tomorrow\\b")) { date = now.toLocalDate().plusDays(1) }
         if (date == null) consume(Regex("$I\\b${DEADLINE}today\\b")) { date = now.toLocalDate() }
         if (date == null) consume(Regex("$I\\b${DEADLINE}next\\s+week\\b")) { date = now.toLocalDate().plusWeeks(1) }
+        if (date == null) consume(Regex("$I\\b${DEADLINE}next\\s+month\\b")) { date = now.toLocalDate().plusMonths(1) }
+        if (date == null) consume(Regex("$I\\b${DEADLINE}next\\s+year\\b")) { date = now.toLocalDate().plusYears(1) }
+        // "this weekend" → Saturday (today if it is already the weekend); "next weekend" → the following Saturday
+        if (date == null) consume(Regex("$I\\b(?:(?:by|for|on|over)\\s+)?(?:(this|next)\\s+)?weekend\\b")) { m ->
+            val today = now.toLocalDate()
+            val weekendNow = today.dayOfWeek == DayOfWeek.SATURDAY || today.dayOfWeek == DayOfWeek.SUNDAY
+            var sat = today
+            while (sat.dayOfWeek != DayOfWeek.SATURDAY) sat = sat.plusDays(1)
+            date = when {
+                m.groupValues[1].equals("next", true) -> sat.plusWeeks(1)
+                weekendNow -> today
+                else -> sat
+            }
+        }
         // "October 15", "Oct 15th", "15 October", "the 15th of October"
         if (date == null) consume(Regex("$I\\b${DEADLINE}(?:the\\s+)?$MONTH\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b")) { m ->
             date = dayOfMonth(now.toLocalDate(), monthOf(m.groupValues[1]), m.groupValues[2].toInt())
