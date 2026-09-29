@@ -7,9 +7,9 @@ import android.net.Uri
 import io.github.salex27.lumi.domain.model.NavDestination
 
 /**
- * «Cómo llegar» en la app de mapas que elija el usuario (Google Maps, Waze, Petal, HERE, OsmAnd…).
- * Google Maps y Waze abren directamente la navegación; el resto recibe un `geo:` estándar (muestran el sitio
- * con su botón de ruta). Con «Preguntar» sale el selector del sistema.
+ * "Directions" in the maps app the user chose (Google Maps, Waze, Petal, HERE, OsmAnd…).
+ * Google Maps and Waze open navigation directly; the rest get a standard `geo:` (they show the place with their
+ * route button). With "Ask" the system chooser appears.
  */
 object MapsLauncher {
 
@@ -18,7 +18,7 @@ object MapsLauncher {
 
     data class MapsApp(val packageName: String, val label: String)
 
-    /** Apps instaladas que entienden `geo:` (requiere la entrada `<queries>` del manifest). */
+    /** Installed apps that understand `geo:` (needs the manifest `<queries>` entry). */
     fun installedApps(context: Context): List<MapsApp> {
         val pm = context.packageManager
         val probe = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=Madrid"))
@@ -28,7 +28,7 @@ object MapsLauncher {
             .sortedWith(compareBy({ it.packageName != GOOGLE_MAPS && it.packageName != WAZE }, { it.label }))
     }
 
-    /** Intent listo para lanzar. [packageName] vacío o no instalado → selector del sistema. */
+    /** Intent ready to launch. Empty or missing [packageName] → system chooser. */
     fun intent(context: Context, destination: NavDestination, packageName: String): Intent {
         val installed = packageName.isNotBlank() && runCatching { context.packageManager.getPackageInfo(packageName, 0) }.isSuccess
         val target = if (installed) packageName else ""
@@ -39,7 +39,7 @@ object MapsLauncher {
             else -> Intent(Intent.ACTION_VIEW, Uri.parse(geoUri(destination))).setPackage(target)
         }
         base.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        return if (target.isEmpty()) Intent.createChooser(base, "Cómo llegar con…").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) else base
+        return if (target.isEmpty()) Intent.createChooser(base, context.getString(io.github.salex27.lumi.R.string.maps_chooser_title)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) else base
     }
 
     fun open(context: Context, destination: NavDestination, packageName: String): Boolean =

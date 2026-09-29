@@ -1,4 +1,9 @@
 package io.github.salex27.lumi.presentation.stats
+import io.github.salex27.lumi.R
+import io.github.salex27.lumi.domain.assistant.ReplyLanguage
+import androidx.compose.ui.res.stringResource
+import io.github.salex27.lumi.presentation.components.uiLocale
+import io.github.salex27.lumi.presentation.components.uiLabel
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -60,8 +65,8 @@ import java.time.format.TextStyle as JTextStyle
 import java.util.Locale
 
 /**
- * Tinta de gráficos según el tema. Series: pasos validados de la paleta de referencia (skill dataviz)
- * — azul (slot 1) y naranja (slot 2), paso claro en modo claro y paso oscuro en modo oscuro.
+ * Chart ink per theme. Series: validated steps of the reference palette (dataviz skill)
+ * — blue (slot 1) and orange (slot 2), the light step in light mode and the dark step in dark mode.
  */
 private data class ChartInk(
     val primary: Color, val secondary: Color, val muted: Color, val grid: Color, val baseline: Color,
@@ -81,7 +86,7 @@ private fun chartInk(): ChartInk {
     )
 }
 
-private val ES = Locale.forLanguageTag("es-ES")
+
 
 @Composable
 fun StatsScreen(summary: StatsSummary?, onRangeChange: (StatsRange) -> Unit) {
@@ -91,26 +96,26 @@ fun StatsScreen(summary: StatsSummary?, onRangeChange: (StatsRange) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Progreso", style = MaterialTheme.typography.headlineMedium, color = k.primary, modifier = Modifier.weight(1f))
+            Text(stringResource(R.string.tab_progress), style = MaterialTheme.typography.headlineMedium, color = k.primary, modifier = Modifier.weight(1f))
             RangeToggle(summary?.range ?: StatsRange.WEEK, onRangeChange)
         }
         if (summary == null) return@Column
 
-        // Cifras clave (tiles, no gráficos: una sola cifra no necesita un gráfico)
+        // Key figures (tiles, not charts: a single number doesn't need a chart)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatTile(
-                "Completadas", "${summary.completed}", Modifier.weight(1f),
+                stringResource(R.string.stats_completed), "${summary.completed}", Modifier.weight(1f),
                 sub = when {
-                    summary.delta > 0 -> "▲ ${summary.delta} vs anterior" to k.good
-                    summary.delta < 0 -> "▼ ${-summary.delta} vs anterior" to k.secondary
-                    else -> "= que el anterior" to k.muted
+                    summary.delta > 0 -> stringResource(R.string.stats_vs_previous_up, summary.delta) to k.good
+                    summary.delta < 0 -> stringResource(R.string.stats_vs_previous_down, -summary.delta) to k.secondary
+                    else -> stringResource(R.string.stats_same_as_previous) to k.muted
                 }
             )
-            StatTile("Ratio", summary.completionRate?.let { "$it %" } ?: "—", Modifier.weight(1f), sub = "de lo creado" to k.muted)
-            StatTile("Racha", "${summary.streak}", Modifier.weight(1f), sub = (if (summary.streak == 1) "día" else "días") to k.muted)
+            StatTile(stringResource(R.string.stats_ratio), summary.completionRate?.let { "$it %" } ?: "—", Modifier.weight(1f), sub = stringResource(R.string.stats_of_created) to k.muted)
+            StatTile(stringResource(R.string.stats_streak), "${summary.streak}", Modifier.weight(1f), sub = stringResource(if (summary.streak == 1) R.string.stats_day else R.string.stats_days) to k.muted)
         }
 
-        // Comentario de Lumi
+        // Lumi's comment
         Row(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(k.surface)
                 .padding(14.dp),
@@ -124,22 +129,22 @@ fun StatsScreen(summary: StatsSummary?, onRangeChange: (StatsRange) -> Unit) {
             )
         }
 
-        ChartCard("Tareas completadas por día") {
+        ChartCard(stringResource(R.string.stats_chart_per_day)) {
             BarChart(summary.days, summary.range)
         }
 
-        ChartCard("Creadas vs completadas") {
-            Legend(listOf("Completadas" to k.completed, "Creadas" to k.created))
+        ChartCard(stringResource(R.string.stats_chart_created_vs_completed)) {
+            Legend(listOf(stringResource(R.string.stats_completed) to k.completed, stringResource(R.string.stats_created) to k.created))
             Spacer(Modifier.height(8.dp))
             LineChart(summary.days, summary.range)
         }
 
         if (summary.byCategory.isNotEmpty()) {
-            ChartCard("Completadas por categoría") {
+            ChartCard(stringResource(R.string.stats_chart_by_category)) {
                 val max = summary.byCategory.maxOf { it.second }.coerceAtLeast(1)
                 summary.byCategory.forEach { (cat, n) ->
                     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("${cat.emoji} ${cat.label}", color = k.secondary, fontSize = 13.sp, modifier = Modifier.width(110.dp))
+                        Text("${cat.emoji} ${cat.uiLabel}", color = k.secondary, fontSize = 13.sp, modifier = Modifier.width(110.dp))
                         Box(Modifier.weight(1f).height(14.dp)) {
                             Box(
                                 Modifier.fillMaxWidth(n / max.toFloat()).height(14.dp)
@@ -213,13 +218,13 @@ private fun Legend(items: List<Pair<String, Color>>) {
 }
 
 private fun dayLabel(d: DayStat, range: StatsRange, index: Int, count: Int): String? = when (range) {
-    StatsRange.WEEK -> d.date.dayOfWeek.getDisplayName(JTextStyle.SHORT, ES).take(2).replaceFirstChar { it.uppercase() }
+    StatsRange.WEEK -> d.date.dayOfWeek.getDisplayName(JTextStyle.SHORT, uiLocale).take(2).replaceFirstChar { it.uppercase() }
     StatsRange.MONTH -> if (index % 5 == 0 || index == count - 1) "${d.date.dayOfMonth}" else null
 }
 
-private fun tooltipDate(d: DayStat) = d.date.format(DateTimeFormatter.ofPattern("EEE d MMM", ES))
+private fun tooltipDate(d: DayStat) = d.date.format(DateTimeFormatter.ofPattern("EEE d MMM", uiLocale))
 
-/** Barras de una sola serie: sin leyenda (el título la nombra), extremo redondeado de 4dp anclado a la base. */
+/** Single-series bars: no legend (the title names it), 4dp rounded end anchored to the baseline. */
 @Composable
 private fun BarChart(days: List<DayStat>, range: StatsRange) {
     val k = chartInk()
@@ -231,7 +236,7 @@ private fun BarChart(days: List<DayStat>, range: StatsRange) {
     Box(Modifier.fillMaxWidth()) {
         Canvas(
             Modifier.fillMaxWidth().height(170.dp)
-                .semantics { contentDescription = "Gráfico de barras de tareas completadas por día" }
+                .semantics { contentDescription = ReplyLanguage.ui("Gráfico de barras de tareas completadas por día", "Bar chart of tasks completed per day") }
                 .pointerInput(days) {
                     detectTapGestures { pos ->
                         val left = 28.dp.toPx()
@@ -269,11 +274,11 @@ private fun BarChart(days: List<DayStat>, range: StatsRange) {
                 dayLabel(d, range, i, days.size)?.let { drawText(it, x + w / 2, size.height - 2.dp.toPx(), k.muted, 10.sp.toPx(), center = true) }
             }
         }
-        selected?.let { i -> Tooltip(tooltipDate(days[i]), listOf("${days[i].completed} completadas" to k.completed)) }
+        selected?.let { i -> Tooltip(tooltipDate(days[i]), listOf(stringResource(R.string.stats_n_completed, days[i].completed) to k.completed)) }
     }
 }
 
-/** Dos series (misma unidad, un solo eje): líneas de 2dp, leyenda + etiqueta directa al final. */
+/** Two series (same unit, a single axis): 2dp lines, legend + direct label at the end. */
 @Composable
 private fun LineChart(days: List<DayStat>, range: StatsRange) {
     val k = chartInk()
@@ -285,7 +290,7 @@ private fun LineChart(days: List<DayStat>, range: StatsRange) {
     Box(Modifier.fillMaxWidth()) {
         Canvas(
             Modifier.fillMaxWidth().height(170.dp)
-                .semantics { contentDescription = "Gráfico de líneas de tareas creadas y completadas por día" }
+                .semantics { contentDescription = ReplyLanguage.ui("Gráfico de líneas de tareas creadas y completadas por día", "Line chart of tasks created and completed per day") }
                 .pointerInput(days) {
                     detectTapGestures { pos ->
                         val left = 28.dp.toPx()
@@ -314,7 +319,7 @@ private fun LineChart(days: List<DayStat>, range: StatsRange) {
                 val path = Path()
                 days.forEachIndexed { i, d -> val p = pt(i, value(d)); if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y) }
                 drawPath(path, color, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
-                // Etiqueta directa al final de la línea (valor del último día)
+                // Direct label at the end of the line (value of the last day)
                 val last = pt(days.lastIndex, value(days.last()))
                 drawCircle(color, 3.dp.toPx(), last)
                 selected?.let { i ->
@@ -328,7 +333,7 @@ private fun LineChart(days: List<DayStat>, range: StatsRange) {
             }
         }
         selected?.let { i ->
-            Tooltip(tooltipDate(days[i]), listOf("${days[i].completed} completadas" to k.completed, "${days[i].created} creadas" to k.created))
+            Tooltip(tooltipDate(days[i]), listOf(stringResource(R.string.stats_n_completed, days[i].completed) to k.completed, stringResource(R.string.stats_n_created, days[i].created) to k.created))
         }
     }
 }
@@ -351,21 +356,21 @@ private fun Tooltip(title: String, rows: List<Pair<String, Color>>) {
     }
 }
 
-/** Vista de tabla (accesibilidad): los mismos datos, sin depender del color. */
+/** Table view (accessibility): the same data, not relying on color. */
 @Composable
 private fun DataTable(days: List<DayStat>) {
     val k = chartInk()
     var open by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {
         Text(
-            if (open) "Ocultar datos ▲" else "Ver datos ▼", color = k.secondary, fontSize = 13.sp,
+            stringResource(if (open) R.string.stats_hide_data else R.string.stats_show_data), color = k.secondary, fontSize = 13.sp,
             modifier = Modifier.clickable { open = !open }.padding(vertical = 6.dp)
         )
         if (open) {
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                Text("Día", color = k.muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                Text("Creadas", color = k.muted, fontSize = 12.sp, modifier = Modifier.width(72.dp))
-                Text("Completadas", color = k.muted, fontSize = 12.sp, modifier = Modifier.width(90.dp))
+                Text(stringResource(R.string.stats_col_day), color = k.muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.stats_created), color = k.muted, fontSize = 12.sp, modifier = Modifier.width(72.dp))
+                Text(stringResource(R.string.stats_completed), color = k.muted, fontSize = 12.sp, modifier = Modifier.width(90.dp))
             }
             days.reversed().forEach { d ->
                 Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
@@ -378,7 +383,7 @@ private fun DataTable(days: List<DayStat>) {
     }
 }
 
-/** Ticks "bonitos" (0, paso, 2·paso...) que cubren el máximo. */
+/** "Nice" ticks (0, step, 2·step…) covering the maximum. */
 private fun niceTicks(max: Int): List<Int> {
     val step = when {
         max <= 4 -> 1

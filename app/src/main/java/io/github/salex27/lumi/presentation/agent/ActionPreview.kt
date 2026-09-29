@@ -9,17 +9,17 @@ import io.github.salex27.lumi.domain.assistant.TaskActions
 import io.github.salex27.lumi.domain.model.Task
 
 /**
- * A quién llamará / escribirá el botón de una tarea («Avisar a Roberto»), resuelto YA al crearla: así el usuario ve
- * que está vinculada a su contacto (antes solo se sabía al saltar el aviso, y parecía que no hacía nada).
+ * Who a task's button ("Let Roberto know") will call / text, resolved RIGHT when it is created: that way the user sees
+ * it is linked to their contact (before, it was only known when the reminder fired, and it looked like it did nothing).
  */
 object ActionPreview {
 
     data class Preview(
         val action: TaskActions.Action,
-        /** Nombre del contacto encontrado (o null). */
+        /** Name of the contact found (or null). */
         val contactName: String?,
         val number: String?,
-        /** Qué falta para que funcione («no encuentro a Roberto en tus contactos»…); null = todo bien. */
+        /** What is missing for it to work ("I can't find Roberto in your contacts"…); null = all good. */
         val problem: String?
     ) {
         val command: DeviceCommand get() = action.command
@@ -35,26 +35,32 @@ object ActionPreview {
         aliases.find(spoken)?.let { return Preview(action, it.name, it.number, null) }
         if (spoken.count(Char::isDigit) >= 6) return Preview(action, spoken, spoken, null)
         val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
-        if (!granted) return Preview(action, null, null, "Necesito acceso a tus contactos para encontrar a «$spoken» (te lo pediré al tocar el botón).")
+        if (!granted) return Preview(action, null, null, io.github.salex27.lumi.domain.assistant.ReplyLanguage.t("Necesito acceso a tus contactos para encontrar a «$spoken» (te lo pediré al tocar el botón).", "I need access to your contacts to find «$spoken» (I'll ask when you tap the button)."))
         val found = runCatching { DeviceActions.findContacts(context, spoken) }.getOrDefault(emptyList())
         return when {
-            found.isEmpty() -> Preview(action, null, null, "No encuentro a «$spoken» en tus contactos: revisa el nombre o añade un alias en Ajustes → Contactos rápidos.")
+            found.isEmpty() -> Preview(action, null, null, io.github.salex27.lumi.domain.assistant.ReplyLanguage.t("No encuentro a «$spoken» en tus contactos: revisa el nombre o añade un alias en Ajustes → Contactos rápidos.", "I can't find «$spoken» in your contacts: check the name or add an alias in Settings → Quick contacts."))
             found.size == 1 -> Preview(action, found.first().name, found.first().number, null)
-            else -> Preview(action, null, null, "Hay ${found.size} contactos que encajan con «$spoken»; al tocar el botón te preguntaré cuál.")
+            else -> Preview(action, null, null, io.github.salex27.lumi.domain.assistant.ReplyLanguage.t("Hay ${found.size} contactos que encajan con «$spoken»; al tocar el botón te preguntaré cuál.", "${found.size} contacts match «$spoken»; when you tap the button I'll ask which one."))
         }
     }
 
-    /** Frase para la respuesta al crear la tarea. */
+    /** Sentence for the reply when the task is created. */
     fun sentence(p: Preview, task: Task): String {
-        val whenText = if (task.placeTrigger != null) "Entonces" else "Cuando te avise"
+        val t = io.github.salex27.lumi.domain.assistant.ReplyLanguage::t
+        val name = p.contactName ?: when (val c = p.command) {
+            is DeviceCommand.Call -> c.contact
+            is DeviceCommand.Message -> c.contact
+            else -> ""
+        }
         val what = when (val c = p.command) {
-            is DeviceCommand.Call -> "llamar a ${p.contactName ?: c.contact}"
-            is DeviceCommand.Message -> "${if (c.whatsapp) "enviar un WhatsApp" else "enviar un SMS"} a ${p.contactName ?: c.contact}" +
+            is DeviceCommand.Call -> t("llamar a $name", "call $name")
+            is DeviceCommand.Message -> (if (c.whatsapp) t("enviar un WhatsApp a $name", "send a WhatsApp to $name") else t("enviar un SMS a $name", "send a text to $name")) +
                 if (c.text.isNotBlank()) " («${c.text}»)" else ""
             else -> p.action.label.lowercase()
         }
-        return " $whenText tendrás un botón para $what; solo tendrás que tocar enviar." .let { base ->
-            if (p.command is DeviceCommand.Call) base.replace("; solo tendrás que tocar enviar.", ".") else base
-        } + (p.problem?.let { " Ojo: $it" } ?: "")
+        val whenText = if (task.placeTrigger != null) t("Entonces", "Then") else t("Cuando te avise", "When I remind you")
+        val base = if (p.command is DeviceCommand.Call) t(" $whenText tendrás un botón para $what.", " $whenText you'll have a button to $what.")
+        else t(" $whenText tendrás un botón para $what; solo tendrás que tocar enviar.", " $whenText you'll have a button to $what; you'll just have to tap send.")
+        return base + (p.problem?.let { t(" Ojo: $it", " Note: $it") } ?: "")
     }
 }

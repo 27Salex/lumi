@@ -9,8 +9,8 @@ import kotlinx.serialization.json.Json
 import java.text.Normalizer
 
 /**
- * Alias de contactos: «mamá», «mi madre», «el jefe» → un contacto concreto. Se aprenden solos al elegir entre varios
- * contactos («¿A cuál?») y se gestionan en Ajustes → Contactos rápidos. Solo en el móvil.
+ * Contact aliases: "mum", "my mother", "the boss" → one specific contact. Learned automatically when choosing between
+ * several contacts ("Which one?") and managed in Settings → Quick contacts. Stored only on the phone.
  */
 class ContactAliases(context: Context) {
 
@@ -47,7 +47,7 @@ class ContactAliases(context: Context) {
     companion object {
         private const val K_LIST = "list"
 
-        /** «a mi Madre» → «mi madre»: sin tildes, sin «a/al» delante. */
+        /** "a mi Madre" → "mi madre": no accents, no leading "a/al"/"to". */
         fun normalize(text: String): String = Normalizer.normalize(text.lowercase(), Normalizer.Form.NFD)
             .replace(Regex("\\p{Mn}+"), "").replace(Regex("[^a-z0-9ñ ]"), " ").replace(Regex("\\s+"), " ").trim()
             .removePrefix("a ").removePrefix("al ").trim()

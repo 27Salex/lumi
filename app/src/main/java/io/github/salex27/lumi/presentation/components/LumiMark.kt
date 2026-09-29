@@ -49,17 +49,17 @@ import io.github.salex27.lumi.presentation.theme.BrandSky
 import io.github.salex27.lumi.presentation.theme.BrandViolet
 import kotlinx.coroutines.delay
 
-/** Estado de Lumi: define la animación del logo y del brillo de borde. */
+/** Lumi's state: drives the logo and edge glow animation. */
 enum class LumiState { IDLE, LISTENING, THINKING, SPEAKING, SUCCESS }
 
 /**
- * Logo de Lumi (v3.2, «Mirada»): dos círculos suaves que se solapan — azul cielo y magenta pastel — con el solape
- * en violeta y dos ojos que parpadean. Personalidad sin ser mascota. SIN giros: respiración, desplazamiento y muelles.
- * - IDLE: respira, parpadea cada pocos segundos y mira de un lado a otro.
- * - LISTENING: los círculos se separan con tu voz ([level] 0..1), halo, y los ojos se abren y te miran.
- * - THINKING: los círculos laten y los ojos miran arriba a un lado, como pensando.
- * - SPEAKING: pulso suave; los ojos rebotan un poco al hablar.
- * - SUCCESS: ojos sonrientes (^ ^).
+ * Lumi's logo (v3.2, "Gaze"): two soft overlapping circles — sky blue and pastel magenta — with the overlap in violet
+ * and two blinking eyes. Personality without being a mascot. NO spinning: breathing, drifting and springs.
+ * - IDLE: breathes, blinks every few seconds and looks from side to side.
+ * - LISTENING: the circles move apart with your voice ([level] 0..1), halo, and the eyes open and look at you.
+ * - THINKING: the circles pulse and the eyes look up to one side, as if thinking.
+ * - SPEAKING: a soft pulse; the eyes bounce a little while talking.
+ * - SUCCESS: smiling eyes (^ ^).
  */
 @Composable
 fun LumiMark(state: LumiState, modifier: Modifier = Modifier, size: Dp = 40.dp, level: Float = 0f) {
@@ -80,7 +80,7 @@ fun LumiMark(state: LumiState, modifier: Modifier = Modifier, size: Dp = 40.dp, 
         label = "breathe"
     )
     val voice by animateFloatAsState(level.coerceIn(0f, 1f), spring(stiffness = Spring.StiffnessMediumLow), label = "voice")
-    // Parpadeo: abiertos casi todo el ciclo, un cierre rápido al final
+    // Blink: open for most of the cycle, a quick close at the end
     val blink by t.animateFloat(
         1f, 1f,
         infiniteRepeatable(keyframes {
@@ -92,7 +92,7 @@ fun LumiMark(state: LumiState, modifier: Modifier = Modifier, size: Dp = 40.dp, 
         }),
         label = "blink"
     )
-    // Mirada lateral lenta (reposo)
+    // Slow sideways glance (idle)
     val glance by t.animateFloat(-1f, 1f, infiniteRepeatable(tween(4_200, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "glance")
     val lookX by animateFloatAsState(
         when (state) {
@@ -119,7 +119,7 @@ fun LumiMark(state: LumiState, modifier: Modifier = Modifier, size: Dp = 40.dp, 
         spring(stiffness = Spring.StiffnessMedium), label = "eyeOpen"
     )
 
-    // Separación de los centros (fracción del lado): 0 = fundidos en uno
+    // Distance between the centers (fraction of the side): 0 = merged into one
     val targetSeparation = when (state) {
         LumiState.SUCCESS -> 0f
         LumiState.LISTENING -> 0.13f + 0.06f * voice
@@ -161,7 +161,7 @@ fun LumiMark(state: LumiState, modifier: Modifier = Modifier, size: Dp = 40.dp, 
         )
         drawCircle(Brush.radialGradient(listOf(BrandSky.copy(alpha = 0.55f).compositeOverWhite(), BrandSky), a - Offset(r * 0.35f, r * 0.35f), r * 1.6f), r, a)
         drawCircle(Brush.radialGradient(listOf(BrandMagenta.copy(alpha = 0.55f).compositeOverWhite(), BrandMagenta), b - Offset(r * 0.35f, r * 0.35f), r * 1.6f), r, b)
-        // Solape (lente) en violeta: el círculo B recortado por A
+        // Overlap (lens) in violet: circle B clipped by A
         val clip = Path().apply { addOval(Rect(a, r)) }
         clipPath(clip) {
             drawCircle(Brush.radialGradient(listOf(Color(0xFFB9B6FB), Color(0xFF8E9AF6)), center, r * 0.9f), r, b)
@@ -170,7 +170,7 @@ fun LumiMark(state: LumiState, modifier: Modifier = Modifier, size: Dp = 40.dp, 
     }
 }
 
-/** Dos ojos ovalados en el solape; [open] 0..1+ escala su altura (parpadeo). [happy] = arcos «^ ^». */
+/** Two oval eyes in the overlap; [open] 0..1+ scales their height (blinking). [happy] = "^ ^" arcs. */
 private fun DrawScope.drawEyes(c: Offset, s: Float, open: Float, happy: Boolean) {
     val gap = s * 0.045f
     val rx = s * 0.024f
@@ -189,14 +189,14 @@ private fun DrawScope.drawEyes(c: Offset, s: Float, open: Float, happy: Boolean)
     }
 }
 
-/** Mezcla un color semitransparente sobre blanco (reflejo suave de los círculos, sin transparencia real). */
+/** Blends a translucent color over white (soft reflection of the circles, without real transparency). */
 private fun Color.compositeOverWhite(): Color = Color(
     red = red * alpha + (1 - alpha), green = green * alpha + (1 - alpha), blue = blue * alpha + (1 - alpha), alpha = 1f
 )
 
 /**
- * Brillo de borde de pantalla sutil (estilo Apple Intelligence) mientras Lumi escucha o piensa.
- * Un degradado de marca gira alrededor del borde redondeado de la pantalla.
+ * Subtle screen edge glow (Apple Intelligence style) while Lumi listens or thinks.
+ * A brand gradient rotates around the rounded edge of the screen.
  */
 @Composable
 fun ScreenEdgeGlow(state: LumiState, modifier: Modifier = Modifier, cornerRadius: Dp = 40.dp) {
@@ -223,8 +223,8 @@ fun ScreenEdgeGlow(state: LumiState, modifier: Modifier = Modifier, cornerRadius
 }
 
 /**
- * Brillo solo en el borde superior (modo compacto: la píldora cae desde arriba). Los colores de marca se
- * desplazan de lado a lado y se desvanecen hacia abajo. Visible escuchando, pensando o hablando.
+ * Glow on the top edge only (compact mode: the pill drops from the top). The brand colors drift side to side and fade
+ * downwards. Visible while listening, thinking or speaking.
  */
 @Composable
 fun TopEdgeGlow(state: LumiState, modifier: Modifier = Modifier, height: Dp = 180.dp) {
@@ -247,7 +247,7 @@ fun TopEdgeGlow(state: LumiState, modifier: Modifier = Modifier, height: Dp = 18
                 startX = -offset, endX = 2 * w - offset, tileMode = androidx.compose.ui.graphics.TileMode.Repeated
             )
         )
-        // Máscara: intenso arriba, transparente abajo
+        // Mask: strong at the top, transparent at the bottom
         drawRect(
             Brush.verticalGradient(listOf(Color.Black, Color.Black.copy(alpha = 0.35f), Color.Transparent)),
             blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
@@ -255,7 +255,7 @@ fun TopEdgeGlow(state: LumiState, modifier: Modifier = Modifier, height: Dp = 18
     }
 }
 
-/** Degradado circular con ángulo animable (Brush.sweepGradient no admite rotación). */
+/** Sweep gradient with an animatable angle (Brush.sweepGradient has no rotation). */
 private class RotatingSweep(private val colors: List<Color>, private val degrees: Float) : ShaderBrush() {
     override fun createShader(size: Size): Shader = SweepGradientShader(size.center, colors).apply {
         setLocalMatrix(android.graphics.Matrix().apply { setRotate(degrees, size.center.x, size.center.y) })
@@ -264,7 +264,7 @@ private class RotatingSweep(private val colors: List<Color>, private val degrees
     override fun hashCode() = 31 * colors.hashCode() + degrees.hashCode()
 }
 
-/** Texto que aparece palabra a palabra. Con [animate] = false se muestra entero (p.ej. resumen guardado). */
+/** Text that appears word by word. With [animate] = false it is shown whole (e.g. a cached summary). */
 @Composable
 fun TypewriterText(
     text: String,

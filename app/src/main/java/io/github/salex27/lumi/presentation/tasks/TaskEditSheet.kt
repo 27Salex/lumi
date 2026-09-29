@@ -1,5 +1,6 @@
 package io.github.salex27.lumi.presentation.tasks
 
+import io.github.salex27.lumi.domain.assistant.ReplyLanguage
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -213,7 +214,7 @@ fun TaskEditSheet(
 
             SectionHeader("Cuándo")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Pill(date?.let { DueDateFormatter.format(it.atTime(9, 0).atZone(zone).toInstant().toEpochMilli(), false).replaceFirstChar { ch -> ch.uppercase() } } ?: "Sin fecha") { showDate = true }
+                Pill(date?.let { DueDateFormatter.format(it.atTime(9, 0).atZone(zone).toInstant().toEpochMilli(), false, lang = ReplyLanguage.app).replaceFirstChar { ch -> ch.uppercase() } } ?: "Sin fecha") { showDate = true }
                 if (date != null) {
                     Pill(time?.let { "%02d:%02d".format(it.hour, it.minute) } ?: "Añadir hora") { showTime = true }
                     Pill("Quitar", subtle = true) { date = null; time = null }
@@ -248,10 +249,10 @@ fun TaskEditSheet(
                 ReminderPlanner.plan(buildTask().copy(id = task.id), System.currentTimeMillis())
             }
             if (autoReminders) preview.forEach { p ->
-                ReminderLine(DueDateFormatter.format(p.triggerAt, true).replaceFirstChar { it.uppercase() }, p.label, removable = false) {}
+                ReminderLine(DueDateFormatter.format(p.triggerAt, true, lang = ReplyLanguage.app).replaceFirstChar { it.uppercase() }, p.label, removable = false) {}
             }
             existingReminders.filter { it.kind == TaskReminder.Kind.CUSTOM && it.id !in removedIds }.forEach { r ->
-                ReminderLine(DueDateFormatter.format(r.triggerAt, true).replaceFirstChar { it.uppercase() }, r.label, removable = true) { removedIds += r.id }
+                ReminderLine(DueDateFormatter.format(r.triggerAt, true, lang = ReplyLanguage.app).replaceFirstChar { it.uppercase() }, r.label, removable = true) { removedIds += r.id }
             }
             addedOffsets.forEach { off ->
                 ReminderLine("${ReminderPlanner.humanMinutes(off)} antes", "Nuevo", removable = true) { addedOffsets.remove(off) }

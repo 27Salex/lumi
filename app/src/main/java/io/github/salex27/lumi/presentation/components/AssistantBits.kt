@@ -1,5 +1,9 @@
 package io.github.salex27.lumi.presentation.components
+import io.github.salex27.lumi.R
+import androidx.compose.ui.res.stringResource
+import io.github.salex27.lumi.domain.assistant.Lang
 
+import io.github.salex27.lumi.domain.assistant.ReplyLanguage
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -65,9 +69,9 @@ import io.github.salex27.lumi.presentation.theme.Lumi
 import io.github.salex27.lumi.presentation.theme.color
 import io.github.salex27.lumi.presentation.theme.icon
 
-// ── Piezas básicas ─────────────────────────────────────────────────────────
+// ── Basic pieces ───────────────────────────────────────────────────────────
 
-/** Cabecera de sección en mayúsculas pequeñas (estilo iOS/Revolut). */
+/** Section header in small caps (iOS/Revolut style). */
 @Composable
 fun SectionHeader(text: String, modifier: Modifier = Modifier, trailing: (@Composable () -> Unit)? = null) {
     Row(modifier.fillMaxWidth().padding(top = 8.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -76,7 +80,7 @@ fun SectionHeader(text: String, modifier: Modifier = Modifier, trailing: (@Compo
     }
 }
 
-/** Tarjeta plana con borde fino. */
+/** Flat card with a thin border. */
 @Composable
 fun LumiCard(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
     Column(
@@ -104,18 +108,18 @@ fun PillButton(label: String, modifier: Modifier = Modifier, style: PillStyle = 
     )
 }
 
-/** Etiqueta de categoría: icono + nombre en el color de la categoría (nunca solo color). */
+/** Category tag: icon + name in the category color (never color alone). */
 @Composable
 fun CategoryLabel(category: TaskCategory, modifier: Modifier = Modifier) {
     val color = category.color(Lumi.colors.isDark)
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Icon(category.icon(), null, tint = color, modifier = Modifier.size(14.dp))
         Spacer(Modifier.width(4.dp))
-        Text(category.label, style = MaterialTheme.typography.labelMedium, color = Lumi.colors.textSecondary)
+        Text(category.uiLabel, style = MaterialTheme.typography.labelMedium, color = Lumi.colors.textSecondary)
     }
 }
 
-/** Píldora discreta con el motor de IA que respondió. */
+/** Discreet pill with the AI engine that answered. */
 @Composable
 fun EngineBadge(engine: String, modifier: Modifier = Modifier) {
     if (engine.isBlank()) return
@@ -125,7 +129,7 @@ fun EngineBadge(engine: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** Mini-fila de tarea dentro de una respuesta de Lumi. */
+/** Mini task row inside a reply from Lumi. */
 @Composable
 fun TaskMiniChip(task: Task, modifier: Modifier = Modifier) {
     val c = Lumi.colors
@@ -137,15 +141,15 @@ fun TaskMiniChip(task: Task, modifier: Modifier = Modifier) {
         Icon(if (done) Icons.Default.Check else task.category.icon(), null, tint = if (done) c.success else task.category.color(c.isDark), modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(8.dp))
         Text(task.title, style = MaterialTheme.typography.bodyMedium, color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        task.dueAt?.let { Text(DueDateFormatter.format(it, task.dueHasTime), style = MaterialTheme.typography.labelMedium, color = c.textSecondary) }
+        task.dueAt?.let { Text(DueDateFormatter.format(it, task.dueHasTime, lang = ReplyLanguage.app), style = MaterialTheme.typography.labelMedium, color = c.textSecondary) }
     }
 }
 
-// ── Fila de tarea (lista principal) ────────────────────────────────────────
+// ── Task row (main list) ───────────────────────────────────────────────────
 
 /**
- * Fila plana: círculo para completar, título y una línea de metadatos (hora · categoría · repetición · reunión).
- * Desliza → derecha = hecha, izquierda = para mañana.
+ * Flat row: a circle to complete, the title and a metadata line (time · category · repetition · meeting).
+ * Swipe → right = done, left = tomorrow.
  */
 @Composable
 fun TaskRow(
@@ -179,7 +183,7 @@ fun TaskRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = if (toRight) Arrangement.Start else Arrangement.End
             ) {
-                Text(if (toRight) (if (done) "Pendiente" else "Hecha") else "Mañana", style = MaterialTheme.typography.labelLarge,
+                Text(stringResource(if (toRight) (if (done) R.string.swipe_pending else R.string.swipe_done) else R.string.swipe_tomorrow), style = MaterialTheme.typography.labelLarge,
                     color = if (toRight) c.success else c.accentText)
             }
         }
@@ -197,7 +201,7 @@ fun TaskRow(
                     Modifier.size(22.dp).clip(CircleShape)
                         .then(if (done) Modifier.background(c.accent) else Modifier.border(1.6.dp, if (overdue) c.danger else c.textTertiary, CircleShape)),
                     contentAlignment = Alignment.Center
-                ) { if (done) Icon(Icons.Default.Check, "Hecha", tint = c.onAccent, modifier = Modifier.size(14.dp)) }
+                ) { if (done) Icon(Icons.Default.Check, stringResource(R.string.swipe_done), tint = c.onAccent, modifier = Modifier.size(14.dp)) }
             }
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {
@@ -210,11 +214,11 @@ fun TaskRow(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             PriorityFlag(task.priority, Modifier.size(14.dp))
                             Spacer(Modifier.width(3.dp))
-                            Text(task.priority.label, style = MaterialTheme.typography.labelMedium, color = priorityTint(task.priority), maxLines = 1)
+                            Text(task.priority.uiLabel, style = MaterialTheme.typography.labelMedium, color = priorityTint(task.priority), maxLines = 1)
                         }
                     }
                     task.dueAt?.let {
-                        MetaItem(Icons.Outlined.Schedule, DueDateFormatter.format(it, task.dueHasTime), if (overdue) c.danger else c.textSecondary)
+                        MetaItem(Icons.Outlined.Schedule, DueDateFormatter.format(it, task.dueHasTime, lang = ReplyLanguage.app), if (overdue) c.danger else c.textSecondary)
                     }
                     CategoryLabel(task.category)
                     task.recurrence?.let { MetaItem(Icons.Outlined.Repeat, null, c.textSecondary) }
@@ -226,12 +230,12 @@ fun TaskRow(
     }
 }
 
-/** Bandera de prioridad: rellena en Alta/Media, contorno en Baja. Siempre va con texto al lado (no solo color). */
+/** Priority flag: filled for High/Medium, outlined for Low. Always next to text (never color alone). */
 @Composable
 fun PriorityFlag(priority: TaskPriority, modifier: Modifier = Modifier) {
     Icon(
         if (priority == TaskPriority.LOW) Icons.Outlined.Flag else Icons.Filled.Flag,
-        contentDescription = "Prioridad ${priority.label.lowercase()}",
+        contentDescription = stringResource(R.string.cd_priority, priority.uiLabel.let { if (ReplyLanguage.app == Lang.EN) it else it.lowercase() }),
         tint = priorityTint(priority),
         modifier = modifier
     )
@@ -258,14 +262,14 @@ private fun MetaItem(icon: androidx.compose.ui.graphics.vector.ImageVector, text
     }
 }
 
-// ── Barra inteligente (dentro de la app) ───────────────────────────────────
+// ── Smart bar (inside the app) ─────────────────────────────────────────────
 
 /**
- * Barra de Lumi dentro de la app: logo (toca → hablar) + campo de texto (escribe una tarea o pregunta).
- * Al enviar, abre la conversación con ese texto.
+ * Lumi's in-app bar: logo (tap → talk) + text field (type a task or a question).
+ * Sending opens the conversation with that text.
  */
 @Composable
-fun SmartBar(onSubmit: (String) -> Unit, onVoice: () -> Unit, modifier: Modifier = Modifier, placeholder: String = "Pregunta o añade una tarea…") {
+fun SmartBar(onSubmit: (String) -> Unit, onVoice: () -> Unit, modifier: Modifier = Modifier, placeholder: String = stringResource(R.string.smartbar_placeholder)) {
     val c = Lumi.colors
     var text by remember { mutableStateOf("") }
     Row(
@@ -294,14 +298,14 @@ fun SmartBar(onSubmit: (String) -> Unit, onVoice: () -> Unit, modifier: Modifier
                 Modifier.padding(start = 6.dp).size(40.dp).clip(CircleShape).background(c.accent)
                     .clickable { onSubmit(text.trim()); text = "" },
                 contentAlignment = Alignment.Center
-            ) { Icon(Icons.AutoMirrored.Filled.ArrowForward, "Enviar", tint = c.onAccent, modifier = Modifier.size(20.dp)) }
+            ) { Icon(Icons.AutoMirrored.Filled.ArrowForward, stringResource(R.string.cd_send), tint = c.onAccent, modifier = Modifier.size(20.dp)) }
         }
     }
 }
 
-// ── Ajustes estilo iOS ─────────────────────────────────────────────────────
+// ── iOS-style settings ─────────────────────────────────────────────────────
 
-/** Grupo de filas con esquinas redondeadas y separadores finos. */
+/** Group of rows with rounded corners and thin dividers. */
 @Composable
 fun ListGroup(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Lumi.colors.surface), content = content)
@@ -332,7 +336,7 @@ fun ListRow(
 @Composable
 fun ListDivider() = Box(Modifier.fillMaxWidth().padding(start = 16.dp).height(0.5.dp).background(Lumi.colors.outline))
 
-/** Texto de estado con punto de color + etiqueta (el color nunca va solo). */
+/** Status text with a color dot + label (color never goes alone). */
 @Composable
 fun StatusText(text: String, color: Color) {
     Row(verticalAlignment = Alignment.CenterVertically) {

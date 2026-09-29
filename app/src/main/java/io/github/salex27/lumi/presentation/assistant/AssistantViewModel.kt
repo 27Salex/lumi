@@ -1,5 +1,6 @@
 package io.github.salex27.lumi.presentation.assistant
 
+import io.github.salex27.lumi.domain.assistant.ReplyLanguage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -109,7 +110,7 @@ class AssistantViewModel(
         append(
             ChatMessage.Assistant(
                 id = nextId++,
-                text = "${DueDateFormatter.greeting(now)}. ¿En qué te ayudo? Puedes pedirme que apunte algo, " +
+                text = "${DueDateFormatter.greeting(now, ReplyLanguage.app)}. ¿En qué te ayudo? Puedes pedirme que apunte algo, " +
                     "preguntarme qué hacer ahora o decirme que ya terminaste una tarea."
             )
         )

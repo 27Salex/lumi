@@ -12,11 +12,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.Locale
+import io.github.salex27.lumi.domain.assistant.Lang
+import io.github.salex27.lumi.domain.assistant.LanguageDetector
+import io.github.salex27.lumi.domain.assistant.ReplyLanguage
 
 /**
- * Lumi habla: lee en voz alta las respuestas cuando le hablas por voz («Oye Lumi, ¿qué tengo hoy?»).
- * Usa el TextToSpeech del sistema (Google / Samsung, voces offline en español). Baja el volumen de la música
- * mientras habla (foco de audio con «ducking») y no dice nada si el ajuste está desactivado.
+ * Lumi speaks: reads replies aloud when you talk to it by voice ("Oye Lumi, what do I have today?").
+ * Uses the system TextToSpeech (Google / Samsung, offline voices). Ducks the music while it speaks (audio focus with
+ * "ducking") and says nothing if the setting is off.
  */
 class LumiSpeaker(private val context: Context, private val settings: SettingsRepository) {
 
@@ -25,7 +28,7 @@ class LumiSpeaker(private val context: Context, private val settings: SettingsRe
 
     private var tts: TextToSpeech? = null
     private var ready = false
-    /** Texto pedido antes de que el motor terminara de iniciarse. */
+    /** Text requested before the engine finished starting. */
     private var pending: String? = null
 
     private val audio by lazy { context.getSystemService(AudioManager::class.java) }
@@ -52,7 +55,7 @@ class LumiSpeaker(private val context: Context, private val settings: SettingsRe
         done()
     }
 
-    /** Libera el motor (al cerrar el asistente). Se recrea al volver a hablar. */
+    /** Releases the engine (when the assistant closes). Recreated when speaking again. */
     fun shutdown() {
         stop()
         tts?.shutdown()
@@ -63,7 +66,7 @@ class LumiSpeaker(private val context: Context, private val settings: SettingsRe
     private fun create(): TextToSpeech = TextToSpeech(context.applicationContext) { status ->
         val engine = tts ?: return@TextToSpeech
         if (status != TextToSpeech.SUCCESS) {
-            Log.w(TAG, "TextToSpeech no disponible ($status)")
+            Log.w(TAG, "TextToSpeech not available ($status)")
             return@TextToSpeech
         }
         val locale = Locale.forLanguageTag(settings.current.voiceLanguage)
@@ -82,7 +85,22 @@ class LumiSpeaker(private val context: Context, private val settings: SettingsRe
 
     private fun say(engine: TextToSpeech, text: String) {
         audio.requestAudioFocus(focus)
+        engine.setLanguage(localeFor(text))
         engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, UTTERANCE_ID)
+    }
+
+    /**
+     * Voice for this text: Lumi answers in the language it was spoken to, so an English reply isn't read with a Spanish
+     * voice. The chosen voice language is kept when it matches (es-MX, en-GB…).
+     */
+    private fun localeFor(text: String): Locale {
+        val lang = LanguageDetector.detect(text, ReplyLanguage.app)
+        val chosen = Locale.forLanguageTag(settings.current.voiceLanguage)
+        return when {
+            Lang.of(chosen.language) == lang -> chosen
+            lang == Lang.EN -> Locale.US
+            else -> Locale.forLanguageTag("es-ES")
+        }
     }
 
     private fun done() {
@@ -95,8 +113,8 @@ class LumiSpeaker(private val context: Context, private val settings: SettingsRe
         private const val UTTERANCE_ID = "lumi_reply"
 
         /**
-         * Adapta el texto de pantalla a la voz: sin comillas angulares, sin «1.» de las listas (se leen como
-         * pausas), guiones como comas y sin emojis sueltos.
+         * Adapts on-screen text for speech: no angle quotes, no "1." from lists (read as pauses), dashes as commas
+         * and no stray emojis.
          */
         fun forSpeech(text: String): String = text
             .replace("«", "").replace("»", "")

@@ -20,22 +20,22 @@ import java.time.ZoneId
 
 data class AgendaUiState(
     val date: LocalDate = LocalDate.now(),
-    /** Tareas con hora de ese día (bloques en la línea de tiempo). */
+    /** Timed tasks of that day (blocks on the timeline). */
     val timedTasks: List<Task> = emptyList(),
-    /** Tareas de ese día sin hora (fila superior). */
+    /** Untimed tasks of that day (top row). */
     val dayTasks: List<Task> = emptyList(),
     val events: List<AgendaEvent> = emptyList(),
-    /** Días de la semana visible con algo programado (puntito en la tira de días). */
+    /** Days of the visible week with something scheduled (dot on the day strip). */
     val busyDays: Set<LocalDate> = emptySet(),
     val calendarAllowed: Boolean = false,
-    /** Eventos de HOY (para la pantalla de Inicio). */
+    /** TODAY's events (for the Home screen). */
     val todayEvents: List<AgendaEvent> = emptyList()
 )
 
 class AgendaViewModel(
     repository: TaskRepository,
     private val calendar: DeviceCalendar,
-    /** Ids de eventos creados por Lumi para sus tareas (no se muestran dos veces). */
+    /** Ids of the events Lumi created for its tasks (not shown twice). */
     private val linkedEventIds: suspend () -> Set<Long>
 ) : ViewModel() {
 
@@ -71,7 +71,7 @@ class AgendaViewModel(
 
     fun shiftDays(days: Long) = selectDate(_date.value.plusDays(days))
 
-    /** Recargar al volver a la app o tras conceder el permiso de calendario. */
+    /** Reload when returning to the app or after the calendar permission is granted. */
     fun refresh() {
         _allowed.value = calendar.canRead()
         loadEvents()

@@ -1,5 +1,6 @@
 package io.github.salex27.lumi.presentation.main
 
+import io.github.salex27.lumi.domain.assistant.ReplyLanguage
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
@@ -133,7 +134,7 @@ private fun FreeTimeCard(tasks: List<Task>, events: List<AgendaEvent>, onStartTa
     var chosenId by remember(slot.end) { androidx.compose.runtime.mutableLongStateOf(options.first().id) }
     val task = tasks.firstOrNull { it.id == chosenId && it.isActive } ?: options.first()
     val started = task.status == TaskStatus.IN_PROGRESS
-    val until = DueDateFormatter.format(slot.end, true).removePrefix("hoy ").removePrefix("a las ")
+    val until = DueDateFormatter.format(slot.end, true, lang = ReplyLanguage.app).removePrefix("hoy ").removePrefix("a las ")
 
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(c.accentContainer).padding(18.dp)
@@ -179,7 +180,7 @@ private fun Header(
         Column(Modifier.weight(1f)) {
             Text(date.uppercase(), style = MaterialTheme.typography.labelSmall, color = Lumi.colors.textTertiary)
             Spacer(Modifier.height(4.dp))
-            Text(DueDateFormatter.greeting(now), style = MaterialTheme.typography.displaySmall, color = Lumi.colors.textPrimary)
+            Text(DueDateFormatter.greeting(now, ReplyLanguage.app), style = MaterialTheme.typography.displaySmall, color = Lumi.colors.textPrimary)
             // El tiempo de un vistazo (toca para preguntarle a Lumi); solo si la previsión es de hoy
             weather?.takeIf { System.currentTimeMillis() - it.fetchedAt < 6 * 3_600_000L }?.let { w ->
                 val line = io.github.salex27.lumi.domain.weather.WeatherAdvisor.dayLine(w, now.toLocalDate(), LocalDateTime.now())

@@ -27,34 +27,34 @@ import io.github.salex27.lumi.R
 import io.github.salex27.lumi.domain.model.TaskCategory
 
 /**
- * Sistema de diseño de Lumi 3.0 — sobrio y limpio (Manus × Revolut × Apple):
- * superficies planas, bordes finos, un único color de acento por modo y tipografía Inter.
- * El degradado se reserva para la marca de Lumi (logo y brillo de borde), nunca para textos o botones.
+ * Lumi 3.0 design system — sober and clean (Manus × Revolut × Apple):
+ * flat surfaces, thin borders, a single accent color per mode and the Inter typeface.
+ * The gradient is reserved for Lumi's brand (logo and edge glow), never for text or buttons.
  */
 @Immutable
 data class LumiColors(
     val isDark: Boolean,
     val background: Color,
-    /** Tarjetas y grupos. */
+    /** Cards and groups. */
     val surface: Color,
-    /** Elementos flotantes (barra inteligente, hojas). */
+    /** Floating elements (smart bar, sheets). */
     val elevated: Color,
-    /** Campos, chips y fondos sutiles. */
+    /** Fields, chips and subtle backgrounds. */
     val muted: Color,
     val outline: Color,
     val textPrimary: Color,
     val textSecondary: Color,
     val textTertiary: Color,
-    /** Relleno de botones principales y elementos seleccionados. */
+    /** Fill of primary buttons and selected items. */
     val accent: Color,
-    /** Acento para texto/iconos sobre el fondo (más contraste que [accent] en modo claro). */
+    /** Accent for text/icons on the background (more contrast than [accent] in light mode). */
     val accentText: Color,
     val accentContainer: Color,
     val onAccent: Color,
     val success: Color,
     val warning: Color,
     val danger: Color,
-    /** Colores de marca (logo y brillo de borde): iguales en ambos modos para reconocer a Lumi. */
+    /** Brand colors (logo and edge glow): the same in both modes so Lumi is recognizable. */
     val brandA: Color = BrandSky,
     val brandB: Color = BrandMagenta
 )
@@ -103,13 +103,13 @@ val DarkLumiColors = LumiColors(
 
 val LocalLumiColors = staticCompositionLocalOf { LightLumiColors }
 
-/** Acceso corto: `Lumi.colors.accent`. */
+/** Shortcut: `Lumi.colors.accent`. */
 object Lumi {
     val colors: LumiColors
         @Composable @ReadOnlyComposable get() = LocalLumiColors.current
 }
 
-// ── Tipografía ──────────────────────────────────────────────────────────────
+// ── Typography ──────────────────────────────────────────────────────────────
 
 val Inter = FontFamily(
     Font(R.font.inter_regular, FontWeight.Normal),
@@ -134,7 +134,7 @@ val LumiTypography = Typography(
     labelSmall = style(11, FontWeight.SemiBold, 14, 0.6)      // cabeceras de sección en mayúsculas
 )
 
-// ── Categorías: icono + color (pasos claros/oscuros de la paleta de referencia validada) ──
+// ── Categories: icon + color (light/dark steps of the validated reference palette) ──
 
 fun TaskCategory.icon(): ImageVector = when (this) {
     TaskCategory.WORK -> Icons.Outlined.WorkOutline
@@ -152,9 +152,9 @@ fun TaskCategory.color(dark: Boolean): Color = when (this) {
     TaskCategory.OTHER -> if (dark) Color(0xFF898781) else Color(0xFF898781)
 }
 
-// ── Tema ────────────────────────────────────────────────────────────────────
+// ── Theme ───────────────────────────────────────────────────────────────────
 
-/** @param themeMode "SYSTEM" | "LIGHT" | "DARK" (Ajustes → Apariencia). */
+/** @param themeMode "SYSTEM" | "LIGHT" | "DARK" (Settings → Appearance). */
 @Composable
 fun LumiAppTheme(themeMode: String = "SYSTEM", content: @Composable () -> Unit) {
     val dark = when (themeMode) {

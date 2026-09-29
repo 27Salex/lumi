@@ -1,4 +1,8 @@
 package io.github.salex27.lumi.presentation.agenda
+import io.github.salex27.lumi.R
+import androidx.compose.ui.res.stringResource
+import io.github.salex27.lumi.presentation.components.uiLocale
+import io.github.salex27.lumi.presentation.components.uiDayPattern
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -57,9 +61,9 @@ import java.time.format.TextStyle as JTextStyle
 import java.util.Locale
 
 private val HOUR_HEIGHT = 60.dp
-private val ES = Locale.forLanguageTag("es-ES")
 
-/** Vista del día al estilo Google Calendar: tareas con hora + eventos del calendario del móvil. */
+
+/** Day view in the style of Google Calendar: timed tasks + events from the phone calendar. */
 @Composable
 fun AgendaScreen(
     state: AgendaUiState,
@@ -75,42 +79,43 @@ fun AgendaScreen(
     val density = LocalDensity.current
     val isToday = state.date == LocalDate.now()
 
-    // Al abrir: desplazarse a la hora actual (o a las 8:00 en otros días)
+    // On open: scroll to the current time (or to 8:00 on other days)
     LaunchedEffect(state.date) {
         val hour = if (isToday) (LocalTime.now().hour - 1).coerceAtLeast(0) else 8
         scroll.scrollTo(with(density) { (HOUR_HEIGHT * hour).roundToPx() })
     }
 
     Column(Modifier.fillMaxSize().background(c.background).statusBarsPadding()) {
-        // ── Cabecera con navegación de días ─────────────────────────────────
+        // ── Header with day navigation ───────────────────────────────────────
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    state.date.format(DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM", ES)).replaceFirstChar { it.uppercase() },
+                    state.date.format(DateTimeFormatter.ofPattern(uiDayPattern, uiLocale)).replaceFirstChar { it.uppercase() },
                     style = MaterialTheme.typography.titleLarge, color = c.textPrimary
                 )
+                val taskCount = state.timedTasks.size + state.dayTasks.size
                 Text(
-                    (state.timedTasks.size + state.dayTasks.size).let { n -> "$n ${if (n == 1) "tarea" else "tareas"}" } + " · " +
-                        state.events.size.let { n -> "$n ${if (n == 1) "evento" else "eventos"}" },
+                    stringResource(if (taskCount == 1) R.string.count_tasks_one else R.string.count_tasks_other, taskCount) + " · " +
+                        stringResource(if (state.events.size == 1) R.string.count_events_one else R.string.count_events_other, state.events.size),
                     color = c.textSecondary, fontSize = 13.sp
                 )
             }
             if (!isToday) {
                 Text(
-                    "Hoy", color = c.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    stringResource(R.string.today), color = c.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.clip(RoundedCornerShape(50)).background(c.muted)
                         .clickable { onSelectDate(LocalDate.now()) }.padding(horizontal = 12.dp, vertical = 6.dp)
                 )
             }
-            IconButton(onClick = { onShiftDays(-1) }) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Día anterior", tint = c.textSecondary) }
-            IconButton(onClick = { onShiftDays(1) }) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Día siguiente", tint = c.textSecondary) }
+            IconButton(onClick = { onShiftDays(-1) }) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, stringResource(R.string.previous_day), tint = c.textSecondary) }
+            IconButton(onClick = { onShiftDays(1) }) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, stringResource(R.string.next_day), tint = c.textSecondary) }
         }
 
         WeekStrip(state.date, state.busyDays, onSelectDate)
 
         if (!state.calendarAllowed) {
             Text(
-                "🗓️ Conecta tu calendario para ver aquí tus eventos de Google Calendar",
+                stringResource(R.string.agenda_connect_calendar),
                 color = c.textPrimary, fontSize = 13.sp,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp)).background(c.accentContainer)
@@ -118,7 +123,7 @@ fun AgendaScreen(
             )
         }
 
-        // ── Todo el día / sin hora ──────────────────────────────────────────
+        // ── All day / untimed ────────────────────────────────────────────────
         val allDay = state.events.filter { it.allDay }
         if (allDay.isNotEmpty() || state.dayTasks.isNotEmpty()) {
             Row(
@@ -130,10 +135,10 @@ fun AgendaScreen(
             }
         }
 
-        // ── Línea de tiempo ─────────────────────────────────────────────────
+        // ── Timeline ─────────────────────────────────────────────────────────
         Box(Modifier.fillMaxWidth().weight(1f).verticalScroll(scroll)) {
             Box(Modifier.fillMaxWidth().height(HOUR_HEIGHT * 24)) {
-                // Rejilla de horas
+                // Hour grid
                 for (h in 0 until 24) {
                     Row(Modifier.offset(y = HOUR_HEIGHT * h).fillMaxWidth().height(HOUR_HEIGHT)) {
                         Text(
@@ -144,7 +149,7 @@ fun AgendaScreen(
                     }
                 }
 
-                // Bloques (eventos + tareas) con reparto en columnas si se solapan
+                // Blocks (events + tasks), split into columns when they overlap
                 val blocks = remember(state.events, state.timedTasks) {
                     layoutBlocks(
                         state.events.filter { !it.allDay }.map { Block.Event(it) } +
@@ -199,7 +204,7 @@ private fun WeekStrip(selected: LocalDate, busy: Set<LocalDate>, onSelect: (Loca
                     .clickable { onSelect(d) }.padding(horizontal = 10.dp, vertical = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(d.dayOfWeek.getDisplayName(JTextStyle.SHORT, ES).take(2).replaceFirstChar { it.uppercase() },
+                Text(d.dayOfWeek.getDisplayName(JTextStyle.SHORT, uiLocale).take(2).replaceFirstChar { it.uppercase() },
                     color = if (isSel) c.onAccent else c.textSecondary, fontSize = 11.sp)
                 Text("${d.dayOfMonth}", color = if (isSel) c.onAccent else if (d == today) c.accentText else c.textPrimary,
                     fontSize = 16.sp, fontWeight = if (d == today) FontWeight.Bold else FontWeight.Medium)
@@ -263,7 +268,7 @@ private fun BlockView(block: Block, zone: ZoneId, modifier: Modifier, onTaskClic
     }
 }
 
-// ── Reparto de bloques solapados en columnas ────────────────────────────────
+// ── Splitting overlapping blocks into columns ──────────────────────────────
 
 private sealed interface Block {
     val start: Long
@@ -282,7 +287,7 @@ private sealed interface Block {
 
 private data class Placed(val block: Block, val column: Int, val columns: Int)
 
-/** Agrupa bloques que se solapan y reparte columnas dentro de cada grupo (como Google Calendar). */
+/** Groups overlapping blocks and splits them into columns within each group (like Google Calendar). */
 private fun layoutBlocks(blocks: List<Block>): List<Placed> {
     val sorted = blocks.sortedWith(compareBy({ it.start }, { -(it.end - it.start) }))
     val result = mutableListOf<Placed>()

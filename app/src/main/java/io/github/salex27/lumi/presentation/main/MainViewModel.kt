@@ -1,5 +1,6 @@
 package io.github.salex27.lumi.presentation.main
 
+import io.github.salex27.lumi.domain.assistant.ReplyLanguage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -24,7 +25,7 @@ data class Filters(
     val status: TaskStatus? = null,
     val category: TaskCategory? = null,
     val priority: TaskPriority? = null,
-    /** true = prioridad y luego fecha (por defecto); false = solo fecha. */
+    /** true = priority then date (default); false = date only. */
     val sortByPriority: Boolean = true
 )
 
@@ -32,14 +33,14 @@ data class BriefingState(
     val text: String? = null,
     val engine: String = "",
     val isLoading: Boolean = false,
-    /** Cambia en cada briefing nuevo para relanzar la animación de escritura (0 = cargado de caché, sin animar). */
+    /** Changes on each new briefing to replay the typing animation (0 = loaded from cache, no animation). */
     val version: Int = 0
 )
 
 data class MainUiState(
-    /** Todas las tareas, activas primero y ordenadas por vencimiento. */
+    /** All tasks, active first and sorted by due date. */
     val allTasks: List<Task> = emptyList(),
-    /** Tareas tras aplicar los filtros de la pestaña Tareas. */
+    /** Tasks after applying the Tasks tab filters. */
     val tasks: List<Task> = emptyList(),
     val filters: Filters = Filters(),
     val briefing: BriefingState = BriefingState(),
@@ -57,7 +58,7 @@ class MainViewModel(
     private val _filters = MutableStateFlow(Filters())
     private val _briefing = MutableStateFlow(BriefingState())
 
-    // combine admite como máximo 5 flujos tipados (ver AGENTS.md) → filtros y briefing van agrupados
+    // combine takes at most 5 typed flows (see AGENTS.md) → filters and briefing are grouped
     val uiState: StateFlow<MainUiState> = combine(
         repository.getAllTasks(),
         _filters,
@@ -87,7 +88,7 @@ class MainViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MainUiState())
 
     init {
-        // El resumen se guarda: solo se genera si no hay ninguno o es de otro día (ahorra peticiones a la IA)
+        // The summary is cached: only generated if there is none or it is from another day (saves AI requests)
         val saved = briefStore.load()
         if (saved != null && saved.date == LocalDate.now()) {
             _briefing.value = BriefingState(text = saved.text, engine = saved.engine, version = 0)
@@ -112,7 +113,7 @@ class MainViewModel(
     fun toggleDone(task: Task) =
         updateTaskStatus(task, if (task.status == TaskStatus.COMPLETED) TaskStatus.TODO else TaskStatus.COMPLETED)
 
-    /** Deslizar a la izquierda: pasar a mañana (conserva la hora si la tenía). */
+    /** Swipe left: move to tomorrow (keeps the time if it had one). */
     fun moveToTomorrow(task: Task) {
         val zone = java.time.ZoneId.systemDefault()
         val time = task.dueAt?.takeIf { task.dueHasTime }?.let { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalTime() }
@@ -121,8 +122,8 @@ class MainViewModel(
     }
 
     /**
-     * Guarda desde la pantalla de edición: crea si es nueva (id 0) o actualiza, y aplica los cambios de avisos
-     * personalizados (añadir minutos-antes / quitar ids).
+     * Saves from the edit screen: creates if new (id 0) or updates, and applies the custom reminder changes (add
+     * minutes-before / remove ids).
      */
     fun saveTask(task: Task, addOffsets: List<Int> = emptyList(), removeReminderIds: List<Long> = emptyList()) {
         viewModelScope.launch {
@@ -140,7 +141,7 @@ class MainViewModel(
         viewModelScope.launch { repository.deleteTask(task) }
     }
 
-    /** Pulsar «actualizar»: fuerza un resumen nuevo. */
+    /** Tapping "refresh": forces a new summary. */
     fun generateDailyBriefing() {
         if (_briefing.value.isLoading) return
         _briefing.update { it.copy(isLoading = true) }
@@ -149,7 +150,7 @@ class MainViewModel(
             if (result != null) briefStore.save(result.reply, result.engine)
             _briefing.update {
                 BriefingState(
-                    text = result?.reply ?: it.text ?: "No he podido preparar el resumen ahora mismo.",
+                    text = result?.reply ?: it.text ?: ReplyLanguage.ui("No he podido preparar el resumen ahora mismo.", "I couldn't prepare the summary right now."),
                     engine = result?.engine ?: it.engine,
                     isLoading = false,
                     version = it.version + 1

@@ -1,5 +1,7 @@
 package io.github.salex27.lumi.presentation.widget
+import androidx.glance.LocalContext
 
+import io.github.salex27.lumi.domain.assistant.ReplyLanguage
 import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
@@ -48,8 +50,8 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 /**
- * Widget de Lumi (Jetpack Glance): carita de Lumi, contadores, las 3 próximas tareas y botón de voz.
- * Se refresca solo cuando cambian las tareas (ver [WidgetUpdater]).
+ * Lumi widget (Jetpack Glance): Lumi's face, counters, the next 3 tasks and a voice button.
+ * Only refreshed when tasks change (see [WidgetUpdater]).
  */
 class QuickTaskWidget : GlanceAppWidget() {
 
@@ -61,11 +63,11 @@ class QuickTaskWidget : GlanceAppWidget() {
         val today = LocalDate.now()
         val zone = ZoneId.systemDefault()
         val dueToday = active.count { t -> t.dueAt?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() == today } == true }
-        // Lo urgente primero; luego lo que vence antes
+        // Urgent first; then whatever is due sooner
         val next = active.sortedWith(compareBy<Task>({ if (it.priority == io.github.salex27.lumi.domain.model.TaskPriority.HIGH) 0 else 1 }, { it.dueAt ?: Long.MAX_VALUE }, { -it.createdAt })).take(3)
 
-        // PendingIntent de Activity: permitido por Android 14+ (un startActivity desde un
-        // ActionCallback/broadcast sería un "background activity launch" y se bloquearía)
+        // Activity PendingIntent: allowed on Android 14+ (a startActivity from an ActionCallback/broadcast would be a
+        // "background activity launch" and get blocked)
         val talk = AssistantActivity.intent(context, startListening = true, compact = true)
         val openApp = Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
@@ -77,7 +79,7 @@ class QuickTaskWidget : GlanceAppWidget() {
         Column(
             modifier = GlanceModifier.fillMaxSize().background(ImageProvider(R.drawable.widget_bg)).padding(14.dp)
         ) {
-            // Cabecera: Lumi + contadores (toca para abrir la app)
+            // Header: Lumi + counters (tap to open the app)
             Row(
                 modifier = GlanceModifier.fillMaxWidth().clickable(actionStartActivity(openApp)),
                 verticalAlignment = Alignment.CenterVertically
@@ -87,7 +89,7 @@ class QuickTaskWidget : GlanceAppWidget() {
                 Column(GlanceModifier.defaultWeight()) {
                     Text("Lumi", style = TextStyle(color = ink(), fontSize = 15.sp, fontWeight = FontWeight.Bold))
                     Text(
-                        if (pending == 0) "Todo al día ✨" else "$pending pendientes · $dueToday para hoy",
+                        if (pending == 0) LocalContext.current.getString(R.string.widget_all_clear) else LocalContext.current.getString(R.string.widget_counts, pending, dueToday),
                         style = TextStyle(color = inkSecondary(), fontSize = 11.sp)
                     )
                 }
@@ -95,10 +97,10 @@ class QuickTaskWidget : GlanceAppWidget() {
 
             Spacer(GlanceModifier.height(8.dp))
 
-            // Próximas tareas
+            // Upcoming tasks
             Column(GlanceModifier.defaultWeight().fillMaxWidth()) {
                 if (next.isEmpty()) {
-                    Text("Nada pendiente. Di «Oye Lumi» o toca abajo.", style = TextStyle(color = inkSecondary(), fontSize = 12.sp))
+                    Text(LocalContext.current.getString(R.string.widget_empty), style = TextStyle(color = inkSecondary(), fontSize = 12.sp))
                 }
                 next.forEach { task ->
                     TaskRow(task, openApp)
@@ -106,14 +108,14 @@ class QuickTaskWidget : GlanceAppWidget() {
                 }
             }
 
-            // Botón de voz
+            // Voice button
             Box(
                 modifier = GlanceModifier.fillMaxWidth().height(38.dp)
                     .background(ImageProvider(R.drawable.widget_button_bg))
                     .clickable(actionStartActivity(talk)),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Hablar con Lumi", style = TextStyle(color = ColorProvider(day = Color(0xFF0B0D12), night = Color(0xFF1A0B13)), fontSize = 13.sp, fontWeight = FontWeight.Bold))
+                Text(LocalContext.current.getString(R.string.action_talk_to_lumi), style = TextStyle(color = ColorProvider(day = Color(0xFF0B0D12), night = Color(0xFF1A0B13)), fontSize = 13.sp, fontWeight = FontWeight.Bold))
             }
         }
     }
@@ -126,7 +128,7 @@ class QuickTaskWidget : GlanceAppWidget() {
                 .padding(horizontal = 10.dp, vertical = 6.dp).clickable(actionStartActivity(openApp)),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Punto de color de la categoría (claro/oscuro) en vez de emoji
+            // Category color dot (light/dark) instead of an emoji
             Box(GlanceModifier.size(8.dp).cornerRadius(4.dp).background(ColorProvider(day = task.category.color(false), night = task.category.color(true)))) {}
             Spacer(GlanceModifier.width(8.dp))
             Text(
@@ -136,7 +138,7 @@ class QuickTaskWidget : GlanceAppWidget() {
             )
             task.dueAt?.let {
                 Text(
-                    DueDateFormatter.format(it, task.dueHasTime),
+                    DueDateFormatter.format(it, task.dueHasTime, lang = ReplyLanguage.app),
                     maxLines = 1,
                     style = TextStyle(color = if (overdue) ColorProvider(day = Color(0xFFDC2626), night = Color(0xFFF87171)) else ColorProvider(day = Color(0xFF0284C7), night = Color(0xFFF5A9D0)), fontSize = 11.sp)
                 )
@@ -144,17 +146,17 @@ class QuickTaskWidget : GlanceAppWidget() {
         }
     }
 
-    // Colores día/noche: el widget sigue el tema del sistema
+    // Day/night colors: the widget follows the system theme
     private fun ink() = ColorProvider(day = Color(0xFF0B0D12), night = Color(0xFFF5F5F7))
     private fun inkSecondary() = ColorProvider(day = Color(0xFF5B6472), night = Color(0xFFA1A1AA))
 }
 
-/** AppWidgetReceiver que registra el Widget de Glance en el sistema Android */
+/** AppWidgetReceiver that registers the Glance widget with Android. */
 class QuickTaskWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = QuickTaskWidget()
 }
 
-/** Refresca el widget tras cualquier cambio de tareas. */
+/** Refreshes the widget after any task change. */
 class WidgetUpdater(private val context: Context) : TaskChangeListener {
     override suspend fun onTaskSaved(taskId: Long) = refresh()
     override suspend fun onTaskDeleted(taskId: Long, googleTaskId: String?, calendarEventId: Long?) = refresh()

@@ -1,5 +1,10 @@
 package io.github.salex27.lumi.presentation.tasks
+import io.github.salex27.lumi.R
+import androidx.compose.ui.res.stringResource
+import io.github.salex27.lumi.domain.assistant.Lang
+import io.github.salex27.lumi.presentation.components.uiLabel
 
+import io.github.salex27.lumi.domain.assistant.ReplyLanguage
 import io.github.salex27.lumi.domain.model.TaskPriority
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
@@ -77,33 +82,42 @@ fun TasksScreen(
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             item {
-                Text("Tareas", style = MaterialTheme.typography.headlineMedium, color = c.textPrimary, modifier = Modifier.padding(start = 4.dp, top = 8.dp))
+                Text(stringResource(R.string.tab_tasks), style = MaterialTheme.typography.headlineMedium, color = c.textPrimary, modifier = Modifier.padding(start = 4.dp, top = 8.dp))
             }
             item {
+                val allAreas = stringResource(R.string.filter_all_areas)
+                val anyStatus = stringResource(R.string.filter_any_status)
+                val anyPriority = stringResource(R.string.filter_any_priority)
+                val noPriority = stringResource(R.string.filter_no_priority)
+                val priorityX = stringResource(R.string.filter_priority_x)
+                val byPriority = stringResource(R.string.sort_by_priority)
+                val byDate = stringResource(R.string.sort_by_date)
+                fun priorityName(p: TaskPriority) = if (p == TaskPriority.NONE) noPriority
+                    else priorityX.format(p.uiLabel.let { if (ReplyLanguage.app == Lang.EN) it else it.lowercase() })
                 Row(Modifier.padding(vertical = 12.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterDropdown(
-                        label = filters.category?.label ?: "Todas las áreas",
+                        label = filters.category?.uiLabel ?: allAreas,
                         active = filters.category != null,
-                        options = listOf<Pair<String, TaskCategory?>>("Todas las áreas" to null) + TaskCategory.entries.map { it.label to it },
+                        options = listOf<Pair<String, TaskCategory?>>(allAreas to null) + TaskCategory.entries.map { it.uiLabel to it },
                         onSelect = onCategoryFilter
                     )
                     FilterDropdown(
-                        label = filters.status?.let { statusLabel(it) } ?: "Cualquier estado",
+                        label = filters.status?.let { statusLabel(it) } ?: anyStatus,
                         active = filters.status != null,
-                        options = listOf<Pair<String, TaskStatus?>>("Cualquier estado" to null) + TaskStatus.entries.map { statusLabel(it) to it },
+                        options = listOf<Pair<String, TaskStatus?>>(anyStatus to null) + TaskStatus.entries.map { statusLabel(it) to it },
                         onSelect = onStatusFilter
                     )
                     FilterDropdown(
-                        label = filters.priority?.let { "Prioridad ${it.label.lowercase()}" } ?: "Cualquier prioridad",
+                        label = filters.priority?.let { priorityName(it) } ?: anyPriority,
                         active = filters.priority != null,
-                        options = listOf<Pair<String, TaskPriority?>>("Cualquier prioridad" to null) +
-                            TaskPriority.entries.reversed().map { (if (it == TaskPriority.NONE) "Sin prioridad" else "Prioridad ${it.label.lowercase()}") to it },
+                        options = listOf<Pair<String, TaskPriority?>>(anyPriority to null) +
+                            TaskPriority.entries.reversed().map { priorityName(it) to it },
                         onSelect = onPriorityFilter
                     )
                     FilterDropdown(
-                        label = if (filters.sortByPriority) "Orden: prioridad" else "Orden: fecha",
+                        label = if (filters.sortByPriority) byPriority else byDate,
                         active = false,
-                        options = listOf<Pair<String, Boolean?>>("Orden: prioridad" to true, "Orden: fecha" to false),
+                        options = listOf<Pair<String, Boolean?>>(byPriority to true, byDate to false),
                         onSelect = { onSortByPriority(it ?: true) }
                     )
                 }
@@ -115,7 +129,7 @@ fun TasksScreen(
                         LumiMark(LumiState.IDLE, size = 56.dp)
                     }
                     Text(
-                        if (filters.copy(sortByPriority = true) != Filters()) "Nada con estos filtros" else "Sin tareas. Toca + o háblale a Lumi.",
+                        stringResource(if (filters.copy(sortByPriority = true) != Filters()) R.string.tasks_empty_filtered else R.string.tasks_empty),
                         style = MaterialTheme.typography.bodyMedium, color = c.textTertiary,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)
                     )
@@ -125,7 +139,7 @@ fun TasksScreen(
             groups.forEach { (title, list) ->
                 val isDone = title == DONE_GROUP
                 item(key = "h_$title") {
-                    SectionHeader(title, Modifier.padding(start = 4.dp, top = 10.dp).then(if (isDone) Modifier.clickable { showDone = !showDone } else Modifier)) {
+                    SectionHeader(stringResource(title), Modifier.padding(start = 4.dp, top = 10.dp).then(if (isDone) Modifier.clickable { showDone = !showDone } else Modifier)) {
                         Text(if (isDone) "${list.size} ${if (showDone) "▲" else "▼"}" else "${list.size}",
                             style = MaterialTheme.typography.labelMedium, color = c.textTertiary)
                     }
@@ -148,7 +162,7 @@ fun TasksScreen(
             Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp).size(56.dp)
                 .shadow(10.dp, RoundedCornerShape(18.dp)).clip(RoundedCornerShape(18.dp)).background(c.accent).clickable(onClick = onNew),
             contentAlignment = Alignment.Center
-        ) { Icon(Icons.Default.Add, "Nueva tarea", tint = c.onAccent) }
+        ) { Icon(Icons.Default.Add, stringResource(R.string.new_task), tint = c.onAccent) }
     }
 }
 
@@ -175,10 +189,10 @@ private fun <T> FilterDropdown(label: String, active: Boolean, options: List<Pai
     }
 }
 
-private const val DONE_GROUP = "Hechas"
+private val DONE_GROUP = R.string.group_done
 
-/** Agrupa por urgencia: Vencidas → Hoy → Próximas → Sin fecha → Hechas. */
-private fun group(tasks: List<Task>): List<Pair<String, List<Task>>> {
+/** Groups by urgency: Overdue → Today → Upcoming → No date → Done. Titles are string resources. */
+private fun group(tasks: List<Task>): List<Pair<Int, List<Task>>> {
     val zone = ZoneId.systemDefault()
     val today = LocalDate.now()
     fun Task.day() = dueAt?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() }
@@ -189,10 +203,10 @@ private fun group(tasks: List<Task>): List<Pair<String, List<Task>>> {
     val noDate = active.filter { it.dueAt == null }
     val closed = tasks.filter { !it.isActive }
     return listOf(
-        "Vencidas" to overdue,
-        "Hoy" to todayList,
-        "Próximas" to upcoming,
-        "Sin fecha" to noDate,
+        R.string.group_overdue to overdue,
+        R.string.group_today to todayList,
+        R.string.group_upcoming to upcoming,
+        R.string.group_no_date to noDate,
         DONE_GROUP to closed
     ).filter { it.second.isNotEmpty() }
 }
