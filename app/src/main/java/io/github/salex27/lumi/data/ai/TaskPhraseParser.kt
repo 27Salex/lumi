@@ -5,8 +5,8 @@ import io.github.salex27.lumi.domain.model.TaskPriority
 import java.time.DayOfWeek
 
 /**
- * Extractores de frases en español para crear tareas (puros, testeados). Cada uno devuelve el texto
- * sin la expresión reconocida, para que el título quede limpio.
+ * Spanish phrase extractors for creating tasks (pure, tested). Each returns the text without the recognized
+ * expression so the title stays clean. English: [EnglishCommands].
  */
 object TaskPhraseParser {
 
@@ -19,7 +19,7 @@ object TaskPhraseParser {
     )
     private val DAY_ALT = WEEKDAYS.keys.joinToString("|")
 
-    // ── Recurrencia ─────────────────────────────────────────────────────────
+    // ── Recurrence ──────────────────────────────────────────────────────────
 
     data class RecurrenceMatch(val recurrence: Recurrence, val remaining: String)
 
@@ -52,7 +52,7 @@ object TaskPhraseParser {
         return null
     }
 
-    // ── Avisos extra ("avísame 2 horas antes y 10 minutos antes") ───────────
+    // ── Extra reminders ("avísame 2 horas antes y 10 minutos antes") ────────
 
     data class RemindersMatch(val offsetsMinutes: List<Int>, val remaining: String)
 
@@ -65,7 +65,7 @@ object TaskPhraseParser {
         var remaining = text
         while (true) {
             val m = block.find(remaining) ?: break
-            // "y" suelto solo cuenta si ya hubo un "avísame" antes
+            // A bare "y" only counts after an earlier "avísame"
             if (m.value.trim().lowercase().startsWith("y") && offsets.isEmpty()) break
             offsets += toMinutes(m.groupValues[1], m.groupValues[2])
             remaining = remaining.removeRange(m.range)
@@ -87,7 +87,7 @@ object TaskPhraseParser {
         }
     }
 
-    /** Busca un desplazamiento relativo ("una semana", "2 horas") en el texto. */
+    /** Finds a relative amount ("una semana", "2 horas") in the text. */
     fun findRelativeAmount(text: String): Pair<Int, IntRange>? {
         val m = Regex("$I\\b$AMOUNT\\s+$UNIT\\b").find(text) ?: return null
         return toMinutes(m.groupValues[1], m.groupValues[2]) to m.range
@@ -98,17 +98,17 @@ object TaskPhraseParser {
         "diez" to 10, "quince" to 15, "veinte" to 20, "treinta" to 30
     )
 
-    // ── Reunión mencionada ("para la reunión del sprint", "antes de la llamada con Ana") ──
+    // ── Mentioned meeting ("para la reunión del sprint", "antes de la llamada con Ana") ──
 
     fun extractMeetingHint(text: String): String? =
         Regex("$I\\b(?:para|antes\\s+de|de\\s+cara\\s+a)\\s+(?:la|el)\\s+((?:reuni[oó]n|llamada|meeting|call|junta|videollamada|entrevista|presentaci[oó]n)(?:\\s+(?:de|del|con|sobre)\\s+[^,.;]+)?)")
             .find(text)?.groupValues?.get(1)?.trim()
 
-    // ── Prioridad ("es urgente", "sin prisa", "prioridad alta") ─────────────
+    // ── Priority ("es urgente", "sin prisa", "prioridad alta") ──────────────
 
     data class PriorityMatch(val priority: TaskPriority, val remaining: String)
 
-    // El orden importa: "no es urgente" antes que "urgente"
+    // Order matters: "no es urgente" before "urgente"
     private val PRIORITY_RULES: List<Pair<Regex, TaskPriority>> = listOf(
         Regex("$I[,\\s]*(?:que\\s+)?no\\s+es\\s+(?:urgente|importante|prioritari[oa])\\b") to TaskPriority.LOW,
         Regex("$I[,\\s]*(?:con\\s+)?prioridad\\s+(?:baja|m[ií]nima)\\b") to TaskPriority.LOW,
@@ -129,7 +129,7 @@ object TaskPhraseParser {
         return null
     }
 
-    /** Palabra de prioridad suelta ("urgente", "alta", "sin prisa") → prioridad. Para SET_PRIORITY. */
+    /** A bare priority word ("urgente", "alta", "sin prisa") → priority. For SET_PRIORITY. */
     fun priorityWord(word: String): TaskPriority? {
         val w = word.lowercase().trim()
         return when {
@@ -141,7 +141,7 @@ object TaskPhraseParser {
         }
     }
 
-    // ── Aviso por lugar ("cuando llegue a casa", "al salir del trabajo") ────
+    // ── Place reminder ("cuando llegue a casa", "al salir del trabajo") ─────
 
     data class PlaceMatch(val place: String, val onArrive: Boolean, val remaining: String)
 
@@ -151,24 +151,24 @@ object TaskPhraseParser {
             "\\s+(?:a\\s+la|a\\s+mi|al|a|en\\s+el|en\\s+la|en\\s+mi|en|de\\s+la|de\\s+mi|del|de)\\s+(\\p{L}+)[,]?"
     )
 
-    /** Sinónimos → clave del lugar guardado. */
+    /** Synonyms → saved-place key (Spanish and English names map to the same key). */
     private val PLACE_ALIASES = mapOf(
-        "casa" to "casa", "piso" to "casa", "hogar" to "casa",
-        "trabajo" to "trabajo", "oficina" to "trabajo", "curro" to "trabajo",
+        "casa" to "casa", "piso" to "casa", "hogar" to "casa", "home" to "casa",
+        "trabajo" to "trabajo", "oficina" to "trabajo", "curro" to "trabajo", "work" to "trabajo", "office" to "trabajo",
         "gimnasio" to "gimnasio", "gym" to "gimnasio",
-        "universidad" to "universidad", "uni" to "universidad", "facultad" to "universidad", "clase" to "universidad",
-        "super" to "supermercado", "súper" to "supermercado", "supermercado" to "supermercado"
+        "universidad" to "universidad", "uni" to "universidad", "facultad" to "universidad", "clase" to "universidad", "university" to "universidad",
+        "super" to "supermercado", "súper" to "supermercado", "supermercado" to "supermercado", "supermarket" to "supermercado"
     )
 
     /**
-     * Limpieza final del título, venga del motor que venga (Gemma copió «Que se llama hacer X…»):
-     * quita «(créame) una tarea», «que se llama/llame», «llamada», «titulada», «con el nombre de», «:».
+     * Final title cleanup, whatever engine produced it (Gemma copied "Que se llama hacer X…"):
+     * removes "(créame) una tarea", "que se llama/llame", "llamada", "titulada", "con el nombre de", "task called", ":".
      */
     fun cleanTitle(title: String): String {
         var t = title.trim().trim('"', '«', '»', '\'')
-        t = t.replace(Regex("$I^(?:cr[eé]a(?:me|r)?|a[ñn][aá]de(?:me)?|ap[uú]nta(?:me)?|an[oó]ta(?:me)?|pon(?:me)?|haz(?:me)?|agrega)\\s+(?=(?:una\\s+|la\\s+)?(?:nueva\\s+)?tarea\\b)"), "")
-        t = t.replace(Regex("$I^(?:una\\s+|la\\s+)?(?:nueva\\s+)?tarea\\b\\s*"), "")
-        t = t.replace(Regex("$I^(?:que\\s+se\\s+(?:llam[ae]|titul[ae])|llamada|titulada|con\\s+el\\s+(?:nombre|t[ií]tulo)(?:\\s+de)?|que\\s+diga|de\\s+nombre|que\\s+ponga)\\b\\s*:?\\s*"), "")
+        t = t.replace(Regex("$I^(?:cr[eé]a(?:me|r)?|a[ñn][aá]de(?:me)?|ap[uú]nta(?:me)?|an[oó]ta(?:me)?|pon(?:me)?|haz(?:me)?|agrega|create|add|make)\\s+(?=(?:una\\s+|la\\s+|a\\s+|the\\s+)?(?:nueva\\s+|new\\s+)?(?:tarea|task)\\b)"), "")
+        t = t.replace(Regex("$I^(?:una\\s+|la\\s+|a\\s+|the\\s+)?(?:nueva\\s+|new\\s+)?(?:tarea|task)\\b\\s*"), "")
+        t = t.replace(Regex("$I^(?:que\\s+se\\s+(?:llam[ae]|titul[ae])|llamada|titulada|con\\s+el\\s+(?:nombre|t[ií]tulo)(?:\\s+de)?|que\\s+diga|de\\s+nombre|que\\s+ponga|called|named|titled|that\\s+says)\\b\\s*:?\\s*"), "")
         t = t.trimStart(':', ' ', ',').trim()
         return (t.ifBlank { title.trim() }).replaceFirstChar { it.uppercase() }
     }
@@ -188,8 +188,8 @@ object TaskPhraseParser {
     // ── Brain dump ──────────────────────────────────────────────────────────
 
     /**
-     * Divide "comprar pan, llamar a Ana y acabar el informe" en 3 trozos. Solo divide cuando CADA trozo
-     * empieza por un verbo (así "comprar pan y leche" sigue siendo una sola tarea).
+     * Splits "comprar pan, llamar a Ana y acabar el informe" into 3 chunks. Only when EVERY chunk starts with a verb
+     * (so "comprar pan y leche" stays one task).
      */
     fun splitBrainDump(text: String): List<String> {
         val parts = text.split(Regex("$I\\s*(?:[,;]|\\s+y\\s+|\\s+luego\\s+|\\s+adem[aá]s\\s+|\\s+tambi[eé]n\\s+|\\s+despu[eé]s\\s+)\\s*"))

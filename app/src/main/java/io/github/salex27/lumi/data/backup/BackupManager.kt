@@ -6,6 +6,7 @@ import io.github.salex27.lumi.data.local.AppDatabase
 import io.github.salex27.lumi.data.local.MemoryEntity
 import io.github.salex27.lumi.data.local.TaskEntity
 import io.github.salex27.lumi.data.local.toDomain
+import io.github.salex27.lumi.domain.assistant.ReplyLanguage
 import io.github.salex27.lumi.domain.model.TaskCategory
 import io.github.salex27.lumi.domain.model.TaskPriority
 import io.github.salex27.lumi.domain.model.TaskReminder
@@ -17,12 +18,12 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Copia de seguridad en un fichero JSON (el usuario elige dónde: Drive, Descargas…). Sirve para cambiar de móvil y
- * para pasar los datos de la app antigua (id con «gemini») a Lumi 1.0.
+ * Backup to a JSON file (the user picks where: Drive, Downloads…). Used to move to another phone and to bring the data
+ * of the old app (whose id contained "gemini") over to Lumi 1.0.
  *
- * Qué va: tareas (con sus avisos personalizados), memoria, lugares, rutinas, contactos rápidos y ajustes.
- * Qué NO va: la API key de Gemini (secreto), ids ligados a este móvil (calendario, huella de voz), cachés.
- * Importar SUMA a lo que haya (no borra nada): las tareas y recuerdos que ya existan no se duplican.
+ * Included: tasks (with their custom reminders), memory, places, routines, quick contacts and settings.
+ * NOT included: the Gemini API key (a secret), ids tied to this phone (calendar, voice print), caches.
+ * Importing ADDS to what is there (never deletes): tasks and memories that already exist aren't duplicated.
  */
 class BackupManager(
     private val context: Context,
@@ -32,7 +33,7 @@ class BackupManager(
 
     data class Summary(val tasks: Int, val memories: Int, val prefsFiles: Int)
 
-    /** Ficheros de SharedPreferences que se copian (y claves que no, por secretas o ligadas al móvil). */
+    /** SharedPreferences files that are copied (and keys that aren't: secret or tied to this phone). */
     private val prefsToCopy = listOf("assistant_settings", "places", "routines", "contact_aliases")
     private val skippedKeys = setOf("cloud_api_key", "calendar_id", "calendar_sync", "google_tasks", "google_tasks_last_sync", "google_tasks_list_id")
 
@@ -63,7 +64,7 @@ class BackupManager(
                 }
             })
         context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(root.toString(2).toByteArray()) }
-            ?: error("No se pudo escribir el fichero")
+            ?: error(ReplyLanguage.ui("No se pudo escribir el fichero", "Could not write the file"))
         Summary(tasks.size, memories.size, prefsToCopy.size)
     }
 
@@ -81,17 +82,17 @@ class BackupManager(
     }
 
     /**
-     * Importa una copia. Después la app se reinicia sola para que los ajustes, lugares y rutinas se vuelvan a leer.
-     * Devuelve cuántas tareas y recuerdos NUEVOS se añadieron.
+     * Imports a backup. The app then restarts itself so settings, places and routines are read again.
+     * Returns how many NEW tasks and memories were added.
      */
     suspend fun import(uri: Uri): Summary = withContext(Dispatchers.IO) {
         val text = context.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
-            ?: error("No se pudo leer el fichero")
+            ?: error(ReplyLanguage.ui("No se pudo leer el fichero", "Could not read the file"))
         val root = JSONObject(text)
-        require(root.optString("app") == "Lumi") { "Este fichero no es una copia de Lumi" }
-        require(root.optInt("format") <= FORMAT_VERSION) { "La copia es de una versión más nueva de Lumi: actualiza la app" }
+        require(root.optString("app") == "Lumi") { ReplyLanguage.ui("Este fichero no es una copia de Lumi", "This file isn't a Lumi backup") }
+        require(root.optInt("format") <= FORMAT_VERSION) { ReplyLanguage.ui("La copia es de una versión más nueva de Lumi: actualiza la app", "The backup is from a newer Lumi: update the app") }
 
-        // Tareas: se salta la que ya exista (mismo título y fecha de creación)
+        // Tasks: skip the ones that already exist (same title and creation time)
         val existing = database.taskDao().getAllTasksSnapshot().map { it.title to it.createdAt }.toSet()
         var addedTasks = 0
         val tasks = root.optJSONArray("tasks") ?: JSONArray()
@@ -109,14 +110,14 @@ class BackupManager(
                 placeTrigger = o.optStringOrNull("placeTrigger"), googleTaskId = o.optStringOrNull("googleTaskId"),
                 meetingTitle = o.optStringOrNull("meetingTitle"), meetingStart = o.optLongOrNull("meetingStart")
             )
-            // Por el repositorio: así se programan los avisos, las geovallas y el widget
+            // Through the repository: reminders, geofences and the widget get scheduled
             val id = repository.insertTask(entity.toDomain())
             val saved = repository.getTask(id) ?: continue
             o.optJSONArray("customReminders")?.let { arr -> for (j in 0 until arr.length()) repository.addCustomReminder(saved, arr.getInt(j)) }
             addedTasks++
         }
 
-        // Memoria: sin repetir textos
+        // Memory: no duplicate texts
         val known = database.memoryDao().all().map { it.text.trim().lowercase() }.toMutableSet()
         var addedMemories = 0
         val memories = root.optJSONArray("memories") ?: JSONArray()
@@ -128,7 +129,7 @@ class BackupManager(
             addedMemories++
         }
 
-        // Ajustes, lugares, rutinas y contactos rápidos: se escriben tal cual (commit: antes del reinicio)
+        // Settings, places, routines and quick contacts: written as they are (commit: before the restart)
         val prefs = root.optJSONObject("prefs") ?: JSONObject()
         var files = 0
         for (name in prefsToCopy) {

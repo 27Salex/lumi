@@ -6,23 +6,23 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 
 /**
- * Intenciones de «asistente» que no son tareas (v3.6): el tiempo, el resumen del día, la alarma inteligente,
- * leer los mensajes y preguntas generales. Kotlin puro y testeado; lo usa [RuleBasedEngine].
+ * "Assistant" intents that aren't tasks, in Spanish (English: [EnglishCommands]): weather, the day summary, the smart
+ * alarm, reading messages and general questions. Pure Kotlin and tested; used by [RuleBasedEngine].
  */
 object AssistantIntents {
 
     private const val I = "(?iu)"
 
-    // ── El tiempo ────────────────────────────────────────────────────────────
+    // ── Weather ─────────────────────────────────────────────────────────────
 
-    /** Palabras del tiempo. «Tiempo» solo cuenta con «qué/el tiempo» o «tiempo hace»: «¿cuánto tiempo tengo?» no es el clima. */
+    /** Weather words. "Tiempo" only counts with "qué/el tiempo" or "tiempo hace": "¿cuánto tiempo tengo?" isn't the weather. */
     private val WEATHER_TOPIC = Regex(
         "$I(?:\\b(?:qu[eé]|el|del|tal)\\s+tiempo\\b(?!\\s+(?:libre|tengo|me\\s+queda|queda|falta))|\\btiempo\\s+(?:hace|har[aá]|va\\s+a\\s+hacer)\\b|^tiempo\\b|" +
             "\\bclima\\b|\\bprevisi[oó]n\\b|\\bllov(?:er|er[aá]|iendo|i[oó])\\b|\\bllueve\\b|\\blluvia\\b|\\bparaguas\\b|\\bchubasquero\\b|" +
             "\\b(?:chaqueta|abrigo|chaquet[oó]n|jersey|sudadera)\\b|\\bfr[ií]o\\b|\\bcalor\\b|\\btemperatura\\b|\\bgrados\\b|" +
             "\\bnev(?:ar|ar[aá]|ando)\\b|\\bnieva\\b|\\btormenta\\b|\\bsoleado\\b|\\bnublado\\b|\\bhace\\s+sol\\b)"
     )
-    /** Tiene forma de pregunta o petición de información (no «recuérdame coger el paraguas»). */
+    /** Shaped like a question or a request for information (not "recuérdame coger el paraguas"). */
     private val WEATHER_ASK = Regex(
         "$I^\\s*¿|\\?\\s*$|^(?:y\\s+)?(?:qu[eé]|c[oó]mo|cu[aá]nt[oa]s?|va\\s+a|van\\s+a|voy\\s+a\\s+necesitar|necesito|necesitar[eé]|" +
             "hace|har[aá]|llueve|llover[aá]|nieva|nevar[aá]|me\\s+llevo|llevo|cojo|me\\s+pongo|dime|(?:el\\s+)?tiempo|(?:el\\s+)?clima|(?:la\\s+)?previsi[oó]n|" +
@@ -35,7 +35,7 @@ object AssistantIntents {
         return WEATHER_TOPIC.containsMatchIn(t) && WEATHER_ASK.containsMatchIn(t) && !TASKY.containsMatchIn(t)
     }
 
-    /** «¿Va a llover mañana por la tarde en Madrid?» → mañana, tarde, lluvia, Madrid. null si no va del tiempo. */
+    /** "¿Va a llover mañana por la tarde en Madrid?" → tomorrow, afternoon, rain, Madrid. Null if it isn't about weather. */
     fun weather(text: String, now: LocalDateTime): WeatherQuery? {
         if (!isWeather(text)) return null
         var t = text.trim().trimEnd('?', '.', '!').replace(Regex("^¿"), "")
@@ -45,7 +45,7 @@ object AssistantIntents {
             Regex("$I\\b(?:por\\s+la|esta|de\\s+la|a\\s+la)\\s+noche\\b|\\besta\\s+noche\\b").containsMatchIn(t) -> PartOfDay.NIGHT
             else -> null
         }
-        // Se quitan las partes del día antes de buscar la fecha («esta mañana» no es «mañana»)
+        // Parts of the day are removed before looking for the date ("esta mañana" is not "mañana" = tomorrow)
         t = t.replace(Regex("$I\\b(?:por\\s+la|esta|de\\s+la|a\\s+la)\\s+(?:ma[ñn]ana|tarde|noche)\\b"), " ")
         val date = SpanishDateParser.parse(t, now)?.dateTime?.toLocalDate()?.takeIf { !it.isBefore(now.toLocalDate()) }
             ?: when {
@@ -71,7 +71,7 @@ object AssistantIntents {
         return d
     }
 
-    // ── Resumen del día («buenos días», «¿qué tengo mañana?») ─────────────────
+    // ── Day summary ("buenos días", "¿qué tengo mañana?") ────────────────────
 
     private val DAY_BRIEF = Regex(
         "$I^\\s*¿?\\s*(?:(?:y\\s+)?qu[eé]\\s+tengo\\s+(?:hoy|mañana|para\\s+hoy|para\\s+mañana|el\\s+\\p{L}+)|" +
@@ -80,7 +80,7 @@ object AssistantIntents {
             "qu[eé]\\s+me\\s+espera\\s+(?:hoy|mañana))\\s*\\??\\s*$"
     )
 
-    /** Día pedido en un resumen del día, o null si la frase no es eso. */
+    /** The day asked for in a day summary, or null if the sentence isn't one. */
     fun dayBrief(text: String, now: LocalDateTime): LocalDate? {
         val t = text.trim()
         if (!DAY_BRIEF.containsMatchIn(t)) return null
@@ -88,7 +88,7 @@ object AssistantIntents {
         return SpanishDateParser.parse(t, now)?.dateTime?.toLocalDate() ?: now.toLocalDate()
     }
 
-    // ── Alarma inteligente ──────────────────────────────────────────────────
+    // ── Smart alarm ─────────────────────────────────────────────────────────
 
     private val SMART_ALARM = Regex(
         "$I^\\s*¿?\\s*(?:alarma\\s+inteligente|" +
@@ -100,7 +100,7 @@ object AssistantIntents {
     fun isSmartAlarm(text: String) = SMART_ALARM.containsMatchIn(text.trim())
     fun isQuestion(text: String) = Regex("$I^\\s*¿|\\?\\s*$|^a\\s+qu[eé]\\s+hora").containsMatchIn(text.trim())
 
-    // ── Mensajes y notificaciones ───────────────────────────────────────────
+    // ── Messages and notifications ──────────────────────────────────────────
 
     private val NOTIFICATIONS = Regex(
         "$I^\\s*¿?\\s*(?:(?:y\\s+)?qu[eé]\\s+me\\s+(?:han|ha)\\s+(?:escrito|dicho|mandado|enviado|puesto)|" +
@@ -112,7 +112,7 @@ object AssistantIntents {
             "qui[eé]n\\s+me\\s+(?:ha\\s+escrito|ha\\s+llamado|escribi[oó]))"
     )
 
-    /** null si no es sobre mensajes; "" = todos; texto = de quién («¿qué me ha dicho Víctor?»). */
+    /** Null if it isn't about messages; "" = everyone; text = from whom ("¿qué me ha dicho Víctor?"). */
     fun notifications(text: String): String? {
         val t = text.trim().trimEnd('?', '.', '!')
         if (!NOTIFICATIONS.containsMatchIn(t)) return null
@@ -121,7 +121,7 @@ object AssistantIntents {
         return who?.trim()?.replace(Regex("$I^(?:el|la|mi)\\s+"), "").orEmpty()
     }
 
-    // ── Preguntas y peticiones generales (no son tareas) ─────────────────────
+    // ── General questions and requests (not tasks) ───────────────────────────
 
     private val GENERAL_ASK = Regex(
         "$I^\\s*(?:dame\\s+(?:ideas?|consejos?|un\\s+consejo|una\\s+receta|un\\s+dato|recomendaciones)|d[ií]me\\s+(?:un|una|c[oó]mo|qu[eé]\\s+es|por\\s+qu[eé]|cu[aá]nt)|" +
@@ -134,9 +134,9 @@ object AssistantIntents {
     fun isGeneralAsk(text: String) = GENERAL_ASK.containsMatchIn(text.trim())
 
     /**
-     * Pregunta aunque no empiece por «¿qué/cómo…» ni lleve interrogaciones (la voz a menudo las pierde):
-     * «he dejado las natillas fuera toda la noche, me las puedo comer», «es malo dormir con el móvil», «qué pasa si…».
-     * Las peticiones a Lumi («¿puedes apuntar…?», «¿me recuerdas…?») NO cuentan: son órdenes.
+     * A question even without "¿qué/cómo…" or question marks (voice often drops them):
+     * "he dejado las natillas fuera toda la noche, me las puedo comer", "es malo dormir con el móvil", "qué pasa si…".
+     * Requests to Lumi ("¿puedes apuntar…?", "¿me recuerdas…?") DON'T count: they are commands.
      */
     fun looksLikeQuestion(text: String): Boolean {
         val t = text.trim()
@@ -150,12 +150,12 @@ object AssistantIntents {
         ).containsMatchIn(t)
     }
 
-    /** El usuario pide expresamente que Lumi recuerde algo (solo entonces se guarda en la memoria). */
+    /** The user explicitly asks Lumi to remember something (only then is it saved to memory). */
     fun asksToRemember(text: String) = Regex(
         "$I\\b(?:recuerda|acu[eé]rdate|acordarme\\s+de\\s+que|ten\\s+en\\s+cuenta|memoriza|gu[aá]rda(?:te|lo)?\\s+(?:en\\s+(?:tu\\s+)?memoria|que)|apunta\\s+que|que\\s+sepas|no\\s+(?:te\\s+)?olvides\\s+(?:de\\s+)?que)\\b"
     ).containsMatchIn(text) || Regex("$I^(?:mi|mis)\\s+\\p{L}+").containsMatchIn(text.trim())
 
-    /** Pregunta que necesita datos actuales (mejor con búsqueda web si hay Gemini online). */
+    /** A question that needs current data (better with web search when Gemini online is on). Works for both languages. */
     fun needsFreshData(text: String) = Regex(
         "$I\\b(?:hoy|ahora|actual(?:mente)?|[uú]ltim[oa]s?|noticias?|resultado|marcador|partido|gan[oó]|jug[oó]|precio|cotiza|cuesta|" +
             "abre|cierra|horario|esta\\s+semana|este\\s+a[ñn]o|20\\d\\d|elecciones|presidente|estreno)\\b"
@@ -163,35 +163,41 @@ object AssistantIntents {
 }
 
 /**
- * Cuentas sencillas sin IA (los modelos pequeños fallan con los números): «¿cuánto es el 15 % de 80?»,
- * «234 por 12», «100 entre 3». null si no es una cuenta.
+ * Simple maths without AI (small models get numbers wrong): "¿cuánto es el 15 % de 80?" / "what's 15% of 80",
+ * "234 por 12" / "234 times 12", "100 entre 3" / "100 divided by 3". Null if it isn't a calculation.
+ * Replies in the language of the sentence (Spanish uses a decimal comma).
  */
 object QuickMath {
     private val NUM = "(-?\\d+(?:[.,]\\d+)?)"
 
     fun answer(text: String): String? {
         val t = text.lowercase().trim().trimEnd('?', '.', '!').replace(Regex("^¿"), "")
-            .replace(Regex("^(?:cu[aá]nto\\s+(?:es|son|da)|calcula(?:me)?|dime)\\s+"), "").trim()
-        Regex("^(?:el\\s+)?$NUM\\s*(?:%|por\\s*ciento)\\s+de\\s+$NUM$").find(t)?.let { m ->
+            .replace(Regex("^(?:cu[aá]nto\\s+(?:es|son|da)|calcula(?:me)?|dime|what'?s|what\\s+is|how\\s+much\\s+is|calculate)\\s+"), "").trim()
+        val en = !Regex("[áéíóúñ]|\\b(?:de|por|entre|m[aá]s|menos|dividido)\\b").containsMatchIn(t) &&
+            Regex("\\b(?:of|times|plus|minus|divided|percent)\\b|%").containsMatchIn(t)
+        Regex("^(?:el\\s+)?$NUM\\s*(?:%|por\\s*ciento|percent)\\s+(?:de|of)\\s+$NUM$").find(t)?.let { m ->
             val p = n(m.groupValues[1]); val x = n(m.groupValues[2])
-            return "El ${fmt(p)} % de ${fmt(x)} es ${fmt(p * x / 100)}."
+            return if (en) "${fmt(p, true)}% of ${fmt(x, true)} is ${fmt(p * x / 100, true)}."
+            else "El ${fmt(p)} % de ${fmt(x)} es ${fmt(p * x / 100)}."
         }
-        Regex("^$NUM\\s*(\\+|más|-|menos|x|\\*|por|/|entre|dividido\\s+(?:por|entre))\\s*$NUM$").find(t)?.let { m ->
+        Regex("^$NUM\\s*(\\+|más|mas|plus|-|menos|minus|x|\\*|por|times|multiplied\\s+by|/|entre|dividido\\s+(?:por|entre)|divided\\s+by|over)\\s*$NUM$").find(t)?.let { m ->
             val a = n(m.groupValues[1]); val b = n(m.groupValues[3])
-            val (r, sym) = when (m.groupValues[2]) {
-                "+", "más" -> a + b to "+"
-                "-", "menos" -> a - b to "−"
-                "x", "*", "por" -> a * b to "×"
-                else -> { if (b == 0.0) return "No se puede dividir entre cero."; a / b to "÷" }
+            val op = m.groupValues[2]
+            val (r, sym) = when {
+                op in setOf("+", "más", "mas", "plus") -> a + b to "+"
+                op in setOf("-", "menos", "minus") -> a - b to "−"
+                op in setOf("x", "*", "por", "times") || op.startsWith("multiplied") -> a * b to "×"
+                else -> { if (b == 0.0) return if (en) "You can't divide by zero." else "No se puede dividir entre cero."; a / b to "÷" }
             }
-            return "${fmt(a)} $sym ${fmt(b)} = ${fmt(r)}"
+            val english = en || op in setOf("plus", "minus", "times", "over") || op.startsWith("multiplied") || op.startsWith("divided")
+            return "${fmt(a, english)} $sym ${fmt(b, english)} = ${fmt(r, english)}"
         }
         return null
     }
 
     private fun n(s: String) = s.replace(',', '.').toDouble()
 
-    private fun fmt(x: Double): String =
+    private fun fmt(x: Double, english: Boolean = false): String =
         if (x == Math.rint(x) && kotlin.math.abs(x) < 1e15) x.toLong().toString()
-        else "%.2f".format(java.util.Locale.forLanguageTag("es-ES"), x).trimEnd('0').trimEnd(',')
+        else "%.2f".format(java.util.Locale.forLanguageTag(if (english) "en-US" else "es-ES"), x).trimEnd('0').trimEnd(',', '.')
 }
