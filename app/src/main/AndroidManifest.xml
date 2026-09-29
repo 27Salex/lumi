@@ -70,7 +70,7 @@
         android:roundIcon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.GeminiNanoTaskManager">
+        android:theme="@style/Theme.Lumi">
 
         <!--
             GPU de Gemma (LiteRT-LM): desde Android 12 las librerías nativas del fabricante no son visibles
@@ -99,7 +99,7 @@
             android:name=".presentation.assistant.AssistantActivity"
             android:exported="true"
             android:label="@string/assistant_label"
-            android:theme="@style/Theme.GeminiNanoTaskManager.Assistant"
+            android:theme="@style/Theme.Lumi.Assistant"
             android:taskAffinity=".assistant"
             android:excludeFromRecents="true"
             android:launchMode="singleTask"

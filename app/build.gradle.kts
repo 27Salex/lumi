@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "com.antigravity.gemininanotaskmanager"
+    namespace = "io.github.salex27.lumi"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.antigravity.gemininanotaskmanager"
+        applicationId = "io.github.salex27.lumi"
         minSdk = 29
         targetSdk = 36
         versionCode = 20

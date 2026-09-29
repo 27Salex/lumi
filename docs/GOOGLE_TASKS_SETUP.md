@@ -18,7 +18,7 @@ decirle a Google que la app Lumi puede pedir permiso a tu cuenta. **No hace falt
    - No hace falta publicar la app ni verificarla (uso personal en modo «prueba»).
 4. **APIs y servicios → Credenciales → Crear credenciales → ID de cliente de OAuth**
    - Tipo de aplicación: **Android**.
-   - Nombre del paquete: `com.antigravity.gemininanotaskmanager`
+   - Nombre del paquete: `io.github.salex27.lumi`
    - Huella SHA-1: cópiala desde la app (**Ajustes → Google Tasks → Configuración única**,
      botón «Copiar»). Cada certificado de firma tiene su SHA-1: el APK de depuración de este PC
      tiene uno; si algún día firmas un APK de release, añade también su SHA-1.

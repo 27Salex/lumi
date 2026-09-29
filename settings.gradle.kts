@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "GeminiNanoTaskManager"
+rootProject.name = "Lumi"
 include(":app")

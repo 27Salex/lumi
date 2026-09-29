@@ -56,7 +56,7 @@ docs/GOOGLE_TASKS_SETUP.md     # Cliente OAuth para Google Tasks (lo hace el usu
 .\gradlew.bat compileDebugKotlin --console=plain
 .\gradlew.bat assembleDebug
 .\gradlew.bat testDebugUnitTest
-.\gradlew.bat testDebugUnitTest --tests "com.antigravity.gemininanotaskmanager.data.ai.SpanishDateParserTest"
+.\gradlew.bat testDebugUnitTest --tests "io.github.salex27.lumi.data.ai.SpanishDateParserTest"
 ```
 
 - **JDK 17** fijado en `gradle.properties`. AGP 8.13.2 · Gradle 8.14.3 · Kotlin 2.4.20 · KSP 2.3.12 · compileSdk/targetSdk 36.

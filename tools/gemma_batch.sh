@@ -1,7 +1,7 @@
 #!/bin/bash
 # Pasa frases por Lumi (con Gemma) una a una y guarda lo que decide cada motor.
 ADB=~/AppData/Local/Android/Sdk/platform-tools/adb.exe
-P=com.antigravity.gemininanotaskmanager
+P=io.github.salex27.lumi
 OUT="${OUT:-gemma_batch_out.txt}"
 : > "$OUT"
 while IFS= read -r phrase <&3; do

@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.GeminiNanoTaskManager" parent="android:Theme.Material.NoActionBar">
+    <style name="Theme.Lumi" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">#07080D</item>
     </style>
 
     <!-- Panel del asistente: ventana translúcida sobre la app que estuviera abierta (como Gemini) -->
-    <style name="Theme.GeminiNanoTaskManager.Assistant" parent="android:Theme.Material.NoActionBar">
+    <style name="Theme.Lumi.Assistant" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:backgroundDimEnabled">false</item>

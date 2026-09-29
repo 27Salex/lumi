@@ -351,7 +351,7 @@ Plan aprobado por el usuario (doc «Lumi — Plan v3.1»). Decisiones:
   luminoso y degradado que ya existía, así que se le puso carita en vez de rediseñar todo.
 - Carita animada en `AssistantOrb` (`AuraState`): IDLE parpadea y sonríe, LISTENING ojos grandes, THINKING mira de lado a lado,
   SPEAKING mueve la boca, HAPPY ojos `^ ^` (tras completar una tarea). Icono de app y widget con la misma carita (`lumi_face.xml`).
-- **El `applicationId` NO cambia** (`com.antigravity.gemininanotaskmanager`) para que se actualice sobre la app instalada
+- **El `applicationId` NO cambia** (`io.github.salex27.lumi`) para que se actualice sobre la app instalada
   sin perder datos ni el cliente OAuth. Los nombres de paquete Kotlin tampoco (refactor sin valor para el usuario).
 
 ### IA

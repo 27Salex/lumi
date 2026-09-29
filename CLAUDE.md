@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Read `AGENTS.md` first** — it holds the binding implementation rules (in Spanish) and the non-obvious file map. **`MEMORY.md`** is the dated decision log + known issues (append an entry for any non-obvious decision); **`TODO.md`** tracks pending work. All UI strings and code comments are Spanish — keep it that way. The app is branded **Lumi** (v3: sober Manus/Revolut/Apple-style design, animated two-arc logo); the package/applicationId is still `com.antigravity.gemininanotaskmanager` on purpose (in-place upgrades, OAuth client).
+**Read `AGENTS.md` first** — it holds the binding implementation rules (in Spanish) and the non-obvious file map. **`MEMORY.md`** is the dated decision log + known issues (append an entry for any non-obvious decision); **`TODO.md`** tracks pending work. All UI strings and code comments are Spanish — keep it that way. The app is branded **Lumi** (v3: sober Manus/Revolut/Apple-style design, animated two-arc logo); the package/applicationId is still `io.github.salex27.lumi` on purpose (in-place upgrades, OAuth client).
 
 ## Commands (Windows — only `gradlew.bat` exists)
 
@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 .\gradlew.bat compileDebugKotlin --console=plain   # fastest correctness check
 .\gradlew.bat assembleDebug                         # APK → app/build/outputs/apk/debug/
 .\gradlew.bat testDebugUnitTest                     # JVM tests (app/src/test), pure-Kotlin logic
-.\gradlew.bat testDebugUnitTest --tests "com.antigravity.gemininanotaskmanager.data.ai.RuleBasedEngineTest"
+.\gradlew.bat testDebugUnitTest --tests "io.github.salex27.lumi.data.ai.RuleBasedEngineTest"
 ```
 
 JDK 17 is pinned in `gradle.properties`. Toolchain: AGP 8.13.2 / Gradle 8.14.3 / Kotlin 2.4.20 / KSP 2.3.12 / compileSdk 36. Newer AndroidX releases require compileSdk 37 + AGP 9.1 — don't bump them casually (see AGENTS.md). Don't write files with PowerShell 5 `Set-Content` (corrupts UTF-8). In Git Bash, prefix adb commands with `MSYS_NO_PATHCONV=1` or device paths like `/sdcard` get mangled. An emulator AVD `Medium_Phone_API_36.0` exists; start it with `-gpu host` (software GPU produces blank screenshots).
