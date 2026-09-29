@@ -13,8 +13,8 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 
 /**
- * Decide qué tareas sugerir según el día de la semana y la hora ("¿qué hago hoy?").
- * Kotlin puro: el cálculo es determinista y lo usan todos los motores; el LLM solo redacta.
+ * Decides which tasks to suggest from the weekday and the time ("what should I do today?").
+ * Pure Kotlin: the computation is deterministic and shared by every engine; the LLM only phrases it.
  */
 object DayPlanner {
 
@@ -51,7 +51,7 @@ object DayPlanner {
         val urgentIds = (overdue + dueToday).map { it.id }.toSet()
         val soonLimit = today.plusDays(1)
 
-        // En fin de semana / fuera de horario el trabajo se aparca, salvo que venza mañana como tarde
+        // At the weekend / outside work hours work is parked, unless it is due tomorrow at the latest
         val (workParked, candidates) = active
             .filter { it.id !in urgentIds }
             .partition { t ->
@@ -67,10 +67,10 @@ object DayPlanner {
 
         val suggestions = candidates.sortedWith(
             compareBy<Task>(
-                { if (it.priority == TaskPriority.HIGH) 0 else 1 },                           // lo urgente, primero
-                { if (it.status == TaskStatus.IN_PROGRESS) 0 else 1 },                       // terminar lo empezado
-                { t -> if (t.dueDate()?.let { !it.isAfter(today.plusDays(3)) } == true) 0 else 1 }, // vence pronto
-                { preference.indexOf(it.category) },                                           // encaja con el momento
+                { if (it.priority == TaskPriority.HIGH) 0 else 1 },                           // urgent first
+                { if (it.status == TaskStatus.IN_PROGRESS) 0 else 1 },                       // finish what was started
+                { t -> if (t.dueDate()?.let { !it.isAfter(today.plusDays(3)) } == true) 0 else 1 }, // due soon
+                { preference.indexOf(it.category) },                                           // fits the moment
                 { -it.priority.rank },
                 { it.dueAt ?: Long.MAX_VALUE },
                 { -it.createdAt }

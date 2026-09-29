@@ -3,9 +3,9 @@ package io.github.salex27.lumi.data.ai
 import io.github.salex27.lumi.domain.model.AgendaEvent
 
 /**
- * Elige la reunión del calendario a la que se refiere el usuario (pura, testeada).
- * - "reunión del sprint" → el próximo evento cuyo título comparte palabras ("Sprint review").
- * - "la reunión" / "la llamada" (sin más) → el próximo evento que sea una reunión/llamada.
+ * Picks the calendar meeting the user means (pure, tested).
+ * - "reunión del sprint" / "sprint meeting" → the next event whose title shares words ("Sprint review").
+ * - "la reunión" / "the meeting" (nothing more) → the next event that is a meeting/call.
  */
 object MeetingMatcher {
 

@@ -7,21 +7,20 @@ import io.github.salex27.lumi.domain.model.TaskAICommand
 import java.time.LocalDateTime
 
 /**
- * Base común de los motores LLM: prompts y parseo viven en [AssistantPrompts];
- * cada proveedor solo implementa [complete]. Cualquier fallo devuelve null → el orquestador
- * pasa al siguiente motor, así la app nunca se bloquea.
+ * Shared base for the LLM engines: prompts and parsing live in [AssistantPrompts]; each provider only implements
+ * [complete]. Any failure returns null → the orchestrator moves on to the next engine, so the app never gets stuck.
  */
 abstract class LlmEngine : AssistantEngine {
 
-    /** Llamada cruda al modelo. Devuelve el texto o null si falla. */
+    /** Raw call to the model. Returns the text, or null on failure. */
     protected abstract suspend fun complete(system: String, user: String, maxTokens: Int, temperature: Float): String?
 
     override suspend fun interpret(prompt: String, now: LocalDateTime): TaskAICommand? {
         val raw = safeComplete(AssistantPrompts.INTERPRET_SYSTEM, AssistantPrompts.interpretUser(prompt, now), 256, 0.1f)
             ?: return null
-        Log.i("LumiInterpret", "$displayName (crudo): ${raw.replace('\n', ' ').take(400)}")
+        Log.i("LumiInterpret", "$displayName (raw): ${raw.replace('\n', ' ').take(400)}")
         return AssistantPrompts.parseCommand(raw).also {
-            if (it == null) Log.w(TAG, "$displayName devolvió JSON inválido: $raw")
+            if (it == null) Log.w(TAG, "$displayName returned invalid JSON: $raw")
         }
     }
 
@@ -37,7 +36,7 @@ abstract class LlmEngine : AssistantEngine {
             complete(system, user, maxTokens, temperature)?.trim()?.takeIf { it.isNotEmpty() }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            Log.w(TAG, "$displayName falló (${e.javaClass.simpleName}): ${e.message}")
+            Log.w(TAG, "$displayName failed (${e.javaClass.simpleName}): ${e.message}")
             null
         }
 

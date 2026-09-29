@@ -6,10 +6,10 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 
 /**
- * Extrae fechas y horas en español de una frase y devuelve el texto sin ellas.
- * Kotlin puro (testeable en JVM). Ejemplos:
- *  - "llamar a mamá mañana a las 6"      → mañana 18:00, "llamar a mamá"
- *  - "entregar informe antes del viernes" → viernes (sin hora), "entregar informe"
+ * Extracts Spanish dates and times from a sentence and returns the text without them. English: [EnglishDateParser].
+ * Pure Kotlin (JVM-testable). Examples:
+ *  - "llamar a mamá mañana a las 6"      → tomorrow 18:00, "llamar a mamá"
+ *  - "entregar informe antes del viernes" → Friday (no time), "entregar informe"
  *  - "cita con el dentista el 15 de octubre a las 10:30"
  *  - "revisar el horno en 20 minutos"
  */
@@ -18,10 +18,10 @@ object SpanishDateParser {
     data class Result(
         val dateTime: LocalDateTime,
         val hasTime: Boolean,
-        /** Frase original sin las expresiones temporales, lista para usar como título. */
+        /** The original sentence without the time expressions, ready to use as a title. */
         val remainingText: String
     ) {
-        /** "2026-10-03T17:00" si hay hora, "2026-10-03" si solo hay día (formato de TaskAICommand.dueDate). */
+        /** "2026-10-03T17:00" with a time, "2026-10-03" with a day only (the TaskAICommand.dueDate format). */
         fun isoDate(): String = if (hasTime) dateTime.toString() else dateTime.toLocalDate().toString()
     }
 
@@ -43,7 +43,7 @@ object SpanishDateParser {
 
     private val NUMBER_WORDS = mapOf("un" to 1, "una" to 1, "dos" to 2, "tres" to 3, "media" to 30)
 
-    // Conectores de plazo que sobran al quitar la fecha ("para el", "antes del"...)
+    // Deadline connectors left over once the date is removed ("para el", "antes del"…)
     private val DEADLINE_PREFIX = "(?:(?:para|al|antes\\s+de|antes\\s+del|hasta|hasta\\s+el|como\\s+tarde|deadline|fecha\\s+l[ií]mite)\\s+)?"
 
     fun parse(input: String, now: LocalDateTime): Result? {
@@ -59,7 +59,7 @@ object SpanishDateParser {
             return true
         }
 
-        // ── Offsets relativos: "en 2 horas", "dentro de 30 minutos" ────────────────
+        // ── Relative offsets: "en 2 horas", "dentro de 30 minutos" ─────────────────
         consume(Regex("$I\\s(?:en|dentro\\s+de)\\s+(\\d+|un|una|dos|tres|media)\\s+(horas?|minutos?|mins?)\\b")) { m ->
             val n = m.groupValues[1].toIntOrNull() ?: NUMBER_WORDS[m.groupValues[1].lowercase()] ?: 1
             val isHour = m.groupValues[2].lowercase().startsWith("hora")
@@ -68,10 +68,10 @@ object SpanishDateParser {
             date = target.toLocalDate(); time = target.toLocalTime().withSecond(0).withNano(0)
         }
 
-        // ── Día ─────────────────────────────────────────────────────────────────
+        // ── Day ─────────────────────────────────────────────────────────────────
         consume(Regex("$I\\s${DEADLINE_PREFIX}pasado\\s+$MANANA\\b")) { date = now.toLocalDate().plusDays(2) }
 
-        // Franja del día: "por la mañana", "esta tarde", "de la noche" (antes de "mañana" = día)
+        // Part of day: "por la mañana", "esta tarde", "de la noche" (before "mañana" = tomorrow)
         consume(Regex("$I\\s(?:por|de|en|esta)\\s+(?:la\\s+)?($MANANA|tarde|noche)\\b")) { m ->
             val p = m.groupValues[1].lowercase()
             dayPeriod = if (p.startsWith("ma")) "manana" else p
@@ -108,10 +108,10 @@ object SpanishDateParser {
             date = d
         }
 
-        // ── Hora ────────────────────────────────────────────────────────────────
+        // ── Time ────────────────────────────────────────────────────────────────
         if (time == null) consume(Regex("$I\\s(?:a\\s+)?(?:las?\\s+)?mediod[ií]a\\b")) { time = LocalTime.NOON }
-        // Solo se acepta como hora si hay un marcador claro, para no confundir números sueltos ("comprar 3 panes"):
-        // "a las 5", "sobre la una", "17:30", "5pm". Grupos: 1=hora, 2=minutos, 3=am/pm, 4=franja.
+        // Only accepted as a time with a clear marker, so loose numbers aren't mistaken ("comprar 3 panes"):
+        // "a las 5", "sobre la una", "17:30", "5pm". Groups: 1=hour, 2=minutes, 3=am/pm, 4=part of day.
         val period = "(?:\\s+(?:de\\s+la|por\\s+la)\\s+($MANANA|tarde|noche))?(?=[\\s,.;!?]|$)"
         val timePatterns = listOf(
             Regex("$I\\s(?:a|sobre|hacia)\\s+las?\\s+(\\d{1,2}|una)(?:[:.h](\\d{2}))?\\s*(am|pm|h)?$period"),
@@ -140,7 +140,7 @@ object SpanishDateParser {
         if (date == null && time == null) return null
 
         val resolvedDate = date ?: run {
-            // Solo hora: hoy si aún no ha pasado, si no mañana
+            // Time only: today if it hasn't passed yet, otherwise tomorrow
             if (time!!.isAfter(now.toLocalTime())) now.toLocalDate() else now.toLocalDate().plusDays(1)
         }
         return Result(
@@ -155,7 +155,7 @@ object SpanishDateParser {
         return if (thisYear.isBefore(today)) thisYear.plusYears(1) else thisYear
     }
 
-    /** Quita espacios dobles y conectores colgando al final ("comprar pan para el" → "comprar pan"). */
+    /** Removes double spaces and dangling connectors at the end ("comprar pan para el" → "comprar pan"). */
     private fun cleanup(text: String): String {
         var t = text.replace(Regex("\\s+"), " ").trim().trim(',', ';')
         val trailing = Regex("(?iu)(?:\\s+|^)(?:el|la|los|las|de|del|al|para|antes|hasta|a|en|y|sobre)$")

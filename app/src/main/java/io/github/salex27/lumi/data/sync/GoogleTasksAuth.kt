@@ -13,16 +13,15 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
- * OAuth para Google Tasks con la Authorization API de Google Identity Services.
- * No hace falta client ID en el código: Google identifica la app por nombre de paquete + SHA-1
- * del certificado, registrados en un cliente OAuth "Android" (docs/GOOGLE_TASKS_SETUP.md).
- * Tras el primer consentimiento, los tokens se obtienen en silencio.
+ * OAuth for Google Tasks with the Authorization API of Google Identity Services.
+ * No client ID in the code: Google identifies the app by package name + certificate SHA-1, registered in an
+ * "Android" OAuth client (docs/GOOGLE_TASKS_SETUP.md). After the first consent, tokens are obtained silently.
  */
 class GoogleTasksAuth(private val context: Context) {
 
     sealed interface Result {
         data class Token(val accessToken: String) : Result
-        /** Hace falta que el usuario dé su consentimiento: lanzar este PendingIntent desde una Activity. */
+        /** The user has to consent: launch this PendingIntent from an Activity. */
         data class NeedsConsent(val pendingIntent: PendingIntent) : Result
         data class Failed(val message: String) : Result
     }
@@ -37,7 +36,7 @@ class GoogleTasksAuth(private val context: Context) {
         Result.Failed(explain(e))
     }
 
-    /** Procesa la respuesta de la pantalla de consentimiento. */
+    /** Handles the consent screen result. */
     fun resultFromIntent(data: Intent?): Result = try {
         toResult(Identity.getAuthorizationClient(context).getAuthorizationResultFromIntent(data))
     } catch (e: Exception) {
@@ -45,17 +44,17 @@ class GoogleTasksAuth(private val context: Context) {
     }
 
     private fun toResult(r: AuthorizationResult): Result = when {
-        r.hasResolution() -> r.pendingIntent?.let { Result.NeedsConsent(it) } ?: Result.Failed("Falta consentimiento")
+        r.hasResolution() -> r.pendingIntent?.let { Result.NeedsConsent(it) } ?: Result.Failed(io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("Falta consentimiento", "Consent missing"))
         r.accessToken != null -> Result.Token(r.accessToken!!)
-        else -> Result.Failed("Google no devolvió un token")
+        else -> Result.Failed(io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("Google no devolvió un token", "Google returned no token"))
     }
 
     private fun explain(e: Exception): String {
         val msg = e.message.orEmpty()
         return when {
-            // Código 10 = DEVELOPER_ERROR: falta el cliente OAuth Android o el SHA-1 no coincide
+            // Code 10 = DEVELOPER_ERROR: the Android OAuth client is missing or the SHA-1 does not match
             msg.startsWith("10:") || msg.contains("DEVELOPER_ERROR") ->
-                "Falta configurar el cliente OAuth en Google Cloud (paquete + SHA-1). Mira la guía en Ajustes."
+                io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("Falta configurar el cliente OAuth en Google Cloud (paquete + SHA-1). Mira la guía en Ajustes.", "The OAuth client isn't set up in Google Cloud (package + SHA-1). See the guide in Settings.")
             else -> msg.ifBlank { e.javaClass.simpleName }
         }
     }

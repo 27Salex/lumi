@@ -13,25 +13,25 @@ import kotlinx.coroutines.withTimeout
 import java.time.LocalDateTime
 
 /**
- * Cadena de motores: se usa el primero disponible y, si falla o tarda demasiado, el siguiente.
- * Orden: Gemini Nano (AICore) → Gemma on-device → Gemini cloud (opcional) → reglas (siempre).
+ * Engine chain: the first available engine is used and, if it fails or takes too long, the next one.
+ * Order: Gemini Nano (AICore) → Gemma on-device → Gemini cloud (optional) → rules (always).
  */
 class AssistantOrchestrator(
-    /** Motor + timeout en ms. `null` = sin límite: solo se pasa al siguiente si falla o no devuelve nada. */
+    /** Engine + timeout in ms. `null` = no limit: only move on if it fails or returns nothing. */
     private val llmEngines: List<Pair<AssistantEngine, Long?>>,
     private val rules: RuleBasedEngine,
-    /** Recuerdos relacionados con una frase (memoria bajo demanda; nunca la memoria entera). */
+    /** Memories related to a sentence (on-demand memory; never the whole memory). */
     private val memoryFor: suspend (String) -> List<String> = { emptyList() }
 ) {
     data class Interpretation(val command: TaskAICommand, val engineName: String)
 
     val rulesName: String get() = rules.displayName
 
-    /** Interpretación de reglas forzada como CREATE (p.ej. «pasa por el banco» cuando no hay tarea que mover). */
+    /** Rules interpretation forced to CREATE (e.g. "pasa por el banco" when there is no task to move). */
     fun rulesCreate(prompt: String, now: LocalDateTime): TaskAICommand = rules.parseCreate(prompt, now)
 
     private val _activeEngine = MutableStateFlow(rules.displayName)
-    /** Nombre del motor que respondería ahora mismo (para mostrarlo en la UI). */
+    /** Name of the engine that would answer right now (shown in the UI). */
     val activeEngine: StateFlow<String> = _activeEngine.asStateFlow()
 
     suspend fun refreshActiveEngine() {
@@ -39,39 +39,45 @@ class AssistantOrchestrator(
             ?.first?.displayName ?: rules.displayName
     }
 
-    suspend fun interpret(prompt: String, now: LocalDateTime): Interpretation {
+    /**
+     * @param conversation recent conversation note (ConversationContext.promptNote) so "move it to 5" can be resolved.
+     */
+    suspend fun interpret(prompt: String, now: LocalDateTime, conversation: String = ""): Interpretation {
         val ruleCommand = rules.parse(prompt, now)
-        // Órdenes muy claras (móvil, memoria, editar, rutas): las reglas aciertan siempre y no hace falta esperar al LLM
-        if (ruleCommand.action in RULES_FIRST) {
-            Log.i("LumiInterpret", "«$prompt» · reglas directas · ${ruleCommand.action}/${ruleCommand.targetTitle}")
+        // Very clear commands (phone, memory, edit, routes, "move it"): rules always get them right, no need to wait for the LLM
+        if (ruleCommand.action in RULES_FIRST || ruleCommand.refersToLast) {
+            Log.i("LumiInterpret", "«$prompt» · rules-first · ${ruleCommand.action}/${ruleCommand.targetTitle}")
             _activeEngine.value = rules.displayName
             return Interpretation(ruleCommand, rules.displayName)
         }
-        // Memoria bajo demanda: al LLM solo le llegan los 2-3 recuerdos que tienen que ver con la frase
+        // On-demand memory: the LLM only receives the 2-3 memories related to the sentence
         val context = runCatching { memoryFor(prompt) }.getOrDefault(emptyList())
-        val llmPrompt = if (context.isEmpty()) prompt
-        else "$prompt\n[CONTEXTO PERSONAL — úsalo solo para entender la frase, no lo copies: ${context.joinToString("; ")}]"
+        val llmPrompt = buildString {
+            append(prompt)
+            if (context.isNotEmpty()) append("\n[PERSONAL CONTEXT — use it only to understand the sentence, don't copy it: ${context.joinToString("; ")}]")
+            if (conversation.isNotBlank()) append("\n").append(conversation)
+        }
         for ((engine, timeout) in llmEngines) {
             if (!runCatching { engine.isAvailable() }.getOrDefault(false)) continue
             val started = System.currentTimeMillis()
             val cmd = withTimeoutOrNullLogged(engine, timeout) { engine.interpret(llmPrompt, now) } ?: continue
             _activeEngine.value = engine.displayName
             val final = reconcile(cmd, ruleCommand, prompt)
-            // Diagnóstico (adb logcat -s LumiInterpret): qué decidió el LLM, qué decían las reglas y qué se usa
+            // Diagnostics (adb logcat -s LumiInterpret): what the LLM decided, what the rules said and what is used
             Log.i("LumiInterpret", "«$prompt» · ${engine.displayName} ${System.currentTimeMillis() - started} ms · " +
-                "LLM=${cmd.action}/${cmd.targetTitle} · reglas=${ruleCommand.action}/${ruleCommand.targetTitle} · final=${final.action}/${final.targetTitle}")
+                "LLM=${cmd.action}/${cmd.targetTitle} · rules=${ruleCommand.action}/${ruleCommand.targetTitle} · final=${final.action}/${final.targetTitle}")
             return Interpretation(final, engine.displayName)
         }
         _activeEngine.value = rules.displayName
         return Interpretation(ruleCommand, rules.displayName)
     }
 
-    /** Solo reglas (instantáneo): lo usan los pasos de las rutinas, que son frases cortas y claras. */
+    /** Rules only (instant): used by routine steps, which are short, clear sentences. */
     fun rulesInterpret(prompt: String, now: LocalDateTime): TaskAICommand = rules.parse(prompt, now)
 
     /**
-     * Pregunta general. Con [web] se prueba antes un motor con búsqueda en Google (Gemini online), para datos
-     * actuales; si no hay, la cadena normal. Devuelve (texto, motor) o null si solo hay reglas.
+     * General question. With [web], an engine with Google Search (Gemini online) is tried first for current data;
+     * otherwise the normal chain. Returns (text, engine), or null when only rules are available.
      */
     suspend fun answer(system: String, user: String, web: Boolean, maxTokens: Int = 350): Pair<String, String>? {
         if (web) for ((engine, timeout) in llmEngines) {
@@ -82,7 +88,7 @@ class AssistantOrchestrator(
         return ask(system, user, maxTokens)
     }
 
-    /** Tarea libre para el primer LLM disponible (null si solo hay reglas). */
+    /** Free-form task for the first available LLM (null when only rules are available). */
     suspend fun ask(system: String, user: String, maxTokens: Int = 200): Pair<String, String>? {
         for ((engine, timeout) in llmEngines) {
             if (!runCatching { engine.isAvailable() }.getOrDefault(false)) continue
@@ -102,33 +108,33 @@ class AssistantOrchestrator(
     }
 
     /**
-     * El LLM entiende mejor la intención; las reglas son más fiables con fechas y categorías.
-     * Se combinan: si el LLM omite algo que las reglas sí detectaron, se completa.
+     * The LLM understands intent better; rules are more reliable with dates and categories.
+     * They are combined: whatever the LLM leaves out and the rules detected is filled in.
      */
     private fun reconcile(llm: TaskAICommand, rules: TaskAICommand, prompt: String): TaskAICommand {
         if (llm.action == TaskAICommand.CREATE_MANY) {
-            // Cada elemento se completa con lo que las reglas vean en la frase completa (fecha compartida…)
+            // Each item is completed with what the rules see in the whole sentence (shared date…)
             val items = llm.items.filter { !it.targetTitle.isNullOrBlank() }
-            if (items.size < 2) return rules // el LLM no separó bien → reglas
+            if (items.size < 2) return rules // the LLM didn't split it well → rules
             return llm.copy(items = items.mapIndexed { i, item ->
                 reconcile(item.copy(action = TaskAICommand.CREATE), rules.items.getOrNull(i) ?: rules, prompt)
             })
         }
-        // Si el LLM no vio un cambio de prioridad que las reglas sí («pon X como urgente»), mandan las reglas
+        // If the LLM missed a priority change the rules saw ("pon X como urgente"), the rules win
         if (rules.action == TaskAICommand.SET_PRIORITY && llm.action != TaskAICommand.SET_PRIORITY) return rules
-        // Las rutas son frases muy claras: si las reglas la vieron, mandan (un LLM pequeño tiende a crear una tarea)
+        // Routes are very clear sentences: if the rules saw one, they win (a small LLM tends to create a task)
         if (rules.action == TaskAICommand.NAVIGATE) return rules
-        // Una pregunta que el LLM convirtió en tarea (demasiado literal) → se responde
+        // A question the LLM turned into a task (too literal) → it gets answered
         if (rules.action == TaskAICommand.RECALL && llm.action == TaskAICommand.CREATE) return rules
         if ((llm.action == TaskAICommand.ASK || llm.action == TaskAICommand.WEATHER) && llm.targetTitle.isNullOrBlank()) return llm.copy(targetTitle = prompt)
-        // La memoria solo se toca si el usuario lo pide: Gemma guardó «he dejado una natilla en la nevera» cuando era
-        // una pregunta («¿me la puedo comer?»)
+        // Memory is only touched when the user asks: Gemma saved "he dejado una natilla en la nevera" when it was a
+        // question ("¿me la puedo comer?")
         if ((llm.action == TaskAICommand.REMEMBER || llm.action == TaskAICommand.FORGET) && rules.action != llm.action &&
-            !AssistantIntents.asksToRemember(prompt) && !Regex("(?iu)\\bolv[ií]da").containsMatchIn(prompt)) {
+            !AssistantIntents.asksToRemember(prompt) && !Regex("(?iu)\\bolv[ií]da|\\bforget\\b").containsMatchIn(prompt)) {
             return if (AssistantIntents.looksLikeQuestion(prompt) || rules.action == TaskAICommand.RECALL || rules.action == TaskAICommand.ASK)
                 TaskAICommand(action = TaskAICommand.ASK, targetTitle = prompt) else rules
         }
-        // Pregunta clara que el LLM convirtió en tarea → se responde
+        // A clear question the LLM turned into a task → it gets answered
         if (llm.action == TaskAICommand.CREATE && rules.action == TaskAICommand.ASK) return rules
         if (llm.action == TaskAICommand.DEVICE && llm.device.isNullOrBlank()) return rules
         if (llm.action == TaskAICommand.EDIT && llm.targetTitle.isNullOrBlank()) return rules
@@ -140,30 +146,31 @@ class AssistantOrchestrator(
         if (llm.action != TaskAICommand.CREATE) return llm
         val llmDateValid = llm.dueDate?.let { runCatching { parseIso(it) }.isSuccess } == true
         return llm.copy(
-            // Título «sin limpiar» (se copió la frase: «una tarea llamada … para cuando vuelva a casa») → el de las reglas
+            // "Uncleaned" title (the sentence was copied: "una tarea llamada … para cuando vuelva a casa") → the rules' one
             targetTitle = llm.targetTitle?.let(TaskPhraseParser::cleanTitle)?.takeIf { it.isNotBlank() && !looksUncleaned(it) } ?: rules.targetTitle,
-            // La descripción del LLM solo vale si sale literalmente de lo que dijo el usuario (no inventada)
+            // The LLM's description only counts if it comes literally from what the user said (not invented)
             description = llm.description?.takeIf { isQuotedFrom(it, prompt) } ?: rules.description,
             category = llm.category ?: rules.category,
-            // Fechas: manda el cálculo de las reglas (exacto). Gemma se equivoca con los días de la semana
-            // («el viernes» → domingo 4); su fecha solo se usa si las reglas no vieron ninguna
+            // Dates: the rules' computation wins (exact). Gemma gets weekdays wrong ("el viernes" → Sunday the 4th);
+            // its date is only used when the rules saw none
             dueDate = rules.dueDate ?: llm.dueDate.takeIf { llmDateValid },
             hasTime = if (rules.dueDate != null) rules.hasTime else llmDateValid && llm.hasTime,
             recurrence = llm.recurrence?.takeIf { io.github.salex27.lumi.domain.model.Recurrence.parse(it) != null } ?: rules.recurrence,
             remindBeforeMinutes = (llm.remindBeforeMinutes + rules.remindBeforeMinutes).distinct().filter { it in 0..(60 * 24 * 30) },
             meeting = llm.meeting ?: rules.meeting,
             priority = llm.priority?.takeIf { TaskPriority.fromString(it) != null && it.uppercase() != "NONE" } ?: rules.priority,
-            // El lugar lo detectan mejor las reglas (normalizan «oficina» → «trabajo»)
+            // The rules detect places better (they normalize "oficina" → "trabajo")
             place = rules.place ?: llm.place?.takeIf { it.isNotBlank() && it != "null" }?.let { TaskPhraseParser.normalizePlace(it) },
             placeOnArrive = if (rules.place != null) rules.placeOnArrive else llm.placeOnArrive
         )
     }
 
     private fun looksUncleaned(title: String) = Regex(
-        "(?iu)\\btarea\\s+(?:llamada|que\\s+se\\s+llame)|\\b(?:cuando|en\\s+cuanto)\\s+(?:llegue|vuelva|salga|regrese)\\b|^recu[eé]rdame\\b|\\bav[ií]same\\b|^(?:crea|apunta|a[ñn]ade)\\s+"
+        "(?iu)\\btarea\\s+(?:llamada|que\\s+se\\s+llame)|\\b(?:cuando|en\\s+cuanto)\\s+(?:llegue|vuelva|salga|regrese)\\b|^recu[eé]rdame\\b|\\bav[ií]same\\b|^(?:crea|apunta|a[ñn]ade)\\s+|" +
+            "\\btask\\s+(?:called|named)|\\bwhen\\s+i\\s+(?:get|arrive|leave)\\b|^remind\\s+me\\b|^(?:create|add)\\s+"
     ).containsMatchIn(title)
 
-    /** true si al menos el 80 % de las palabras de [text] aparecen en [source]. */
+    /** True when at least 80 % of the words of [text] appear in [source]. */
     private fun isQuotedFrom(text: String, source: String): Boolean {
         val words = CategoryHeuristics.normalize(text).split(Regex("\\W+")).filter { it.length > 2 }
         if (words.isEmpty()) return false
@@ -175,7 +182,7 @@ class AssistantOrchestrator(
         try {
             if (timeout == null) block() else withTimeout(timeout) { block() }
         } catch (e: TimeoutCancellationException) {
-            Log.w(TAG, "${engine.displayName} superó ${timeout} ms, se usa el siguiente motor")
+            Log.w(TAG, "${engine.displayName} took over ${timeout} ms, using the next engine")
             null
         }
 
@@ -186,7 +193,7 @@ class AssistantOrchestrator(
             TaskAICommand.WEATHER, TaskAICommand.DAY_BRIEF, TaskAICommand.SMART_ALARM, TaskAICommand.NOTIFICATIONS, TaskAICommand.ASK
         )
 
-        /** Acepta "2026-10-03T17:00" o "2026-10-03" (→ 09:00 sin hora). */
+        /** Accepts "2026-10-03T17:00" or "2026-10-03" (→ 09:00 without a time). */
         fun parseIso(value: String): LocalDateTime =
             if (value.contains('T')) LocalDateTime.parse(value.trim())
             else java.time.LocalDate.parse(value.trim()).atTime(9, 0)

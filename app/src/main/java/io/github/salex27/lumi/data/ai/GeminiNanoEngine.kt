@@ -12,10 +12,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Gemini Nano on-device vía AICore (ML Kit GenAI Prompt API).
- * Limitaciones (ver MEMORY.md):
- * - Solo dispositivos con Prompt API (Galaxy S26, Pixel 9+, Z Fold7…). En Galaxy S25 → UNAVAILABLE.
- * - AICore solo permite inferencia con la app en primer plano (Activity visible), nunca desde un Service.
+ * Gemini Nano on-device through AICore (ML Kit GenAI Prompt API).
+ * Limitations:
+ * - Only devices with the Prompt API (Galaxy S26, Pixel 9+, Z Fold7…). On a Galaxy S25 → UNAVAILABLE.
+ * - AICore only runs inference with the app in the foreground (a visible Activity), never from a Service.
  */
 class GeminiNanoEngine : LlmEngine() {
 
@@ -27,14 +27,14 @@ class GeminiNanoEngine : LlmEngine() {
     val status: StateFlow<Status> = _status.asStateFlow()
 
     private val model: GenerativeModel? by lazy {
-        runCatching { Generation.getClient() }.onFailure { Log.w(TAG, "No se pudo crear el cliente: ${it.message}") }.getOrNull()
+        runCatching { Generation.getClient() }.onFailure { Log.w(TAG, "Could not create the client: ${it.message}") }.getOrNull()
     }
     private var systemPromptSupported: Boolean? = null
 
     suspend fun refreshStatus(): Status {
         val m = model ?: return Status.UNAVAILABLE.also { _status.value = it }
         val s = runCatching { m.checkStatus() }.getOrElse {
-            Log.w(TAG, "checkStatus falló: ${it.message}")
+            Log.w(TAG, "checkStatus failed: ${it.message}")
             FeatureStatus.UNAVAILABLE
         }
         return when (s) {
@@ -45,11 +45,11 @@ class GeminiNanoEngine : LlmEngine() {
         }.also { _status.value = it }
     }
 
-    /** Pide a AICore que descargue Gemini Nano (solo si el dispositivo lo soporta). */
+    /** Asks AICore to download Gemini Nano (only if the device supports it). */
     suspend fun download() {
         val m = model ?: return
         _status.value = Status.DOWNLOADING
-        runCatching { m.download().collect { } }.onFailure { Log.w(TAG, "Descarga de Nano falló: ${it.message}") }
+        runCatching { m.download().collect { } }.onFailure { Log.w(TAG, "Nano download failed: ${it.message}") }
         refreshStatus()
     }
 

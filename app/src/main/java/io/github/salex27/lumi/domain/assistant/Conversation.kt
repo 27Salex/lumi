@@ -24,6 +24,9 @@ object ReplyLanguage {
 
     /** Text in the language of the reply in progress. */
     fun t(es: String, en: String) = if (current == Lang.EN) en else es
+
+    /** Text in the app's display language (settings messages, notifications, seed data). */
+    fun ui(es: String, en: String) = if (app == Lang.EN) en else es
 }
 
 /**

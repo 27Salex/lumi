@@ -8,9 +8,9 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /**
- * Lugares guardados por el usuario para los avisos por lugar («cuando llegue a casa»).
- * [key] es la clave normalizada que usan las tareas (ver `TaskPhraseParser.normalizePlace`).
- * Se guardan solo en el móvil.
+ * Places saved by the user for place reminders ("when I get home").
+ * [key] is the normalized key tasks use (see `TaskPhraseParser.normalizePlace`).
+ * Stored on the phone only.
  */
 class PlacesStore(context: Context) {
 
@@ -21,7 +21,7 @@ class PlacesStore(context: Context) {
         val lat: Double,
         val lng: Double,
         val radiusMeters: Float = DEFAULT_RADIUS,
-        /** Dirección (si se añadió buscándola); vacío si se guardó con «Guardar aquí». */
+        /** Address (when added by searching); empty when saved with "Save here". */
         val address: String = ""
     )
 
@@ -49,7 +49,7 @@ class PlacesStore(context: Context) {
 
     companion object {
         private const val K_LIST = "list"
-        /** Radio de la geovalla. Por debajo de ~100 m Android es poco fiable. */
+        /** Geofence radius. Below ~100 m Android is unreliable. */
         const val DEFAULT_RADIUS = 150f
     }
 }

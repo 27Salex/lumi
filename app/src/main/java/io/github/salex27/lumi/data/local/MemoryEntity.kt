@@ -10,7 +10,7 @@ import io.github.salex27.lumi.domain.repository.MemoryStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-/** Un recuerdo personal («el wifi de la oficina es Lumi2024»). Solo en el móvil. */
+/** A personal memory ("the office wifi is Lumi2024"). Stored on the phone only. */
 @Entity(tableName = "memories")
 data class MemoryEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

@@ -30,7 +30,7 @@ interface TaskDao {
     @Query("SELECT * FROM tasks ORDER BY created_at DESC")
     suspend fun getAllTasksSnapshot(): List<TaskEntity>
 
-    /** Tareas activas con fecha futura: se usan para reprogramar recordatorios (arranque, cambio de ajustes). */
+    /** Active tasks with a future date: used to reschedule reminders (boot, settings change). */
     @Query("SELECT * FROM tasks WHERE due_at IS NOT NULL AND status != 'COMPLETED' AND status != 'CANCELLED'")
     suspend fun getActiveTasksWithDue(): List<TaskEntity>
 

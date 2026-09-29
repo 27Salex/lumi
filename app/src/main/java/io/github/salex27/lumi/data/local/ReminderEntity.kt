@@ -10,7 +10,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import io.github.salex27.lumi.domain.model.TaskReminder
 
-/** Avisos de una tarea (varios por tarea). Se borran solos al borrar la tarea (CASCADE). */
+/** A task's reminders (several per task). Deleted automatically with the task (CASCADE). */
 @Entity(
     tableName = "reminders",
     foreignKeys = [ForeignKey(entity = TaskEntity::class, parentColumns = ["id"], childColumns = ["task_id"], onDelete = ForeignKey.CASCADE)],

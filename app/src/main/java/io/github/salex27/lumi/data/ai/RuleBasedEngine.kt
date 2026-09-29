@@ -4,21 +4,25 @@ import io.github.salex27.lumi.domain.ai.AssistantEngine
 import io.github.salex27.lumi.domain.ai.DayMode
 import io.github.salex27.lumi.domain.ai.ReplyRequest
 import io.github.salex27.lumi.domain.assistant.DeviceCommandParser
+import io.github.salex27.lumi.domain.assistant.Lang
+import io.github.salex27.lumi.domain.assistant.LanguageDetector
+import io.github.salex27.lumi.domain.assistant.ReplyLanguage
 import io.github.salex27.lumi.domain.model.Task
 import io.github.salex27.lumi.domain.model.TaskAICommand
+import io.github.salex27.lumi.domain.model.TaskPriority
 import io.github.salex27.lumi.domain.model.TaskStatus
 import io.github.salex27.lumi.domain.time.DueDateFormatter
 import java.time.LocalDateTime
 import kotlin.random.Random
 
 /**
- * Motor determinista: siempre disponible, instantáneo y sin red. Es el último eslabón de la cadena
- * y también la red de seguridad cuando un LLM devuelve algo inválido.
- * Kotlin puro (sin android.*) → testeable en JVM.
+ * Deterministic engine: always available, instant and offline. It is the last link of the chain and also the safety
+ * net when an LLM returns something invalid. Understands Spanish here and English through [EnglishCommands].
+ * Pure Kotlin (no android.*) → JVM-testable.
  */
 class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEngine {
 
-    override val displayName = "Motor local de reglas"
+    override val displayName: String get() = ReplyLanguage.ui("Motor local de reglas", "Local rules engine")
 
     override suspend fun isAvailable() = true
 
@@ -32,43 +36,47 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
         is ReplyRequest.TaskRescheduled -> replyRescheduled(request.task, request.now)
         is ReplyRequest.TasksCreated -> replyMany(request.tasks, request.now)
         is ReplyRequest.Recall -> buildString {
-            if (request.facts.isNotEmpty()) append("Me dijiste: ").append(request.facts.joinToString(" · ") { "«$it»" }).append(".")
+            if (request.facts.isNotEmpty()) append(ReplyLanguage.t("Me dijiste: ", "You told me: ")).append(request.facts.joinToString(" · ") { "«$it»" }).append(".")
             request.task?.let { t ->
                 if (isNotEmpty()) append(" ")
                 append("«${t.title}»")
-                append(t.dueAt?.let { " es ${DueDateFormatter.format(it, t.dueHasTime, request.now)}" } ?: " no tiene fecha")
-                if (t.status == TaskStatus.COMPLETED) append(" (ya está hecha)")
+                append(t.dueAt?.let { ReplyLanguage.t(" es ", " is ") + DueDateFormatter.format(it, t.dueHasTime, request.now) } ?: ReplyLanguage.t(" no tiene fecha", " has no date"))
+                if (t.status == TaskStatus.COMPLETED) append(ReplyLanguage.t(" (ya está hecha)", " (already done)"))
                 append(".")
             }
         }
         is ReplyRequest.PriorityChanged -> when (request.task.priority) {
-            io.github.salex27.lumi.domain.model.TaskPriority.HIGH -> "Hecho. «${request.task.title}» pasa a prioridad alta; la pondré por delante."
-            io.github.salex27.lumi.domain.model.TaskPriority.NONE -> "Hecho. «${request.task.title}» ya no tiene prioridad."
-            else -> "Hecho. «${request.task.title}» queda con prioridad ${request.task.priority.label.lowercase()}."
+            TaskPriority.HIGH -> ReplyLanguage.t("Hecho. «${request.task.title}» pasa a prioridad alta; la pondré por delante.", "Done. «${request.task.title}» is now high priority; I'll put it first.")
+            TaskPriority.NONE -> ReplyLanguage.t("Hecho. «${request.task.title}» ya no tiene prioridad.", "Done. «${request.task.title}» no longer has a priority.")
+            else -> ReplyLanguage.t("Hecho. «${request.task.title}» queda con prioridad ${request.task.priority.label.lowercase()}.", "Done. «${request.task.title}» is now ${request.task.priority.label.lowercase()} priority.")
         }
         is ReplyRequest.DayPlan -> replyPlan(request)
         is ReplyRequest.Briefing -> replyBriefing(request.tasks, request.now)
         is ReplyRequest.Messages -> request.digest
     }
 
-    // ── Interpretación ────────────────────────────────────────────────────────
+    // ── Interpretation ────────────────────────────────────────────────────────
 
     fun parse(input: String, now: LocalDateTime): TaskAICommand {
         val text = input.trim()
         if (text.isBlank()) return TaskAICommand(action = TaskAICommand.PLAN_DAY)
+        // English has its own parser (same commands, English grammar)
+        if (LanguageDetector.detect(text, ReplyLanguage.app) == Lang.EN) return EnglishCommands.parse(text, now)
         val lower = text.lowercase()
 
-        // Antes que resumen/plan: «¿cómo voy a la reunión?» es una ruta, «¿cómo voy?» un resumen
+        // "muévela a las 5", "ponle prioridad alta", "márcala como hecha": about the task we were just talking about
+        followUp(text, now)?.let { return it }
+        // Before summary/plan: "¿cómo voy a la reunión?" is a route, "¿cómo voy?" a summary
         NAVIGATE_REGEX.find(text)?.let { m ->
             val destination = m.groupValues[1].trim().trimEnd('?', '.', '!')
                 .replace(Regex("(?iu)^(?:la|el|mi|mis|los|las)\\s+"), "")
             if (destination.isNotBlank()) return TaskAICommand(action = TaskAICommand.NAVIGATE, targetTitle = destination)
         }
-        // Editar antes que las acciones del móvil: «abre la tarea X» edita, «abre Spotify» abre una app
+        // Edit before phone actions: "abre la tarea X" edits, "abre Spotify" opens an app
         edit(text, now)?.let { return it }
         DeviceCommandParser.parse(text)?.let { return TaskAICommand(action = TaskAICommand.DEVICE, device = it.serialize()) }
 
-        // v3.6: asistente (tiempo, resumen del día, alarma según la agenda, mensajes) antes que plan/resumen
+        // Assistant (weather, day summary, smart alarm, messages) before plan/summary
         if (AssistantIntents.isWeather(text)) return TaskAICommand(action = TaskAICommand.WEATHER, targetTitle = text)
         AssistantIntents.dayBrief(text, now)?.let { return TaskAICommand(action = TaskAICommand.DAY_BRIEF, dueDate = it.toString()) }
         if (AssistantIntents.isSmartAlarm(text)) {
@@ -80,7 +88,7 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
         if (SUMMARY_REGEX.containsMatchIn(lower)) return TaskAICommand(action = TaskAICommand.SUMMARIZE)
         // «Dame ideas para cenar», «explícame…», «¿cuánto es el 15 % de 80?»: no son tareas
         if (AssistantIntents.isGeneralAsk(text) || QuickMath.answer(text) != null) return TaskAICommand(action = TaskAICommand.ASK, targetTitle = text)
-        // Pregunta «escondida» sin «¿?» («…me la puedo comer», «es malo…»): se responde, no se guarda ni se apunta
+        // A "hidden" question without "¿?" ("…me la puedo comer", "es malo…"): answered, never saved or added
         if (!AssistantIntents.asksToRemember(text) && AssistantIntents.looksLikeQuestion(text) && !QUESTION_REGEX.containsMatchIn(text)) {
             return TaskAICommand(action = TaskAICommand.ASK, targetTitle = text)
         }
@@ -94,13 +102,13 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
         statusChange(IN_PROGRESS_REGEX, lower, text, TaskStatus.IN_PROGRESS)?.let { return it }
         statusChange(CANCEL_REGEX, lower, text, TaskStatus.CANCELLED)?.let { return it }
 
-        // Una pregunta no es una tarea (antes «¿cuál es el wifi de la oficina?» creaba una tarea): se responde
+        // A question is not a task (once "¿cuál es el wifi de la oficina?" created one): it gets answered
         if (QUESTION_REGEX.containsMatchIn(text)) return TaskAICommand(action = TaskAICommand.RECALL, targetTitle = text.trim())
 
-        // Brain dump: varias tareas en una frase
+        // Brain dump: several tasks in one sentence
         val chunks = TaskPhraseParser.splitBrainDump(text)
         if (chunks.size > 1) {
-            val shared = SpanishDateParser.parse(text, now) // "mañana tengo que A, B y C" → mañana para todas
+            val shared = SpanishDateParser.parse(text, now) // "mañana tengo que A, B y C" → tomorrow for all
             val items = chunks.map { chunk ->
                 val item = parseCreate(chunk, now)
                 if (item.dueDate == null && shared != null) item.copy(dueDate = shared.isoDate(), hasTime = shared.hasTime) else item
@@ -112,8 +120,8 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
     }
 
     /**
-     * CREATE: 1) descripción explícita, 2) avisos extra, 3) recurrencia, 4) fecha, 5) prefijos ("recuérdame"...).
-     * La reunión mencionada se deja en el título y se pasa como pista para vincularla.
+     * CREATE: 1) explicit description, 2) extra reminders, 3) recurrence, 4) date, 5) prefixes ("recuérdame"…).
+     * A mentioned meeting stays in the title and is passed as a hint to link it.
      */
     fun parseCreate(text: String, now: LocalDateTime): TaskAICommand {
         val (withoutDescription, description) = extractDescription(text)
@@ -130,7 +138,7 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
             .ifBlank { withoutDate })
             .replaceFirstChar { it.uppercase() }
 
-        // Recurrente sin fecha: primera ocurrencia a partir de hoy (con la hora dicha, si la hay)
+        // Recurring without a date: first occurrence from today (with the time said, if any)
         val due = date?.isoDate() ?: recurrence?.recurrence?.let { r ->
             val first = r.firstOnOrAfter(now.toLocalDate())
             if (date?.hasTime == true) first.atTime(date.dateTime.toLocalTime()).toString() else first.toString()
@@ -153,7 +161,42 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
         )
     }
 
-    /** «Avisa a Roberto» → «Avisar a Roberto»: las tareas se titulan en infinitivo, como las demás. */
+    /**
+     * Follow-ups about the task we were just talking about (the repository resolves it with the conversation context):
+     * "muévela a las 5", "pospónla una hora", "ponle prioridad alta", "márcala como hecha", "bórrala",
+     * "cámbiale el nombre a X", "añádele una nota: …".
+     */
+    private fun followUp(text: String, now: LocalDateTime): TaskAICommand? {
+        val t = text.trim().trimEnd('.', '!')
+        Regex("(?iu)^(?:y\\s+)?(?:m[uú]evel[ao]|p[aá]sal[ao]|c[aá]mbial[ao]|p[oó]nl[ao])\\s+(?:para\\s+|a\\s+|al\\s+)?(.+)$").find(t)?.let { m ->
+            val date = SpanishDateParser.parse(m.groupValues[1], now) ?: return@let
+            return TaskAICommand(action = TaskAICommand.RESCHEDULE, refersToLast = true, dueDate = date.isoDate(), hasTime = date.hasTime)
+        }
+        Regex("(?iu)^(?:y\\s+)?(posp[oó]nl[ao]|apl[aá]zal[ao]|retr[aá]sal[ao]|ad[eé]l[aá]ntal[ao])\\s+(.+)$").find(t)?.let { m ->
+            val amount = TaskPhraseParser.findRelativeAmount(m.groupValues[2]) ?: return@let
+            val sign = if (m.groupValues[1].lowercase().startsWith("ad")) -1 else 1
+            return TaskAICommand(action = TaskAICommand.RESCHEDULE, refersToLast = true, postponeMinutes = amount.first * sign)
+        }
+        Regex("(?iu)^(?:y\\s+)?(?:p[oó]nle|m[aá]rcal[ao]\\s+(?:como|con))\\s+(?:prioridad\\s+)?(alta|media|baja|urgente|importante|ninguna|sin\\s+prioridad)$").find(t)?.let { m ->
+            val p = TaskPhraseParser.priorityWord(m.groupValues[1]) ?: return@let
+            return TaskAICommand(action = TaskAICommand.SET_PRIORITY, refersToLast = true, priority = p.name)
+        }
+        if (Regex("(?iu)^(?:y\\s+)?(?:m[aá]rcal[ao]\\s+como\\s+(?:hech[ao]|terminad[ao]|completad[ao])|ya\\s+(?:la|lo)\\s+he\\s+(?:hecho|terminado)|ya\\s+est[aá]\\s+hech[ao])$").matches(t)) {
+            return TaskAICommand(action = TaskAICommand.UPDATE_STATUS, refersToLast = true, newStatus = TaskStatus.COMPLETED.name)
+        }
+        if (Regex("(?iu)^(?:y\\s+)?(?:b[oó]rral[ao]|canc[eé]lal[ao]|elim[ií]nal[ao]|qu[ií]tal[ao])$").matches(t)) {
+            return TaskAICommand(action = TaskAICommand.UPDATE_STATUS, refersToLast = true, newStatus = TaskStatus.CANCELLED.name)
+        }
+        Regex("(?iu)^(?:y\\s+)?(?:c[aá]mbiale|p[oó]nle)\\s+(?:el\\s+)?(?:nombre|t[ií]tulo)\\s+(?:a\\s+|por\\s+|de\\s+)?(.+)$").find(t)?.let { m ->
+            return TaskAICommand(action = TaskAICommand.EDIT, refersToLast = true, newTitle = m.groupValues[1].trim().replaceFirstChar { it.uppercase() })
+        }
+        Regex("(?iu)^(?:y\\s+)?(?:a[ñn][aá]dele|p[oó]nle)\\s+(?:una\\s+)?nota\\s*[:,]?\\s*(.+)$").find(t)?.let { m ->
+            return TaskAICommand(action = TaskAICommand.EDIT, refersToLast = true, description = m.groupValues[1].trim().replaceFirstChar { it.uppercase() })
+        }
+        return null
+    }
+
+    /** "Avisa a Roberto" → "Avisar a Roberto": task titles use the infinitive, like the rest. */
     private fun infinitive(title: String): String {
         val m = Regex("(?iu)^(av[ií]sa|escr[ií]be|ll[aá]ma|m[aá]nda|env[ií]a|compra|recoge|lleva)(le)?\\b").find(title) ?: return title
         val verb = java.text.Normalizer.normalize(m.groupValues[1].lowercase(), java.text.Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "")
@@ -162,8 +205,8 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
     }
 
     /**
-     * Memoria: «recuerda que el wifi de la oficina es X», «mi dentista es la Dra. López», «olvida que…».
-     * «Recuerda que tengo que llamar mañana» es una TAREA (tiene obligación o fecha), no un recuerdo.
+     * Memory: "recuerda que el wifi de la oficina es X", "mi dentista es la Dra. López", "olvida que…".
+     * "Recuerda que tengo que llamar mañana" is a TASK (it has an obligation or a date), not a memory.
      */
     private fun memory(text: String, now: LocalDateTime): TaskAICommand? {
         FORGET_REGEX.find(text)?.let { return TaskAICommand(action = TaskAICommand.FORGET, targetTitle = it.groupValues[1].trim()) }
@@ -177,13 +220,13 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
     }
 
     /**
-     * Editar: «renombra X a Y», «cambia el nombre de X a Y», «añade una nota a X: …», «pasa X a trabajo»,
-     * «edita X» (abre el editor), «edita X y ponle prioridad alta / pásala al viernes».
+     * Edit: "renombra X a Y", "cambia el nombre de X a Y", "añade una nota a X: …", "pasa X a trabajo",
+     * "edita X" (opens the editor), "edita X y ponle prioridad alta / pásala al viernes".
      */
     private fun edit(text: String, now: LocalDateTime): TaskAICommand? {
         RENAME_REGEX.find(text)?.let { m ->
-            // «de X a Y» es ambiguo si X o Y llevan «a»: se guarda la frase entera y el repositorio elige el corte
-            // cuya parte izquierda encaja mejor con una tarea real (ver RenameSplitter)
+            // "de X a Y" is ambiguous when X or Y contain "a": the whole phrase is kept and the repository picks the split
+            // whose left side best matches a real task (see RenameSplitter)
             val spec = text.substring(m.groups[1]!!.range.first)
             return TaskAICommand(
                 action = TaskAICommand.EDIT, targetTitle = cleanTarget(m.groupValues[1]),
@@ -261,9 +304,9 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
         .trim().trimEnd(',', '.').ifBlank { text }
 
     /**
-     * Separa una descripción SOLO si el usuario la marca explícitamente:
+     * Splits off a description ONLY when the user marks it explicitly:
      * "…, descripción: X", "… detalles X", "… nota: X", "… con la nota de que X".
-     * "nota" sin dos puntos no cuenta ("sacar buena nota en el examen" es un título).
+     * "nota" without a colon doesn't count ("sacar buena nota en el examen" is a title).
      */
     fun extractDescription(text: String): Pair<String, String?> {
         val m = DESCRIPTION_REGEX.find(text) ?: return text to null
@@ -285,39 +328,71 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
         )
     }
 
-    // ── Respuestas conversacionales ──────────────────────────────────────────
+    // ── Conversational replies (Spanish or English, see ReplyLanguage) ─────────
+
+    private val en: Boolean get() = ReplyLanguage.current == Lang.EN
 
     private fun replyCreated(task: Task, now: LocalDateTime): String {
+        val category = task.category.label
+        if (en) {
+            val opener = pick("Done.", "Noted.", "Got it.", "Perfect.")
+            val whenPart = task.dueAt?.let { " for ${DueDateFormatter.format(it, task.dueHasTime, now)}" } ?: ""
+            val repeat = task.recurrence?.let { " (${it.label().lowercase()})" } ?: ""
+            val meeting = task.meeting?.let { " I linked it to «${it.title}»." } ?: ""
+            val priority = if (task.priority == TaskPriority.HIGH) " High priority." else ""
+            task.placeTrigger?.let { p ->
+                return "$opener «${task.title}» in $category$whenPart$repeat.$priority I'll remind you ${p.describe()}."
+            }
+            val reminder = when {
+                task.dueAt == null && task.meeting == null -> pick(" If you want a reminder, tell me when.", "")
+                task.dueHasTime -> " I'll remind you in time."
+                else -> " I'll remind you that day."
+            }
+            return "$opener «${task.title}» in $category$whenPart$repeat.$priority$meeting$reminder"
+        }
         val opener = pick("Hecho.", "Anotado.", "Listo.", "Perfecto.")
         val whenPart = task.dueAt?.let { " para ${DueDateFormatter.format(it, task.dueHasTime, now)}" } ?: ""
         val repeat = task.recurrence?.let { " (${it.label().lowercase()})" } ?: ""
         val meeting = task.meeting?.let { " Lo he vinculado a «${it.title}»." } ?: ""
-        val priority = if (task.priority == io.github.salex27.lumi.domain.model.TaskPriority.HIGH) " Prioridad alta." else ""
+        val priority = if (task.priority == TaskPriority.HIGH) " Prioridad alta." else ""
         task.placeTrigger?.let { p ->
-            return "$opener «${task.title}» en ${task.category.label}$whenPart$repeat.$priority Te avisaré ${p.describe()}."
+            return "$opener «${task.title}» en $category$whenPart$repeat.$priority Te avisaré ${p.describe()}."
         }
         val reminder = when {
             task.dueAt == null && task.meeting == null -> pick(" Si quieres que te avise, dime cuándo.", "")
             task.dueHasTime -> " Te avisaré con tiempo."
             else -> " Te lo recordaré ese día."
         }
-        return "$opener «${task.title}» en ${task.category.label}$whenPart$repeat.$priority$meeting$reminder"
+        return "$opener «${task.title}» en $category$whenPart$repeat.$priority$meeting$reminder"
     }
 
     private fun replyRescheduled(task: Task, now: LocalDateTime): String {
-        val whenText = task.dueAt?.let { DueDateFormatter.format(it, task.dueHasTime, now) } ?: "sin fecha"
-        return pick("Movido.", "Cambiado.", "Hecho.") + " «${task.title}» queda para $whenText. He ajustado los avisos."
+        val whenText = task.dueAt?.let { DueDateFormatter.format(it, task.dueHasTime, now) } ?: ReplyLanguage.t("sin fecha", "no date")
+        return if (en) pick("Moved.", "Changed.", "Done.") + " «${task.title}» is now $whenText. I've adjusted the reminders."
+        else pick("Movido.", "Cambiado.", "Hecho.") + " «${task.title}» queda para $whenText. He ajustado los avisos."
     }
 
     private fun replyMany(tasks: List<Task>, now: LocalDateTime): String = buildString {
-        append("He apuntado ${tasks.size} tareas:")
+        append(if (en) "I've added ${tasks.size} tasks:" else "He apuntado ${tasks.size} tareas:")
         tasks.forEachIndexed { i, t ->
             append("\n${i + 1}. ${t.title}")
             t.dueAt?.let { append(" — ${DueDateFormatter.format(it, t.dueHasTime, now)}") }
         }
     }
 
-    private fun replyUpdated(task: Task): String = when (task.status) {
+    private fun replyUpdated(task: Task): String = if (en) when (task.status) {
+        TaskStatus.COMPLETED -> pick(
+            "One less! «${task.title}» is done.",
+            "Well done! I've marked «${task.title}» as finished.",
+            "«${task.title}» is off the list. Keep it up!"
+        )
+        TaskStatus.IN_PROGRESS -> pick(
+            "Go for it: «${task.title}» is now in progress.",
+            "Here we go: «${task.title}» is in progress."
+        )
+        TaskStatus.CANCELLED -> "OK, I've cancelled «${task.title}»."
+        TaskStatus.TODO -> "«${task.title}» is back to pending."
+    } else when (task.status) {
         TaskStatus.COMPLETED -> pick(
             "¡Uno menos! «${task.title}» completada.",
             "¡Bien hecho! He marcado «${task.title}» como terminada.",
@@ -328,7 +403,7 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
             "Vamos allá «${task.title}» pasa a en progreso."
         )
         TaskStatus.CANCELLED -> " De acuerdo, he cancelado «${task.title}»."
-        TaskStatus.TODO -> "↩️ «${task.title}» vuelve a pendientes."
+        TaskStatus.TODO -> "«${task.title}» vuelve a pendientes."
     }
 
     private fun replyPlan(request: ReplyRequest.DayPlan): String {
@@ -337,48 +412,58 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
         val sb = StringBuilder()
         val greeting = DueDateFormatter.greeting(now)
         val weekday = DueDateFormatter.weekdayName(now)
+        val today = ReplyLanguage.t("hoy ", "today ")
 
         sb.append(
-            when (plan.mode) {
+            if (en) when (plan.mode) {
+                DayMode.WEEKEND -> "$greeting. It's $weekday, so today is for your personal life"
+                DayMode.WORK_HOURS -> "$greeting. It's $weekday during work hours, let's focus"
+                DayMode.AFTER_WORK -> "$greeting. The workday is over, time for your own things"
+            } else when (plan.mode) {
                 DayMode.WEEKEND -> "$greeting. Es $weekday, así que hoy toca vida personal"
                 DayMode.WORK_HOURS -> "$greeting. Es $weekday en horario de trabajo, vamos a centrarnos"
                 DayMode.AFTER_WORK -> "$greeting. La jornada ya terminó, hora de lo tuyo"
             }
         )
         if (plan.postponedWork > 0 && plan.mode != DayMode.WORK_HOURS) {
-            sb.append(" (he aparcado ${plural(plan.postponedWork, "tarea", "tareas")} de trabajo que pueden esperar)")
+            sb.append(if (en) " (I've parked ${plural(plan.postponedWork, "work task", "work tasks")} that can wait)"
+                else " (he aparcado ${plural(plan.postponedWork, "tarea", "tareas")} de trabajo que pueden esperar)")
         }
         sb.append(".")
 
         val upcoming = request.events.filter { it.allDay || it.end > System.currentTimeMillis() }
         if (upcoming.isNotEmpty()) {
-            sb.append("\n\nEn tu calendario: ").append(upcoming.take(4).joinToString { AssistantPrompts.eventLine(it) }).append(".")
+            sb.append(if (en) "\n\nOn your calendar: " else "\n\nEn tu calendario: ").append(upcoming.take(4).joinToString { AssistantPrompts.eventLine(it) }).append(".")
         }
         if (plan.overdue.isNotEmpty()) {
-            sb.append("\n\nSe te ha pasado: ").append(plan.overdue.joinToString { "«${it.title}»" }).append(".")
+            sb.append(if (en) "\n\nSlipped past: " else "\n\nSe te ha pasado: ").append(plan.overdue.joinToString { "«${it.title}»" }).append(".")
         }
         if (plan.dueToday.isNotEmpty()) {
-            sb.append("\n\nPara hoy: ").append(plan.dueToday.joinToString { t ->
-                "«${t.title}»" + (t.dueAt?.takeIf { t.dueHasTime }?.let { " (${DueDateFormatter.format(it, true, now).removePrefix("hoy ")})" } ?: "")
+            sb.append(if (en) "\n\nFor today: " else "\n\nPara hoy: ").append(plan.dueToday.joinToString { t ->
+                "«${t.title}»" + (t.dueAt?.takeIf { t.dueHasTime }?.let { " (${DueDateFormatter.format(it, true, now).removePrefix(today)})" } ?: "")
             }).append(".")
         }
         request.freeSlot?.let { free ->
-            val until = DueDateFormatter.format(free.end, true, now).removePrefix("hoy ")
-            sb.append("\n\nAhora tienes ${free.minutes} min libres (hasta $until)")
-            free.suggestion?.let { sb.append(": buen momento para «${it.title}»") }
+            val until = DueDateFormatter.format(free.end, true, now).removePrefix(today)
+            sb.append(if (en) "\n\nYou have ${free.minutes} free minutes now (until $until)" else "\n\nAhora tienes ${free.minutes} min libres (hasta $until)")
+            free.suggestion?.let { sb.append(if (en) ": a good moment for «${it.title}»" else ": buen momento para «${it.title}»") }
             sb.append(".")
         }
         if (plan.suggestions.isNotEmpty()) {
-            sb.append("\n\nTe propongo:")
+            sb.append(if (en) "\n\nMy suggestion:" else "\n\nTe propongo:")
             plan.suggestions.forEachIndexed { i, t ->
                 sb.append("\n${i + 1}. ${t.title}")
-                if (t.status == TaskStatus.IN_PROGRESS) sb.append(" — ya la empezaste")
-                t.dueAt?.let { sb.append(" — vence ${DueDateFormatter.format(it, t.dueHasTime, now)}") }
+                if (t.status == TaskStatus.IN_PROGRESS) sb.append(if (en) " — already started" else " — ya la empezaste")
+                t.dueAt?.let { sb.append((if (en) " — due " else " — vence ") + DueDateFormatter.format(it, t.dueHasTime, now)) }
             }
-            sb.append("\n\n").append(pick("¿Empezamos por la primera?", "¿Te encaja este plan?", "Dime cuál atacas y la marco en marcha."))
+            sb.append("\n\n").append(
+                if (en) pick("Shall we start with the first one?", "Does this plan work for you?", "Tell me which one you're tackling and I'll mark it in progress.")
+                else pick("¿Empezamos por la primera?", "¿Te encaja este plan?", "Dime cuál atacas y la marco en marcha.")
+            )
         } else if (plan.overdue.isEmpty() && plan.dueToday.isEmpty()) {
             sb.append("\n\n").append(
-                if (plan.mode == DayMode.WEEKEND) "No tienes nada pendiente para ahora. Descansa, te lo has ganado"
+                if (en) (if (plan.mode == DayMode.WEEKEND) "Nothing pending right now. Rest, you've earned it" else "Nothing urgent. A good moment to get ahead or add new tasks.")
+                else if (plan.mode == DayMode.WEEKEND) "No tienes nada pendiente para ahora. Descansa, te lo has ganado"
                 else "No hay nada urgente. Buen momento para adelantar algo o para añadir nuevas tareas."
             )
         }
@@ -387,7 +472,8 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
 
     private fun replyBriefing(tasks: List<Task>, now: LocalDateTime): String {
         val greeting = DueDateFormatter.greeting(now)
-        if (tasks.isEmpty()) return "$greeting. Tu lista está vacía. Cuéntame qué tienes en mente y lo organizo por ti."
+        if (tasks.isEmpty()) return if (en) "$greeting. Your list is empty. Tell me what's on your mind and I'll organize it for you."
+            else "$greeting. Tu lista está vacía. Cuéntame qué tienes en mente y lo organizo por ti."
 
         val active = tasks.filter { it.isActive }
         val done = tasks.count { it.status == TaskStatus.COMPLETED }
@@ -396,8 +482,22 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
         val next = active.filter { it.dueAt != null && it !in overdue }.minByOrNull { it.dueAt!! }
         val progress = if (tasks.isNotEmpty()) done * 100 / tasks.size else 0
         val busiest = active.groupBy { it.category }.maxByOrNull { it.value.size }
+        val high = active.filter { it.priority == TaskPriority.HIGH && it !in overdue }
 
         val parts = mutableListOf<String>()
+        if (en) {
+            parts += when {
+                active.isEmpty() -> "$greeting. Everything is wrapped up. A perfect day to rest or plan what's next."
+                progress >= 60 -> "$greeting. You're on a roll: $done of ${tasks.size} tasks done ($progress %)."
+                else -> "$greeting. You have ${plural(active.size, "open task", "open tasks")} and ${plural(done, "done", "done")} ($progress %)."
+            }
+            if (overdue.isNotEmpty()) parts += " Heads up: «${overdue.first().title}» is overdue" + (if (overdue.size > 1) " (and ${overdue.size - 1} more)." else ".")
+            if (high.isNotEmpty()) parts += " The priority: ${high.take(2).joinToString(" and ") { "«${it.title}»" }}."
+            next?.let { parts += " Next due is «${it.title}», ${DueDateFormatter.format(it.dueAt!!, it.dueHasTime, now)}." }
+            if (inProgress.isNotEmpty()) parts += " You're in the middle of «${inProgress.first().title}»; finishing it today would clear your head."
+            busiest?.takeIf { it.value.size >= 3 }?.let { parts += "Most of the load is in ${it.key.label} (${it.value.size})." }
+            return parts.joinToString(" ")
+        }
         parts += when {
             active.isEmpty() -> "$greeting. Lo tienes todo cerrado. Día perfecto para descansar o planear lo siguiente."
             progress >= 60 -> "$greeting. Vas fuerte: $done de ${tasks.size} tareas cerradas ($progress %)."
@@ -405,9 +505,7 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
         }
         if (overdue.isNotEmpty()) parts += " Ojo: «${overdue.first().title}» ya ha vencido" +
             (if (overdue.size > 1) " (y ${overdue.size - 1} más)." else ".")
-        active.filter { it.priority == io.github.salex27.lumi.domain.model.TaskPriority.HIGH && it !in overdue }
-            .takeIf { it.isNotEmpty() }
-            ?.let { high -> parts += " Lo prioritario: ${high.take(2).joinToString(" y ") { "«${it.title}»" }}." }
+        if (high.isNotEmpty()) parts += " Lo prioritario: ${high.take(2).joinToString(" y ") { "«${it.title}»" }}."
         next?.let { parts += " Lo próximo que vence es «${it.title}», ${DueDateFormatter.format(it.dueAt!!, it.dueHasTime, now)}." }
         if (inProgress.isNotEmpty()) parts += " Tienes en marcha «${inProgress.first().title}»; cerrarla hoy te dejaría la mente más libre."
         busiest?.takeIf { it.value.size >= 3 }?.let {
@@ -421,7 +519,7 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
 
     companion object {
         private val PLAN_REGEX = Regex(
-            // "que" sin tilde solo al inicio o tras "¿" → "recuérdame que tengo que..." NO es planificar
+            // Unaccented "que" only at the start or after "¿" → "recuérdame que tengo que..." is NOT planning
             "(?:(?:^|¿)\\s*qu[eé]|qué)\\s+(?:puedo|podr[ií]a|deber[ií]a|debo|tengo\\s+que|me\\s+toca|hago|hacer)|" +
                 "planifica|plan\\s+(?:para\\s+)?(?:hoy|mañana|el\\s+d[ií]a)|organiza(?:me)?\\s+(?:el|mi)\\s+d[ií]a|" +
                 "por\\s+d[oó]nde\\s+empiezo|qu[eé]\\s+me\\s+recomiendas|sugi[eé]reme|what\\s+should\\s+i\\s+do"
@@ -446,7 +544,7 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
                 "con\\s+(?:la\\s+)?nota\\s+(?:de\\s+)?(?:que\\s+)?(.+)" +
                 ")$"
         )
-        // Solo imperativos: "pasar la ITV mañana" (infinitivo) es una tarea nueva, no reprogramar
+        // Imperatives only: "pasar la ITV mañana" (infinitive) is a new task, not a reschedule
         private val RESCHEDULE_REGEX = Regex(
             "(?iu)^(mueve|cambia|pasa|posp[oó]n|aplaza|retrasa|adelanta|reprograma)\\s+(.+)$"
         )
@@ -457,11 +555,11 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
         private val REMEMBER_REGEX = Regex(
             "(?iu)^(?:oye\\s+)?(?:recuerda|acu[eé]rdate(?:\\s+de)?|(?:tengo\\s+que\\s+|hay\\s+que\\s+)?acordarme\\s+de|ten\\s+en\\s+cuenta|memoriza|guarda\\s+en\\s+(?:tu\\s+)?memoria|que\\s+sepas)\\s+que\\s+(.+)$"
         )
-        // Afirmaciones sobre ti: «mi dentista es la Dra. López», «el wifi de la oficina es X»
+        // Statements about you: "mi dentista es la Dra. López", "el wifi de la oficina es X"
         private val FACT_REGEX = Regex("(?iu)^(?:mi|mis|el|la)\\s+[\\p{L} ]{2,40}?\\s+(?:es|son|se\\s+llama|vive\\s+en|est[aá]\\s+en)\\s+.+$")
         private val FORGET_REGEX = Regex("(?iu)^(?:olvida|olv[ií]date\\s+de|borra\\s+de\\s+(?:tu\\s+)?memoria)\\s+que\\s+(.+)$")
         private val QUESTION_REGEX = Regex(
-            // Sin tilde, «cuando/donde/quien» son conjunciones («cuando llegue a casa…»): solo cuentan con tilde o con «?»
+            // Without an accent, "cuando/donde/quien" are conjunctions ("cuando llegue a casa…"): they only count with an accent or "?"
             "(?iu)^\\s*¿|\\?\\s*$|^(?:cu[aá]l(?:es)?|c[oó]mo\\s+se\\s+llama|dónde|cuándo|quién|qu[eé]\\s+(?:es|era|dijo|d[ií]a)|sabes|recuerdas|te\\s+acuerdas)\\b"
         )
         private val RENAME_REGEX = Regex(
@@ -477,13 +575,13 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
             "(?iu)^(?:ed[ií]ta(?:me)?|modifica(?:me)?|actualiza(?:me)?|abre(?:me)?(?=\\s+(?:la|mi)\\s+tarea))\\s+(?:la\\s+tarea|mi\\s+tarea)?\\s*(?:(?:que\\s+se\\s+llama|sobre|de|del|llamada)\\s+)?(.+)$"
         )
         private val EDIT_CHANGES_SPLIT = Regex("(?iu)\\s+(?:y|para)\\s+(?:p[oó]nle|pon|c[aá]mbiale|cambia|p[aá]sala|m[uú]evela|que\\s+sea|que)\\s+")
-        // Imperativos de ruta; «ir al gimnasio» (infinitivo) sigue siendo una tarea
+        // Route imperatives; "ir al gimnasio" (infinitive) stays a task
         private val NAVIGATE_REGEX = Regex(
             "(?iu)^\\s*¿?\\s*(?:ll[eé]vame|c[oó]mo\\s+(?:llego|voy|se\\s+llega)|navega|ruta|indicaciones|direcciones)\\s+" +
                 "(?:a|al|hasta|hacia|para)\\s+(.+)$"
         )
         private val PRIORITIZE_REGEX = Regex("(?iu)^(?:prioriza|sube\\s+la\\s+prioridad\\s+(?:de|a))\\s+(.+?)\\.?$")
-        /** «crea una tarea llamada X», «apunta una nueva tarea: X», «tarea que se llame X». */
+        /** "crea una tarea llamada X", "apunta una nueva tarea: X", "tarea que se llame X". */
         private val TASK_NAMED_REGEX = Regex(
             "(?iu)^(?:(?:cr[eé]a(?:me|r)?|a[ñn][aá]de(?:me)?|ap[uú]nta(?:me)?|pon(?:me)?|haz(?:me)?|agrega)\\s+)?(?:una\\s+|la\\s+)?(?:nueva\\s+)?tarea\\s*" +
                 "(?:llamada|que\\s+se\\s+llam[ae]|titulada|con\\s+el\\s+nombre(?:\\s+de)?|que\\s+diga|de|para|:)?\\s*"

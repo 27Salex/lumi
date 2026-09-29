@@ -4,9 +4,9 @@ import android.content.Context
 import java.time.LocalDate
 
 /**
- * Guarda el último resumen de Lumi para no regenerarlo cada vez que se abre la app
- * (cada resumen es una petición a Gemini cloud o varios segundos de Gemma).
- * Se regenera solo si no hay ninguno, si es de otro día, o si el usuario pulsa «actualizar».
+ * Stores Lumi's last summary so it isn't regenerated every time the app opens
+ * (each summary is a Gemini cloud request or several seconds of Gemma).
+ * Regenerated only when there is none, it is from another day, or the user taps "refresh".
  */
 class BriefStore(context: Context) {
 

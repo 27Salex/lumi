@@ -15,9 +15,9 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 /**
- * Descarga y localiza el modelo Gemma para LiteRT-LM.
- * Usa el DownloadManager del sistema: sigue descargando aunque se cierre la app, reintenta
- * en cortes de red y muestra su propia notificación de progreso.
+ * Downloads and locates the Gemma model for LiteRT-LM.
+ * Uses the system DownloadManager: it keeps downloading if the app is closed, retries on network drops and shows its
+ * own progress notification.
  */
 class GemmaModelManager(private val context: Context, private val scope: CoroutineScope) {
 
@@ -45,7 +45,7 @@ class GemmaModelManager(private val context: Context, private val scope: Corouti
     init {
         when {
             modelFile.exists() && modelFile.length() > MIN_VALID_BYTES -> _state.value = State.Ready
-            prefs.getLong(K_DOWNLOAD_ID, -1L) >= 0 -> startPolling() // descarga en curso de una sesión anterior
+            prefs.getLong(K_DOWNLOAD_ID, -1L) >= 0 -> startPolling() // download in progress from a previous session
         }
     }
 
@@ -53,11 +53,11 @@ class GemmaModelManager(private val context: Context, private val scope: Corouti
         if (_state.value is State.Downloading || _state.value == State.Ready) return
         partialFile.delete()
         val request = DownloadManager.Request(Uri.parse(MODEL_URL))
-            .setTitle("Cerebro local Gemma")
-            .setDescription("Descargando modelo de IA on-device (~2,6 GB)")
+            .setTitle(io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("Cerebro local Gemma", "Gemma on-device brain"))
+            .setDescription(io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("Descargando modelo de IA on-device (~2,6 GB)", "Downloading the on-device AI model (~2.6 GB)"))
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
             .setDestinationUri(Uri.fromFile(partialFile))
-            .setAllowedOverMetered(false) // solo Wi-Fi: son 2,6 GB
+            .setAllowedOverMetered(false) // Wi-Fi only: it is 2.6 GB
             .setAllowedOverRoaming(false)
         val id = downloadManager.enqueue(request)
         prefs.edit().putLong(K_DOWNLOAD_ID, id).apply()
@@ -89,7 +89,7 @@ class GemmaModelManager(private val context: Context, private val scope: Corouti
                 val cursor = downloadManager.query(DownloadManager.Query().setFilterById(id))
                 if (cursor == null || !cursor.moveToFirst()) {
                     cursor?.close()
-                    finishWithFailure("La descarga se canceló")
+                    finishWithFailure(io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("La descarga se canceló", "The download was cancelled"))
                     break
                 }
                 val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
@@ -104,12 +104,12 @@ class GemmaModelManager(private val context: Context, private val scope: Corouti
                         if (partialFile.renameTo(modelFile)) {
                             _state.value = State.Ready
                         } else {
-                            finishWithFailure("No se pudo guardar el modelo")
+                            finishWithFailure(io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("No se pudo guardar el modelo", "Could not save the model"))
                         }
                         break
                     }
                     DownloadManager.STATUS_FAILED -> {
-                        finishWithFailure("Error de descarga (código $reason)")
+                        finishWithFailure(io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("Error de descarga", "Download error") + " ($reason)")
                         break
                     }
                     else -> _state.value = State.Downloading(done, if (total > 0) total else EXPECTED_BYTES)
@@ -131,8 +131,8 @@ class GemmaModelManager(private val context: Context, private val scope: Corouti
         private const val K_DOWNLOAD_ID = "download_id"
         private const val MODELS_DIR = "models"
 
-        // Gemma 4 E2B (Apache 2.0, sin gating) — build universal CPU/GPU.
-        // Existe una variante NPU para Snapdragon 8 Elite (…_qualcomm_sm8750.litertlm), ver MEMORY.md.
+        // Gemma 4 E2B (Apache 2.0, no gating) — universal CPU/GPU build.
+        // There is an NPU variant for Snapdragon 8 Elite (…_qualcomm_sm8750.litertlm).
         const val MODEL_FILE = "gemma-4-E2B-it.litertlm"
         const val MODEL_URL = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/$MODEL_FILE"
         const val EXPECTED_BYTES = 2_588_147_712L

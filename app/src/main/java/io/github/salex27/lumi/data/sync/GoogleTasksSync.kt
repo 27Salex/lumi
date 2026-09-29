@@ -36,14 +36,13 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 
 /**
- * Sincronización bidireccional con Google Tasks (API REST, gratuita: 50.000 peticiones/día).
+ * Two-way sync with Google Tasks (REST API, free: 50,000 requests/day).
  *
- * - Usa una lista propia «Lumi» para no mezclar con otras listas del usuario.
- * - Conflictos: gana el cambio más reciente (updatedAt local vs `updated` remoto).
- * - Google Tasks solo guarda la FECHA de vencimiento (no la hora): la hora local se conserva
- *   mientras el día coincida.
- * - Borrados locales → tombstones que se envían en la siguiente sincronización.
- * - Canceladas → se borran en Google Tasks (allí no existe el estado "cancelada").
+ * - Uses its own "Lumi" list so it doesn't mix with the user's other lists.
+ * - Conflicts: the most recent change wins (local updatedAt vs remote `updated`).
+ * - Google Tasks only stores the due DATE (not the time): the local time is kept while the day matches.
+ * - Local deletions → tombstones sent on the next sync.
+ * - Cancelled → deleted in Google Tasks (there is no "cancelled" state there).
  */
 class GoogleTasksSync(
     private val auth: GoogleTasksAuth,
@@ -51,7 +50,7 @@ class GoogleTasksSync(
     private val tombstones: SyncTombstoneDao,
     private val settings: SettingsRepository,
     private val scope: CoroutineScope,
-    /** Se llama por cada tarea insertada/modificada desde Google (recordatorios, calendario, widget). */
+    /** Called for every task inserted/changed from Google (reminders, calendar, widget). */
     private val onRemoteChange: suspend (taskId: Long) -> Unit
 ) : TaskChangeListener {
 
@@ -60,7 +59,7 @@ class GoogleTasksSync(
         data object Running : Status
         data class Done(val pulled: Int, val pushed: Int, val at: Long) : Status
         data class Error(val message: String) : Status
-        /** Hay que volver a dar permiso desde Ajustes. */
+        /** Permission has to be granted again from Settings. */
         data object NeedsConsent : Status
     }
 
@@ -71,7 +70,7 @@ class GoogleTasksSync(
     private var debounceJob: Job? = null
     private val json = Json { ignoreUnknownKeys = true }
 
-    // ── Disparadores ─────────────────────────────────────────────────────────
+    // ── Triggers ─────────────────────────────────────────────────────────────
 
     override suspend fun onTaskSaved(taskId: Long) = requestSync()
 
@@ -80,7 +79,7 @@ class GoogleTasksSync(
         requestSync()
     }
 
-    /** Agrupa cambios seguidos en una sola sincronización (3 s después del último). */
+    /** Batches consecutive changes into one sync (3 s after the last one). */
     fun requestSync() {
         if (!settings.current.googleTasksEnabled) return
         debounceJob?.cancel()
@@ -102,7 +101,7 @@ class GoogleTasksSync(
                 }
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                Log.w(TAG, "Sync falló", e)
+                Log.w(TAG, "Sync failed", e)
                 Status.Error(e.message ?: e.javaClass.simpleName)
             }
             _status.value = result
@@ -110,7 +109,7 @@ class GoogleTasksSync(
         }
     }
 
-    // ── Algoritmo ────────────────────────────────────────────────────────────
+    // ── Algorithm ────────────────────────────────────────────────────────────
 
     private suspend fun runSync(token: String): Status = withContext(Dispatchers.IO) {
         val syncStart = System.currentTimeMillis()
@@ -119,13 +118,13 @@ class GoogleTasksSync(
         var pulled = 0
         var pushed = 0
 
-        // 1) Borrados locales pendientes
+        // 1) Pending local deletions
         tombstones.all().forEach { t ->
             val (code, _) = http(token, "DELETE", "/lists/$listId/tasks/${t.googleTaskId}")
             if (code in 200..299 || code == 404) tombstones.delete(t.googleTaskId)
         }
 
-        // 2) Traer cambios remotos
+        // 2) Pull remote changes
         val remote = fetchAll(token, listId, updatedMin = if (lastSync > 0) lastSync - 60_000 else null)
         for (r in remote) {
             val gid = r["id"]?.jsonPrimitive?.contentOrNull ?: continue
@@ -139,9 +138,9 @@ class GoogleTasksSync(
                 onRemoteChange(id); pulled++
                 continue
             }
-            if (local.remoteUpdatedAt != null && remoteUpdated <= local.remoteUpdatedAt) continue // ya visto
+            if (local.remoteUpdatedAt != null && remoteUpdated <= local.remoteUpdatedAt) continue // already seen
             val localChanged = local.isDirty(lastSync)
-            if (localChanged && local.updatedAt > remoteUpdated) continue // gana el local; se sube en el paso 3
+            if (localChanged && local.updatedAt > remoteUpdated) continue // local wins; pushed in step 3
             if (deleted) {
                 dao.deleteTaskById(local.id)
             } else {
@@ -150,7 +149,7 @@ class GoogleTasksSync(
             onRemoteChange(local.id); pulled++
         }
 
-        // 3) Subir cambios locales
+        // 3) Push local changes
         for (local in dao.getAllTasksSnapshot()) {
             val gid = local.googleTaskId
             when {
@@ -173,7 +172,7 @@ class GoogleTasksSync(
                             dao.updateTask(local.copy(remoteUpdatedAt = json.parseToJsonElement(body).jsonObject.updatedMillis()))
                             pushed++
                         }
-                        code == 404 -> dao.updateTask(local.copy(googleTaskId = null, remoteUpdatedAt = null)) // se recrea la próxima vez
+                        code == 404 -> dao.updateTask(local.copy(googleTaskId = null, remoteUpdatedAt = null)) // recreated next time
                     }
                 }
             }
@@ -188,12 +187,12 @@ class GoogleTasksSync(
             if (http(token, "GET", "/users/@me/lists/$id").first == 200) return id
         }
         val (code, body) = http(token, "GET", "/users/@me/lists?maxResults=100")
-        check(code == 200) { "No se pudieron leer las listas ($code)" }
+        check(code == 200) { "Could not read the lists ($code)" }
         val existing = json.parseToJsonElement(body).jsonObject["items"]?.jsonArray
             ?.map { it.jsonObject }?.firstOrNull { it.str("title") == LIST_TITLE }?.str("id")
         val id = existing ?: run {
             val (c, b) = http(token, "POST", "/users/@me/lists", buildJsonObject { put("title", LIST_TITLE) }.toString())
-            check(c in 200..299) { "No se pudo crear la lista «$LIST_TITLE» ($c)" }
+            check(c in 200..299) { "Could not create the «$LIST_TITLE» list ($c)" }
             json.parseToJsonElement(b).jsonObject.str("id")!!
         }
         settings.update { it.copy(googleTasksListId = id) }
@@ -210,7 +209,7 @@ class GoogleTasksSync(
                 pageToken?.let { append("&pageToken=").append(enc(it)) }
             }
             val (code, body) = http(token, "GET", "/lists/$listId/tasks$q")
-            check(code == 200) { "No se pudieron leer las tareas ($code)" }
+            check(code == 200) { "Could not read the tasks ($code)" }
             val page = json.parseToJsonElement(body).jsonObject
             page["items"]?.jsonArray?.mapTo(out) { it.jsonObject }
             pageToken = page.str("nextPageToken")
@@ -224,7 +223,7 @@ class GoogleTasksSync(
         val localDue = base.dueAt?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() }
         val (dueAt, hasTime) = when {
             remoteDue == null -> null to false
-            remoteDue == localDue -> base.dueAt to base.dueHasTime // conservar la hora local
+            remoteDue == localDue -> base.dueAt to base.dueHasTime // keep the local time
             else -> remoteDue.atTime(9, 0).atZone(zone).toInstant().toEpochMilli() to false
         }
         val completed = r.str("status") == "completed"
@@ -256,7 +255,7 @@ class GoogleTasksSync(
 
     private fun http(token: String, method: String, path: String, body: String? = null): Pair<Int, String> {
         val conn = (URL(BASE + path).openConnection() as HttpURLConnection).apply {
-            // HttpURLConnection no admite PATCH: se usa el override estándar de Google APIs
+            // HttpURLConnection has no PATCH: use the standard Google APIs override
             requestMethod = if (method == "PATCH") "POST" else method
             if (method == "PATCH") setRequestProperty("X-HTTP-Method-Override", "PATCH")
             connectTimeout = 10_000
@@ -277,7 +276,7 @@ class GoogleTasksSync(
         }
     }
 
-    /** Modificada en local desde la última versión vista en Google (evita reenviar lo recién bajado). */
+    /** Changed locally since the last version seen in Google (avoids re-sending what was just pulled). */
     private fun TaskEntity.isDirty(lastSync: Long) = updatedAt > (remoteUpdatedAt ?: lastSync)
 
     private fun JsonObject.str(key: String) = this[key]?.jsonPrimitive?.contentOrNull

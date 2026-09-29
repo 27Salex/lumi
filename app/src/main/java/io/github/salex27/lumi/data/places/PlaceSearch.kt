@@ -11,8 +11,8 @@ import java.util.Locale
 import kotlin.coroutines.resume
 
 /**
- * Búsqueda de direcciones y sitios con el Geocoder del sistema (gratis, sin API key). Se sesga hacia la zona de tus
- * lugares guardados para que «Mercadona» encuentre el de tu barrio y no uno de otra ciudad.
+ * Address and place search (free, no API key). Biased towards where you are so "Mercadona" finds the one in your
+ * neighbourhood, not one in another city.
  */
 class PlaceSearch(private val context: Context, private val places: PlacesStore) {
 
@@ -21,8 +21,8 @@ class PlaceSearch(private val context: Context, private val places: PlacesStore)
     val available: Boolean get() = Geocoder.isPresent()
 
     /**
-     * v3.7: primero Photon (OpenStreetMap, gratis y sin clave) cerca de ti: encuentra SITIOS por nombre
-     * («Mercadona», «gimnasio», «Hospital La Paz»), no solo calles. Después el Geocoder del sistema para direcciones.
+     * First Photon (OpenStreetMap, free, no key) near you: it finds PLACES by name ("Mercadona", "gym",
+     * "Hospital La Paz"), not only streets. Then the system Geocoder for addresses.
      */
     suspend fun search(query: String, max: Int = 5): List<Result> {
         val q = query.trim()
@@ -34,15 +34,15 @@ class PlaceSearch(private val context: Context, private val places: PlacesStore)
     }
 
     /**
-     * El sitio más cercano con ese nombre, a menos de 60 km de ti. null si Lumi no sabe dónde estás (sin ubicación ni
-     * lugares guardados): mejor preguntar que elegir una farmacia de otro país.
+     * The nearest place with that name, less than 60 km from you. Null when Lumi doesn't know where you are (no location
+     * or saved places): better to ask than to pick a pharmacy in another country.
      */
     suspend fun nearest(query: String): Result? {
         val near = anchor() ?: return null
         return runCatching { photon(query.trim(), 3, near) }.getOrDefault(emptyList()).firstOrNull()
     }
 
-    /** Dónde buscar cerca: tu última ubicación conocida → tu primer lugar guardado. */
+    /** Where "near" is: your last known location → your first saved place. */
     @android.annotation.SuppressLint("MissingPermission")
     private suspend fun anchor(): Pair<Double, Double>? {
         val granted = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) ==
@@ -62,7 +62,7 @@ class PlaceSearch(private val context: Context, private val places: PlacesStore)
         val url = java.net.URL("https://photon.komoot.io/api/?q=${android.net.Uri.encode(q)}&limit=${max + 3}$bias")
         val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
             connectTimeout = 6_000; readTimeout = 8_000
-            setRequestProperty("User-Agent", "Lumi-Android/3.7 (asistente personal)")
+            setRequestProperty("User-Agent", "Lumi-Android/1.0 (personal assistant; github.com/27Salex/lumi)")
         }
         val json = try {
             if (conn.responseCode !in 200..299) return@withContext emptyList()
@@ -78,7 +78,7 @@ class PlaceSearch(private val context: Context, private val places: PlacesStore)
             val name = p.optString("name").ifBlank { street }.ifBlank { return@mapNotNull null }
             Result(name, line.ifBlank { name }, c.getDouble(1), c.getDouble(0))
         }.let { list ->
-            // Lo más cercano primero (Photon ya sesga, pero mezcla ciudades)
+            // Nearest first (Photon already biases, but mixes cities)
             if (near == null) list else list.sortedBy { distanceKm(near.first, near.second, it.lat, it.lng) }.filter { distanceKm(near.first, near.second, it.lat, it.lng) < 60 }
         }.take(max)
     }
@@ -91,7 +91,7 @@ class PlaceSearch(private val context: Context, private val places: PlacesStore)
 
     private suspend fun geocoder(q: String, max: Int): List<Result> {
         val geocoder = Geocoder(context, Locale.forLanguageTag("es-ES"))
-        // Caja de ~50 km alrededor de tus lugares (si hay); si no, búsqueda sin sesgo
+        // A ~50 km box around your places (if any); otherwise an unbiased search
         val anchor = places.places.value.firstOrNull()
         val addresses = runCatching {
             if (anchor != null) find(geocoder, q, max, anchor.lat - BOX, anchor.lng - BOX, anchor.lat + BOX, anchor.lng + BOX)
@@ -121,6 +121,6 @@ class PlaceSearch(private val context: Context, private val places: PlacesStore)
         }
 
     private companion object {
-        const val BOX = 0.45 // grados ≈ 50 km
+        const val BOX = 0.45 // degrees ≈ 50 km
     }
 }

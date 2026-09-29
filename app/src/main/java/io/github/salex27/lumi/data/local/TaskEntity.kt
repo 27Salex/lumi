@@ -22,21 +22,21 @@ data class TaskEntity(
     @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "due_at") val dueAt: Long? = null,
     @ColumnInfo(name = "due_has_time") val dueHasTime: Boolean = false,
-    // v4: estadísticas y sincronización
+    // v4: stats and sync
     @ColumnInfo(name = "completed_at") val completedAt: Long? = null,
-    /** Id de la tarea en Google Tasks (null = aún no subida). */
+    /** Task id in Google Tasks (null = not uploaded yet). */
     @ColumnInfo(name = "google_task_id") val googleTaskId: String? = null,
-    /** `updated` de Google Tasks en la última sincronización (para detectar cambios remotos). */
+    /** Google Tasks `updated` at the last sync (to detect remote changes). */
     @ColumnInfo(name = "remote_updated_at") val remoteUpdatedAt: Long? = null,
-    /** Evento creado en el calendario del móvil (CalendarContract) para citas con hora. */
+    /** Event created in the phone calendar (CalendarContract) for timed appointments. */
     @ColumnInfo(name = "calendar_event_id") val calendarEventId: Long? = null,
-    // v5: recurrencia, reunión vinculada y avisos automáticos
+    // v5: recurrence, linked meeting and automatic reminders
     @ColumnInfo(name = "recurrence") val recurrence: String? = null,
     @ColumnInfo(name = "meeting_event_id") val meetingEventId: Long? = null,
     @ColumnInfo(name = "meeting_title") val meetingTitle: String? = null,
     @ColumnInfo(name = "meeting_start") val meetingStart: Long? = null,
     @ColumnInfo(name = "auto_reminders") val autoReminders: Boolean = true,
-    // v6: prioridad y aviso por lugar
+    // v6: priority and place reminder
     @ColumnInfo(name = "priority") val priority: TaskPriority = TaskPriority.NONE,
     @ColumnInfo(name = "place_trigger") val placeTrigger: String? = null
 )
@@ -50,7 +50,7 @@ fun TaskEntity.toDomain(): Task = Task(
     placeTrigger = PlaceTrigger.parse(placeTrigger)
 )
 
-/** Solo para tareas nuevas. Para actualizar usar [mergeFrom] y no perder los ids de sincronización. */
+/** New tasks only. To update use [mergeFrom] so sync ids are not lost. */
 fun Task.toEntity(): TaskEntity = TaskEntity(
     id, title, description, status, category, createdAt, updatedAt, dueAt, dueHasTime, completedAt,
     recurrence = recurrence?.serialize(),
@@ -60,7 +60,7 @@ fun Task.toEntity(): TaskEntity = TaskEntity(
     placeTrigger = placeTrigger?.serialize()
 )
 
-/** Aplica los campos editables del dominio conservando los metadatos de sincronización. */
+/** Applies the editable domain fields while keeping sync metadata. */
 fun TaskEntity.mergeFrom(task: Task): TaskEntity = copy(
     title = task.title,
     description = task.description,

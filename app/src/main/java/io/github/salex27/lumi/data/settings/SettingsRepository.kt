@@ -6,60 +6,60 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 data class AppSettings(
-    /** Usar Gemini en la nube como motor adicional (desactivado por defecto: privacidad). */
+    /** Use Gemini in the cloud as an extra engine (off by default: privacy). */
     val cloudEnabled: Boolean = false,
     val cloudApiKey: String = "",
-    /** Alias "latest" para no depender de versiones concretas que Google retira. */
+    /** The "latest" alias, so we don't depend on specific versions Google retires. */
     val cloudModel: String = DEFAULT_CLOUD_MODEL,
-    /** Usar Gemma on-device cuando el modelo esté descargado. */
+    /** Use Gemma on-device once the model is downloaded. */
     val gemmaEnabled: Boolean = true,
     val workStartHour: Int = 9,
     val workEndHour: Int = 18,
-    /** Minutos antes de una cita/fecha con hora en que llega el recordatorio. */
+    /** Minutes before a timed appointment/deadline when the reminder arrives. */
     val reminderLeadMinutes: Int = 30,
-    /** Hora del recordatorio para tareas con fecha pero sin hora. */
+    /** Reminder hour for tasks with a date but no time. */
     val dateOnlyReminderHour: Int = 9,
-    /** Idioma del reconocimiento de voz (BCP-47). Español por defecto aunque el móvil esté en inglés. */
+    /** Speech recognition language (BCP-47). Follows the phone language on first run. */
     val voiceLanguage: String = DEFAULT_VOICE_LANGUAGE,
-    /** Crear eventos en el calendario del móvil para tareas con hora. */
+    /** Create events in the phone calendar for timed tasks. */
     val calendarSyncEnabled: Boolean = false,
-    /** Calendario destino (id de CalendarContract); -1 = ninguno elegido. */
+    /** Target calendar (CalendarContract id); -1 = none chosen. */
     val calendarId: Long = -1L,
-    /** Sincronización bidireccional con Google Tasks (requiere OAuth, ver docs/GOOGLE_TASKS_SETUP.md). */
+    /** Two-way sync with Google Tasks (needs OAuth, see docs/GOOGLE_TASKS_SETUP.md). */
     val googleTasksEnabled: Boolean = false,
-    /** Última sincronización correcta con Google Tasks (epoch millis, 0 = nunca). */
+    /** Last successful Google Tasks sync (epoch millis, 0 = never). */
     val googleTasksLastSync: Long = 0L,
-    /** Id de la lista «Lumi» en Google Tasks. */
+    /** Id of the "Lumi" list in Google Tasks. */
     val googleTasksListId: String = "",
-    /** «Oye Lumi»: palabra de activación offline. */
+    /** "Oye Lumi": offline wake word. */
     val wakeWordEnabled: Boolean = false,
-    /** Escuchar solo con la pantalla encendida (ahorra batería). */
+    /** Listen only while the screen is on (saves battery). */
     val wakeWordScreenOnly: Boolean = true,
     /** "SYSTEM" | "LIGHT" | "DARK" */
     val themeMode: String = "SYSTEM",
-    /** Leer en voz alta la respuesta cuando se habla con Lumi por voz (manos libres). */
+    /** Read the reply aloud when talking to Lumi by voice (hands-free). */
     val speakReplies: Boolean = true,
-    /** Próxima tarea o reunión en la pantalla de bloqueo / Now Bar (actualización en directo). */
+    /** Next task or meeting on the lock screen / status bar chip (live update). */
     val liveUpdates: Boolean = true,
-    /** Paquete de la app de mapas para «Cómo llegar» ("" = preguntar cada vez). */
+    /** Maps app package for "Directions" ("" = ask every time). */
     val mapsApp: String = "",
-    /** Repaso de la tarde: notificación con lo hecho y lo pendiente de hoy. */
+    /** Evening check-in: a notification with what got done and what is left today. */
     val checkInEnabled: Boolean = true,
     val checkInHour: Int = 20,
-    /** Resumen de la mañana: tiempo + primera cita + lo de hoy, en una notificación. */
+    /** Morning summary: weather + first appointment + today's tasks, in a notification. */
     val morningEnabled: Boolean = true,
-    /** Hora del resumen de la mañana en minutos desde medianoche (8:00 = 480). */
+    /** Morning summary time in minutes from midnight (8:00 = 480). */
     val morningMinutes: Int = 8 * 60,
-    /** Alarma inteligente: minutos para arreglarse y de trayecto. */
+    /** Smart alarm: minutes to get ready and to travel. */
     val alarmPrepMinutes: Int = 60,
     val alarmTravelMinutes: Int = 30,
-    /** Contar la hora de entrar a trabajar (lunes a viernes) como lo primero del día. */
+    /** Count the work start time (Monday to Friday) as the first thing of the day. */
     val alarmUsesWorkHours: Boolean = true,
-    /** En el repaso de la tarde, proponer la alarma de mañana según la agenda. */
+    /** In the evening check-in, suggest tomorrow's alarm from the schedule. */
     val alarmSuggest: Boolean = true,
-    /** Silencio que da por terminada una frase dicha a Lumi (ms). */
+    /** Silence that ends a sentence said to Lumi (ms). */
     val voicePauseMs: Int = 1_500,
-    /** Tras responder por voz, Lumi vuelve a escuchar un momento (conversación seguida). */
+    /** After answering by voice, Lumi listens again for a moment (continuous conversation). */
     val continueConversation: Boolean = true
 ) {
     val cloudReady: Boolean get() = cloudEnabled && cloudApiKey.isNotBlank()
@@ -72,15 +72,15 @@ data class AppSettings(
 
     companion object {
         const val DEFAULT_CLOUD_MODEL = "gemini-flash-lite-latest"
-        const val DEFAULT_VOICE_LANGUAGE = "es-ES"
-        val VOICE_LANGUAGES = listOf("es-ES" to "Español (España)", "es-US" to "Español (Latinoamérica)", "en-US" to "English (US)")
+        /** Phone language on first run: Spanish phones get es-ES, everything else en-US. */
+        val DEFAULT_VOICE_LANGUAGE: String get() = if (java.util.Locale.getDefault().language == "es") "es-ES" else "en-US"
+        val VOICE_LANGUAGES = listOf("es-ES" to "Español (España)", "es-US" to "Español (Latinoamérica)", "en-US" to "English (US)", "en-GB" to "English (UK)")
     }
 }
 
 /**
- * Ajustes persistidos en SharedPreferences (privadas de la app). La API key no sale del dispositivo
- * salvo en las llamadas a la API de Gemini. `allowBackup` está desactivado en el manifest para que
- * tampoco viaje en copias de seguridad.
+ * Settings persisted in SharedPreferences (private to the app). The API key never leaves the device except in calls
+ * to the Gemini API. `allowBackup` is off in the manifest so it doesn't travel in system backups either.
  */
 class SettingsRepository(context: Context) {
 

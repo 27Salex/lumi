@@ -17,9 +17,9 @@ import java.time.ZoneId
 import java.util.TimeZone
 
 /**
- * Acceso al calendario del sistema (CalendarContract). En un móvil con cuenta de Google, los
- * calendarios de Google Calendar ya están aquí y el sistema los sincroniza solo → integración
- * gratuita y sin configurar nada en Google Cloud. Requiere READ/WRITE_CALENDAR.
+ * Access to the system calendar (CalendarContract). On a phone with a Google account, Google Calendar calendars are
+ * already here and the system syncs them → a free integration with nothing to set up in Google Cloud.
+ * Needs READ/WRITE_CALENDAR.
  */
 class DeviceCalendar(private val context: Context) {
 
@@ -30,7 +30,7 @@ class DeviceCalendar(private val context: Context) {
 
     private fun granted(p: String) = ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
 
-    /** Calendarios visibles en los que podemos escribir (p.ej. el principal de tu cuenta de Google). */
+    /** Visible calendars we can write to (e.g. the main one of your Google account). */
     suspend fun writableCalendars(): List<CalendarInfo> = withContext(Dispatchers.IO) {
         if (!canRead()) return@withContext emptyList()
         val projection = arrayOf(
@@ -50,11 +50,11 @@ class DeviceCalendar(private val context: Context) {
         }.getOrNull().orEmpty()
     }
 
-    /** Eventos (instancias, incluye recurrentes) de un día, de todos los calendarios visibles. */
+    /** Events (instances, recurring ones included) of a day, from every visible calendar. */
     suspend fun eventsOn(date: LocalDate, zone: ZoneId = ZoneId.systemDefault()): List<AgendaEvent> =
         eventsBetween(date.atStartOfDay(zone).toInstant().toEpochMilli(), date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli())
 
-    /** Eventos (instancias) entre dos instantes, p.ej. las reuniones de los próximos 14 días para vincular tareas. */
+    /** Events (instances) between two instants, e.g. meetings in the next 14 days to link tasks to. */
     suspend fun eventsBetween(start: Long, end: Long): List<AgendaEvent> = withContext(Dispatchers.IO) {
         if (!canRead()) return@withContext emptyList()
         val uri = CalendarContract.Instances.CONTENT_URI.buildUpon().also {
@@ -88,21 +88,21 @@ class DeviceCalendar(private val context: Context) {
                     )
                 }
             }
-        }.onFailure { Log.w(TAG, "No se pudieron leer eventos: ${it.message}") }.getOrNull().orEmpty()
+        }.onFailure { Log.w(TAG, "Could not read events: ${it.message}") }.getOrNull().orEmpty()
     }
 
-    /** Crea o actualiza el evento de una tarea con hora. Devuelve el id del evento o null si falla. */
+    /** Creates or updates a timed task's event. Returns the event id, or null on failure. */
     suspend fun upsertTaskEvent(task: Task, calendarId: Long, existingEventId: Long?): Long? = withContext(Dispatchers.IO) {
         val dueAt = task.dueAt ?: return@withContext null
         if (!canWrite()) return@withContext null
         val values = ContentValues().apply {
             put(CalendarContract.Events.CALENDAR_ID, calendarId)
             put(CalendarContract.Events.TITLE, "${task.category.emoji} ${task.title}")
-            put(CalendarContract.Events.DESCRIPTION, listOf(task.description, "Creado con Lumi").filter { it.isNotBlank() }.joinToString("\n\n"))
+            put(CalendarContract.Events.DESCRIPTION, listOf(task.description, io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("Creado con Lumi", "Created with Lumi")).filter { it.isNotBlank() }.joinToString("\n\n"))
             put(CalendarContract.Events.DTSTART, dueAt)
             put(CalendarContract.Events.DTEND, dueAt + EVENT_DURATION_MS)
             put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
-            put(CalendarContract.Events.HAS_ALARM, 0) // los avisos los pone Lumi (evita notificaciones dobles)
+            put(CalendarContract.Events.HAS_ALARM, 0) // Lumi sets the reminders (avoids double notifications)
         }
         runCatching {
             if (existingEventId != null) {
@@ -112,7 +112,7 @@ class DeviceCalendar(private val context: Context) {
                 if (rows > 0) return@runCatching existingEventId
             }
             context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)?.lastPathSegment?.toLongOrNull()
-        }.onFailure { Log.w(TAG, "No se pudo guardar el evento: ${it.message}") }.getOrNull()
+        }.onFailure { Log.w(TAG, "Could not save the event: ${it.message}") }.getOrNull()
     }
 
     suspend fun deleteEvent(eventId: Long) = withContext(Dispatchers.IO) {

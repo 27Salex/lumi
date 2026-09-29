@@ -24,14 +24,14 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
- * Gemma on-device con LiteRT-LM. Funciona en cualquier móvil con ~6 GB de RAM (incl. Galaxy S25),
- * sin depender de AICore. El motor se carga una vez (hasta ~10 s) y se reutiliza.
+ * Gemma on-device with LiteRT-LM. Works on any phone with ~6 GB of RAM (Galaxy S25 included) without AICore.
+ * The engine is loaded once (up to ~10 s) and reused.
  *
- * Lecciones aprendidas (v2.0 caía siempre a Gemini cloud, ver MEMORY.md):
- * - `ThinkingConfig()` por defecto = razonamiento ACTIVADO y sin límite → respuestas eternas. Se desactiva.
- * - Sin `maxOutputToken` el modelo puede generar hasta su máximo. Se limita siempre.
- * - La llamada nativa no se interrumpe con un timeout de corrutina: hay que llamar a
- *   `cancelProcess()`; si no, sigue generando con el mutex tomado y bloquea todas las peticiones siguientes.
+ * Lessons learned (early versions always fell back to Gemini cloud):
+ * - The default `ThinkingConfig()` = reasoning ON with no limit → endless answers. It is turned off.
+ * - Without `maxOutputToken` the model may generate up to its maximum. It is always limited.
+ * - The native call isn't interrupted by a coroutine timeout: `cancelProcess()` must be called; otherwise it keeps
+ *   generating while holding the mutex and blocks every following request.
  */
 class GemmaLocalEngine(
     private val context: Context,
@@ -43,7 +43,7 @@ class GemmaLocalEngine(
 
     enum class LoadState { IDLE, LOADING, READY, ERROR }
 
-    /** Datos para la pantalla de diagnóstico de Ajustes. */
+    /** Data for the diagnostics screen in Settings. */
     data class Diagnostics(
         val backend: String? = null,
         val loadMillis: Long? = null,
@@ -64,30 +64,30 @@ class GemmaLocalEngine(
     private var engine: Engine? = null
     private var engineBackend: String? = null
 
-    /** Si la GPU cargó pero falló al generar (p.ej. falta OpenCL), se usa CPU a partir de entonces. */
+    /** If the GPU loaded but failed to generate (e.g. OpenCL missing), CPU is used from then on. */
     private val prefs = context.getSharedPreferences("gemma_engine", Context.MODE_PRIVATE)
     private var forceCpu: Boolean
         get() = prefs.getBoolean(K_FORCE_CPU, false)
         set(v) { prefs.edit().putBoolean(K_FORCE_CPU, v).apply() }
 
     /**
-     * «Probando la GPU»: se marca ANTES de usarla y se borra cuando ya ha generado una respuesta. Si la app muere a
-     * mitad (un fallo nativo de la GPU no se puede capturar: en el emulador WebGPU tira la app con SIGSEGV), al
-     * volver a abrirla la marca sigue ahí → se usa CPU directamente en vez de caer en bucle.
+     * "Trying the GPU": set BEFORE using it and cleared once it has produced an answer. If the app dies halfway (a native
+     * GPU crash can't be caught: on the emulator WebGPU kills the app with SIGSEGV), the flag is still there on the
+     * next launch → CPU is used directly instead of crashing in a loop.
      */
     private var gpuTrialPending: Boolean
         get() = prefs.getBoolean(K_GPU_TRIAL, false)
-        set(v) { prefs.edit().putBoolean(K_GPU_TRIAL, v).commit() } // commit: tiene que estar en disco antes del posible fallo
+        set(v) { prefs.edit().putBoolean(K_GPU_TRIAL, v).commit() } // commit: it must be on disk before a possible crash
 
     init {
         if (gpuTrialPending) {
-            Log.w(TAG, "La app se cerró probando la GPU: Gemma usará CPU")
+            Log.w(TAG, "The app died while trying the GPU: Gemma will use the CPU")
             forceCpu = true
             gpuTrialPending = false
         }
     }
 
-    /** El emulador no tiene GPU real (su WebGPU tira la app al cargar Gemma). */
+    /** The emulator has no real GPU (its WebGPU kills the app when loading Gemma). */
     private val isEmulator: Boolean = android.os.Build.HARDWARE.contains("ranchu") || android.os.Build.HARDWARE.contains("goldfish") ||
         android.os.Build.FINGERPRINT.startsWith("generic") || android.os.Build.PRODUCT.contains("sdk")
 
@@ -95,7 +95,7 @@ class GemmaLocalEngine(
         settings.current.gemmaEnabled && modelManager.state.value == GemmaModelManager.State.Ready &&
             _loadState.value != LoadState.ERROR
 
-    /** Carga el modelo en memoria en segundo plano para que la primera respuesta sea rápida. */
+    /** Loads the model into memory in the background so the first answer is fast. */
     suspend fun warmUp() {
         if (isAvailable()) withContext(Dispatchers.Default) { mutex.withLock { ensureEngine() } }
     }
@@ -107,26 +107,26 @@ class GemmaLocalEngine(
         _loadState.value = LoadState.IDLE
     }
 
-    /** Vuelve a intentar la GPU (p.ej. tras una actualización que arregle el problema). */
+    /** Tries the GPU again (e.g. after an update that fixes the problem). */
     fun retryGpu() {
         forceCpu = false
         release()
     }
 
-    /** Prueba manual desde Ajustes: carga (si hace falta), genera una frase corta y mide tiempos. */
+    /** Manual test from Settings: loads (if needed), generates a short sentence and measures times. */
     suspend fun selfTest() {
-        if (_loadState.value == LoadState.ERROR) _loadState.value = LoadState.IDLE // permitir reintentar
+        if (_loadState.value == LoadState.ERROR) _loadState.value = LoadState.IDLE // allow a retry
         _diagnostics.update { it.copy(selfTestRunning = true, selfTestResult = null) }
         val start = SystemClock.elapsedRealtime()
         val result = runCatching {
-            complete("Responde en español con una sola frase corta.", "Saluda al usuario.", 40, 0.3f)
+            complete(io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("Responde en español con una sola frase corta.", "Reply in English with one short sentence."), io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("Saluda al usuario.", "Greet the user."), 40, 0.3f)
         }
         val ms = SystemClock.elapsedRealtime() - start
         _diagnostics.update {
             it.copy(
                 selfTestRunning = false,
                 selfTestResult = result.fold(
-                    onSuccess = { text -> if (text.isNullOrBlank()) "Sin respuesta (${ms} ms)" else "«${text.trim()}» en ${ms} ms" },
+                    onSuccess = { text -> if (text.isNullOrBlank()) io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("Sin respuesta", "No answer") + " (${ms} ms)" else "«${text.trim()}» " + io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("en", "in") + " ${ms} ms" },
                     onFailure = { e -> "Error: ${e.message}" }
                 )
             )
@@ -140,8 +140,8 @@ class GemmaLocalEngine(
                     generate(system, user, maxTokens, temperature).also { if (engineBackend == "GPU" && gpuTrialPending) gpuTrialPending = false }
                 } catch (t: Throwable) {
                     if (t is CancellationException || engineBackend != "GPU") throw t
-                    // La GPU se inicializó pero no puede generar → CPU (más lenta, pero sigue siendo local)
-                    Log.w(TAG, "Gemma falló en GPU (${t.message}); se cambia a CPU")
+                    // The GPU initialized but can't generate → CPU (slower, but still local)
+                    Log.w(TAG, "Gemma failed on the GPU (${t.message}); switching to CPU")
                     forceCpu = true
                     release()
                     generate(system, user, maxTokens, temperature)
@@ -149,7 +149,7 @@ class GemmaLocalEngine(
             }
         }
 
-    /** Debe llamarse con el mutex tomado. */
+    /** Must be called holding the mutex. */
     private suspend fun generate(system: String, user: String, maxTokens: Int, temperature: Float): String? {
         val e = ensureEngine() ?: return null
         val start = SystemClock.elapsedRealtime()
@@ -170,9 +170,9 @@ class GemmaLocalEngine(
                 }
                 text
             } catch (c: CancellationException) {
-                // Timeout del orquestador: parar la generación nativa para liberar el mutex YA
+                // Orchestrator timeout: stop the native generation to release the mutex NOW
                 runCatching { conversation.cancelProcess() }
-                _diagnostics.update { it.copy(lastError = "Cancelado tras ${SystemClock.elapsedRealtime() - start} ms (timeout)") }
+                _diagnostics.update { it.copy(lastError = "Cancelled after ${SystemClock.elapsedRealtime() - start} ms (timeout)") }
                 throw c
             } catch (t: Throwable) {
                 _diagnostics.update { it.copy(lastError = t.message ?: t.javaClass.simpleName) }
@@ -181,17 +181,17 @@ class GemmaLocalEngine(
         }
     }
 
-    /** Tolera tanto fragmentos incrementales como acumulados. */
+    /** Accepts both incremental and accumulated fragments. */
     private fun appendChunk(sb: StringBuilder, chunk: Message) {
         val piece = chunk.contents.contents.filterIsInstance<Content.Text>().joinToString("") { it.text }
         if (piece.isEmpty()) return
         if (sb.isNotEmpty() && piece.length >= sb.length && piece.startsWith(sb)) {
-            sb.setLength(0) // el runtime envió el texto acumulado
+            sb.setLength(0) // the runtime sent the accumulated text
         }
         sb.append(piece)
     }
 
-    /** Debe llamarse con el mutex tomado. Intenta GPU y, si falla, CPU. */
+    /** Must be called holding the mutex. Tries the GPU and, if it fails, the CPU. */
     private fun ensureEngine(): Engine? {
         engine?.let { return it }
         if (_loadState.value == LoadState.ERROR) return null
@@ -206,7 +206,7 @@ class GemmaLocalEngine(
                 val e = Engine(EngineConfig(modelPath = path, backend = backend, cacheDir = context.cacheDir.absolutePath))
                 e.initialize()
                 val ms = SystemClock.elapsedRealtime() - start
-                Log.i(TAG, "Gemma cargado con backend ${backend.name} en $ms ms")
+                Log.i(TAG, "Gemma loaded with the ${backend.name} backend in $ms ms")
                 engine = e
                 engineBackend = backend.name
                 _loadState.value = LoadState.READY
@@ -214,7 +214,7 @@ class GemmaLocalEngine(
                 return e
             } catch (t: Throwable) {
                 if (backend.name == "GPU") gpuTrialPending = false
-                Log.w(TAG, "No se pudo cargar Gemma con ${backend.name}: ${t.message}")
+                Log.w(TAG, "Could not load Gemma with ${backend.name}: ${t.message}")
                 errors += "${backend.name}: ${t.message}"
             }
         }

@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
 
-/** Rutinas del usuario («Buenas noches», «Me voy a casa»…). Las predefinidas se pueden editar, apagar o restaurar. */
+/** The user's routines ("Good night", "I'm going home"…). The built-in ones can be edited, turned off or restored. */
 class RoutinesStore(context: Context) {
 
     private val prefs = context.getSharedPreferences("routines", Context.MODE_PRIVATE)

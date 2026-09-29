@@ -17,9 +17,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Gemini en la nube (Gemini API, REST). Opcional y desactivado por defecto; se activa en Ajustes
- * con una API key gratuita de Google AI Studio. En el nivel gratuito Google puede usar los datos
- * para mejorar sus productos → se avisa en la pantalla de Ajustes.
+ * Gemini in the cloud (Gemini API, REST). Optional and off by default; turned on in Settings with a free Google AI
+ * Studio API key. On the free tier Google may use the data to improve its products → the Settings screen says so.
  */
 class CloudGeminiEngine(private val settings: SettingsRepository) : LlmEngine() {
 
@@ -30,12 +29,12 @@ class CloudGeminiEngine(private val settings: SettingsRepository) : LlmEngine() 
     override suspend fun complete(system: String, user: String, maxTokens: Int, temperature: Float): String? =
         generate(system, user, maxTokens, temperature, webSearch = false)
 
-    /** Con la herramienta «Google Search» de la Gemini API (gratis con límite diario): noticias, resultados, horarios… */
+    /** With the Gemini API "Google Search" tool (free with a daily limit): news, results, opening hours… */
     override suspend fun askWeb(system: String, user: String, maxTokens: Int): String? = try {
         generate(system, user, maxTokens, 0.3f, webSearch = true)?.trim()?.takeIf { it.isNotEmpty() }
     } catch (e: Exception) {
         if (e is kotlinx.coroutines.CancellationException) throw e
-        null // sin búsqueda (límite, modelo sin herramientas…) → se responde sin ella
+        null // no search (limit, model without tools…) → answered without it
     }
 
     private suspend fun generate(system: String, user: String, maxTokens: Int, temperature: Float, webSearch: Boolean): String? {
@@ -52,7 +51,7 @@ class CloudGeminiEngine(private val settings: SettingsRepository) : LlmEngine() 
             if (webSearch) putJsonArray("tools") { addJsonObject { putJsonObject("google_search") {} } }
             putJsonObject("generationConfig") {
                 put("temperature", temperature)
-                // Margen amplio: los modelos con "thinking" consumen tokens antes de responder
+                // Generous margin: "thinking" models spend tokens before answering
                 put("maxOutputTokens", maxTokens + 1024)
             }
         }
@@ -61,19 +60,19 @@ class CloudGeminiEngine(private val settings: SettingsRepository) : LlmEngine() 
         return extractText(response)
     }
 
-    /** Prueba la conexión desde Ajustes. Devuelve null si va bien o el mensaje de error. */
+    /** Tests the connection from Settings. Returns null when fine, or the error message. */
     suspend fun testConnection(): String? = try {
-        val reply = complete("Responde solo con la palabra OK.", "Prueba de conexión", 10, 0f)
-        if (reply.isNullOrBlank()) "Respuesta vacía del modelo" else null
+        val reply = complete("Reply only with the word OK.", "Connection test", 10, 0f)
+        if (reply.isNullOrBlank()) io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("Respuesta vacía del modelo", "Empty reply from the model") else null
     } catch (e: CloudException) {
         when (e.code) {
-            400, 403 -> "API key no válida o sin permisos (${e.code}): ${e.message}"
-            404 -> "El modelo «${settings.current.cloudModel}» no existe o no está disponible"
-            429 -> "Límite gratuito alcanzado, prueba más tarde (429)"
+            400, 403 -> io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("API key no válida o sin permisos", "Invalid API key or missing permissions") + " (${e.code}): ${e.message}"
+            404 -> io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("El modelo «${settings.current.cloudModel}» no existe o no está disponible", "The model «${settings.current.cloudModel}» doesn't exist or isn't available")
+            429 -> io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("Límite gratuito alcanzado, prueba más tarde (429)", "Free limit reached, try again later (429)")
             else -> "Error ${e.code}: ${e.message}"
         }
     } catch (e: Exception) {
-        "Sin conexión: ${e.message}"
+        io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("Sin conexión: ", "No connection: ") + e.message
     }
 
     private suspend fun post(model: String, apiKey: String, json: String): Pair<Int, String> = withContext(Dispatchers.IO) {
@@ -84,7 +83,7 @@ class CloudGeminiEngine(private val settings: SettingsRepository) : LlmEngine() 
             readTimeout = 30_000
             doOutput = true
             setRequestProperty("Content-Type", "application/json; charset=utf-8")
-            setRequestProperty("x-goog-api-key", apiKey) // en cabecera, nunca en la URL
+            setRequestProperty("x-goog-api-key", apiKey) // in a header, never in the URL
         }
         try {
             conn.outputStream.use { it.write(json.toByteArray(Charsets.UTF_8)) }
@@ -101,7 +100,7 @@ class CloudGeminiEngine(private val settings: SettingsRepository) : LlmEngine() 
             ?.get("content")?.jsonObject?.get("parts")?.jsonArray
             ?.mapNotNull { part ->
                 val obj = part.jsonObject
-                // Se ignoran las partes de "pensamiento" si el modelo las incluye
+                // "Thought" parts are skipped if the model includes them
                 if (obj["thought"]?.jsonPrimitive?.contentOrNull == "true") null
                 else obj["text"]?.jsonPrimitive?.contentOrNull
             }

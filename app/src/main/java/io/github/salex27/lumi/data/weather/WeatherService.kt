@@ -32,8 +32,8 @@ import java.util.Locale
 import kotlin.coroutines.resume
 
 /**
- * El tiempo con Open-Meteo: gratis, sin API key ni cuenta (uso no comercial). Ubicación aproximada del móvil
- * → si no hay permiso, el lugar «casa» guardado → la última conocida. Se guarda 30 min para no repetir peticiones.
+ * Weather from Open-Meteo: free, no API key or account (non-commercial use). The phone's approximate location →
+ * without permission, the saved "home" place → the last known one. Kept for 30 min to avoid repeating requests.
  */
 class WeatherService(private val context: Context, private val places: PlacesStore) {
 
@@ -42,23 +42,23 @@ class WeatherService(private val context: Context, private val places: PlacesSto
         data class Failed(val message: String) : Result
     }
 
-    /** JSON original de cada previsión (para guardarla tal cual). Antes de _latest: loadCached() ya lo usa. */
+    /** Original JSON of each forecast (to store it as is). Declared before _latest: loadCached() already uses it. */
     private val rawCache = java.util.WeakHashMap<WeatherReport, String>()
     private val prefs = context.getSharedPreferences("weather", Context.MODE_PRIVATE)
     private val _latest = MutableStateFlow(loadCached())
-    /** Última previsión de donde estás (para Inicio y los avisos, sin pedir nada a la red). */
+    /** Latest forecast for where you are (for Home and warnings, without hitting the network). */
     val latest: StateFlow<WeatherReport?> = _latest.asStateFlow()
 
-    /** Previsión reciente (< 3 h) si la hay, sin red. */
+    /** A recent forecast (< 3 h) if there is one, without network. */
     fun cachedFresh(): WeatherReport? = _latest.value?.takeIf { System.currentTimeMillis() - it.fetchedAt < 3 * HOUR }
 
-    /** [placeQuery] = ciudad («Madrid») o lugar guardado («casa»); null = donde estás. */
+    /** [placeQuery] = a city ("Madrid") or a saved place ("casa"); null = where you are. */
     suspend fun forecast(placeQuery: String? = null, force: Boolean = false): Result = withContext(Dispatchers.IO) {
         try {
             if (placeQuery == null) {
                 _latest.value?.takeIf { !force && System.currentTimeMillis() - it.fetchedAt < CACHE_MS }?.let { return@withContext Result.Ok(it) }
                 val (lat, lng, label) = here() ?: return@withContext Result.Failed(
-                    "No sé dónde estás: dale a Lumi permiso de ubicación o guarda «Casa» en Ajustes → Lugares."
+                    io.github.salex27.lumi.domain.assistant.ReplyLanguage.t("No sé dónde estás: dale a Lumi permiso de ubicación o guarda «Casa» en Ajustes → Lugares.", "I don't know where you are: give Lumi location permission or save «Home» in Settings → Places.")
                 )
                 val report = fetch(lat, lng, label)
                 _latest.value = report
@@ -67,20 +67,20 @@ class WeatherService(private val context: Context, private val places: PlacesSto
             } else {
                 val key = TaskPhraseParser.normalizePlace(placeQuery)
                 places.get(key)?.let { return@withContext Result.Ok(fetch(it.lat, it.lng, it.label)) }
-                val (lat, lng, name) = geocode(placeQuery) ?: return@withContext Result.Failed("No encuentro «$placeQuery».")
+                val (lat, lng, name) = geocode(placeQuery) ?: return@withContext Result.Failed(io.github.salex27.lumi.domain.assistant.ReplyLanguage.t("No encuentro «$placeQuery».", "I can't find «$placeQuery»."))
                 Result.Ok(fetch(lat, lng, name))
             }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            Result.Failed("No he podido consultar el tiempo (¿sin conexión?).")
+            Result.Failed(io.github.salex27.lumi.domain.assistant.ReplyLanguage.t("No he podido consultar el tiempo (¿sin conexión?).", "I couldn't get the weather (no connection?)."))
         }
     }
 
-    // ── Ubicación ───────────────────────────────────────────────────────────
+    // ── Location ────────────────────────────────────────────────────────────
 
     private suspend fun here(): Triple<Double, Double, String>? {
         location()?.let { loc -> return Triple(loc.latitude, loc.longitude, cityName(loc.latitude, loc.longitude) ?: "tu zona") }
-        places.get("casa")?.let { return Triple(it.lat, it.lng, "casa") }
+        places.get("casa")?.let { return Triple(it.lat, it.lng, io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("casa", "home")) }
         val lat = prefs.getString(K_LAT, null)?.toDoubleOrNull()
         val lng = prefs.getString(K_LNG, null)?.toDoubleOrNull()
         return if (lat != null && lng != null) Triple(lat, lng, _latest.value?.place ?: "tu zona") else null
@@ -94,7 +94,7 @@ class WeatherService(private val context: Context, private val places: PlacesSto
         val last = suspendCancellableCoroutine<Location?> { cont ->
             client.lastLocation.addOnSuccessListener { cont.resume(it) }.addOnFailureListener { cont.resume(null) }
         }
-        // Para el tiempo basta una posición de hace unas horas
+        // For the weather a position from a few hours ago is enough
         if (last != null && System.currentTimeMillis() - last.time < 6 * HOUR) return last
         return withTimeoutOrNull(6_000) {
             val cts = CancellationTokenSource()
@@ -112,7 +112,7 @@ class WeatherService(private val context: Context, private val places: PlacesSto
             ?.let { it.locality ?: it.subAdminArea }
     }.getOrNull()
 
-    /** Ciudad → coordenadas con el buscador de Open-Meteo (también gratis). */
+    /** City → coordinates with Open-Meteo's geocoder (also free). */
     private fun geocode(name: String): Triple<Double, Double, String>? {
         val json = get("https://geocoding-api.open-meteo.com/v1/search?count=1&language=es&name=${Uri.encode(name.trim())}")
         val r = JSONObject(json).optJSONArray("results")?.optJSONObject(0) ?: return null

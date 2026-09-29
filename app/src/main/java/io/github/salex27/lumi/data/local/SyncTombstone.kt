@@ -7,7 +7,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 
-/** Tareas borradas en local que aún hay que borrar en Google Tasks en la próxima sincronización. */
+/** Tasks deleted locally that still have to be deleted in Google Tasks on the next sync. */
 @Entity(tableName = "sync_tombstones")
 data class SyncTombstone(@PrimaryKey val googleTaskId: String)
 
