@@ -110,7 +110,7 @@ abstract class AppDatabase : RoomDatabase() {
             val zone = ZoneId.systemDefault()
             fun at(daysFromNow: Long, hour: Int, minute: Int = 0) =
                 LocalDate.now().plusDays(daysFromNow).atTime(hour, minute).atZone(zone).toInstant().toEpochMilli()
-            val t = io.github.salex27.lumi.domain.assistant.ReplyLanguage::ui
+            val t = { es: String, en: String -> io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui(es, en) }
 
             dao.insertTask(TaskEntity(title = t("Configurar el asistente de IA", "Set up the AI assistant"), description = t("Descargar Gemma o activar Gemini en Ajustes", "Download Gemma or turn on Gemini in Settings"), status = TaskStatus.IN_PROGRESS, category = TaskCategory.WORK))
             dao.insertTask(TaskEntity(title = t("Preparar presentación del sprint", "Prepare the sprint presentation"), status = TaskStatus.TODO, category = TaskCategory.WORK, dueAt = at(1, 10), dueHasTime = true))

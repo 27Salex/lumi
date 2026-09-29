@@ -46,7 +46,7 @@ object ActionPreview {
 
     /** Sentence for the reply when the task is created. */
     fun sentence(p: Preview, task: Task): String {
-        val t = io.github.salex27.lumi.domain.assistant.ReplyLanguage::t
+        val t = { es: String, en: String -> io.github.salex27.lumi.domain.assistant.ReplyLanguage.t(es, en) }
         val name = p.contactName ?: when (val c = p.command) {
             is DeviceCommand.Call -> c.contact
             is DeviceCommand.Message -> c.contact

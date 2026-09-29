@@ -23,10 +23,10 @@ object ReplyLanguage {
     @Volatile var app: Lang = Lang.ES
 
     /** Text in the language of the reply in progress. */
-    fun t(es: String, en: String) = if (current == Lang.EN) en else es
+    fun <T> t(es: T, en: T): T = if (current == Lang.EN) en else es
 
     /** Text in the app's display language (settings messages, notifications, seed data). */
-    fun ui(es: String, en: String) = if (app == Lang.EN) en else es
+    fun <T> ui(es: T, en: T): T = if (app == Lang.EN) en else es
 }
 
 /**

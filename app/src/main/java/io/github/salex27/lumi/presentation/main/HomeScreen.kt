@@ -1,4 +1,5 @@
 package io.github.salex27.lumi.presentation.main
+
 import io.github.salex27.lumi.R
 import androidx.compose.ui.res.stringResource
 import io.github.salex27.lumi.domain.assistant.Lang

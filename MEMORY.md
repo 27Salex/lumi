@@ -5,6 +5,23 @@ Decisiones de diseño y problemas conocidos del proyecto. Añadir entradas nueva
 
 ---
 
+## 2026-09-29 — 1.0 prep: English codebase, bilingual app (en default + es)
+
+- **All code and comments are now English** (user decision for the public GitHub release). UI text lives in
+  `res/values/strings.xml` (English, default) and `res/values-es/strings.xml`; both are generated from one list so the
+  keys never drift. Resource names can't be Java keywords (`import`, `export`, `package` broke the build → `action_import`…).
+- **Two languages at runtime:** `ReplyLanguage.app` = the UI language (set from the configuration in the Application
+  and in each Activity's `onCreate`); `ReplyLanguage.current` = the language of the conversation in progress (detected
+  per sentence). Screens must use the app language (`uiLabel`, `uiLocale`, `lang = ReplyLanguage.app`), never the plain
+  `label` getter, or an English chat turns a Spanish app's lists English. Chat replies (including the view model's local
+  ones like "OK, I won't") follow the conversation language; choice answers accept English ("yes", "the second one").
+- **Per-app language:** `res/xml/locales_config.xml` + Settings → Appearance → Language (Android 13+, `LocaleManager`).
+  The daily summary cache stores its language and is regenerated when the app language changes.
+- **Voice:** `LumiSpeaker` picks the TTS voice per reply (English text is not read with a Spanish voice).
+- **Default routines** are created in the app language (names and steps); triggers understand both languages.
+- **Create-task sheet** now also asks "Discard changes?" when closing, but only if something was changed (user request);
+  the old shortcut "new task with an empty title closes silently" was removed.
+
 ## 2026-09-29 — v3.7.4: Gemma probada de verdad (emulador) → el título se perdía; fechas; GPU que tira la app
 
 Por primera vez se probó Gemma 4 E2B real (mismo .litertlm y LiteRT-LM que en el S25) en el emulador:

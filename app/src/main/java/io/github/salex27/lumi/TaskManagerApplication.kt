@@ -195,15 +195,16 @@ class TaskManagerApplication : Application() {
     }
 
     /** Keeps [ReplyLanguage.app] in sync with the language the app is shown in (system or per-app setting). */
-    fun updateAppLanguage() {
-        io.github.salex27.lumi.domain.assistant.ReplyLanguage.app =
-            io.github.salex27.lumi.domain.assistant.Lang.of(resources.configuration.locales[0].language)
+    fun updateAppLanguage(config: android.content.res.Configuration = resources.configuration) {
+        val lang = io.github.salex27.lumi.domain.assistant.Lang.of(config.locales[0].language)
+        if (lang == io.github.salex27.lumi.domain.assistant.ReplyLanguage.app) return
+        io.github.salex27.lumi.domain.assistant.ReplyLanguage.app = lang
+        createNotificationChannels() // channel names follow the language
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
-        updateAppLanguage()
-        createNotificationChannels() // channel names follow the language
+        updateAppLanguage(newConfig)
     }
 
     private fun createNotificationChannels() {

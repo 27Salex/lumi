@@ -1,4 +1,5 @@
 package io.github.salex27.lumi.presentation.settings
+
 import io.github.salex27.lumi.R
 import androidx.compose.ui.res.stringResource
 
@@ -115,6 +116,10 @@ fun SettingsScreen(
                     Segment(label, s.themeMode == mode, Modifier.weight(1f)) { actions.setThemeMode(mode) }
                 }
             }
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                ListDivider()
+                AppLanguagePicker()
+            }
         }
 
         // ── Voice ───────────────────────────────────────────────────────────
@@ -169,8 +174,8 @@ fun SettingsScreen(
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AppSettings.VOICE_LANGUAGES.forEach { (tag, label) ->
-                        // "Español (España)" → "España", "English (UK)" → "UK"
-                        val short = label.substringAfter("(", label).removeSuffix(")").substringBefore(" (")
+                        // "Español (España)" → "España", "English (UK)" → "UK", Latin America → "Latam" (fits the segment)
+                        val short = if (tag == "es-US") "Latam" else label.substringAfter("(", label).removeSuffix(")").substringBefore(" (")
                         Segment(short, s.voiceLanguage == tag, Modifier.weight(1f)) { actions.setVoiceLanguage(tag) }
                     }
                 }
@@ -710,6 +715,31 @@ private fun GoogleTasksGuide(packageName: String, sha1: String) {
                     Text(value, style = MaterialTheme.typography.bodySmall, color = c.textPrimary)
                 }
                 Text(stringResource(R.string.copy), style = MaterialTheme.typography.labelLarge, color = c.accentText)
+            }
+        }
+    }
+}
+
+/**
+ * App language (Android 13+ per-app language): System / English / Español. Android recreates the screens with the new
+ * resources; Lumi's replies follow the language you talk to it in anyway.
+ */
+@androidx.annotation.RequiresApi(android.os.Build.VERSION_CODES.TIRAMISU)
+@Composable
+private fun AppLanguagePicker() {
+    val c = Lumi.colors
+    val context = LocalContext.current
+    val manager = remember { context.getSystemService(android.app.LocaleManager::class.java) }
+    var current by remember { mutableStateOf(manager.applicationLocales.toLanguageTags().substringBefore('-')) }
+    Column(Modifier.padding(16.dp)) {
+        Text(stringResource(R.string.app_language), style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("" to stringResource(R.string.theme_system), "en" to "English", "es" to "Español").forEach { (tag, label) ->
+                Segment(label, current == tag, Modifier.weight(1f)) {
+                    current = tag
+                    manager.applicationLocales = android.os.LocaleList.forLanguageTags(tag)
+                }
             }
         }
     }

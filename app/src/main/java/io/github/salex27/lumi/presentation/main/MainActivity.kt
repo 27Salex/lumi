@@ -1,4 +1,5 @@
 package io.github.salex27.lumi.presentation.main
+
 import io.github.salex27.lumi.R
 import androidx.compose.ui.res.stringResource
 
@@ -202,6 +203,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        (application as io.github.salex27.lumi.TaskManagerApplication).updateAppLanguage(resources.configuration)
+        viewModel.refreshIfLanguageChanged()
         if (savedInstanceState == null) intent?.getLongExtra(EXTRA_EDIT_TASK_ID, -1L)?.takeIf { it > 0 }?.let { pendingEditId.value = it }
 
         if (savedInstanceState == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&

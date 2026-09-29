@@ -1,4 +1,5 @@
 package io.github.salex27.lumi.presentation.assistant
+
 import io.github.salex27.lumi.domain.assistant.LanguageDetector
 
 import io.github.salex27.lumi.domain.assistant.ReplyLanguage

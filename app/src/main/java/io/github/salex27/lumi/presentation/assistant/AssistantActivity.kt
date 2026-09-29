@@ -1,4 +1,5 @@
 package io.github.salex27.lumi.presentation.assistant
+
 import io.github.salex27.lumi.domain.assistant.ReplyLanguage
 
 import android.Manifest
@@ -51,6 +52,7 @@ class AssistantActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(Color.Transparent.toArgb())
         )
         super.onCreate(savedInstanceState)
+        (application as io.github.salex27.lumi.TaskManagerApplication).updateAppLanguage(resources.configuration)
         // With the phone locked Lumi appears on top (like Gemini/Google Assistant); anything that needs another app
         // asks to unlock first (see whenUnlocked)
         setShowWhenLocked(true)

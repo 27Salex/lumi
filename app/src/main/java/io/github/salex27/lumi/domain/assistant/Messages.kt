@@ -97,26 +97,27 @@ object RoutineMatcher {
         .replace(Regex("\\s+lumi$"), "")
         .trim()
 
-    val DEFAULTS = listOf(
+    /** Default routines, named and with steps in the app's language (the triggers understand both). */
+    val DEFAULTS: List<Routine> get() = listOf(
         Routine(
-            "night", "Buenas noches",
+            "night", ReplyLanguage.ui("Buenas noches", "Good night"),
             listOf("buenas noches", "me voy a dormir", "me voy a la cama", "hasta mañana", "good night", "going to bed", "i'm going to bed"),
-            listOf("alarma inteligente", "activa no molestar", "qué tengo mañana")
+            ReplyLanguage.ui(listOf("alarma inteligente", "activa no molestar", "qué tengo mañana"), listOf("smart alarm", "turn on do not disturb", "what do I have tomorrow"))
         ),
         Routine(
-            "morning", "Buenos días",
+            "morning", ReplyLanguage.ui("Buenos días", "Good morning"),
             listOf("buenos días", "buen día", "ya estoy despierto", "ya estoy despierta", "ya me he levantado", "good morning", "i'm up", "i'm awake"),
-            listOf("desactiva no molestar", "resumen de hoy")
+            ReplyLanguage.ui(listOf("desactiva no molestar", "resumen de hoy"), listOf("turn off do not disturb", "summary of today"))
         ),
         Routine(
-            "home", "Me voy a casa",
+            "home", ReplyLanguage.ui("Me voy a casa", "Going home"),
             listOf("me voy a casa", "vuelvo a casa", "voy para casa", "me voy para casa", "i'm going home", "heading home", "going home"),
-            listOf("llévame a casa")
+            ReplyLanguage.ui(listOf("llévame a casa"), listOf("take me home"))
         ),
         Routine(
-            "work", "Me voy al trabajo",
+            "work", ReplyLanguage.ui("Me voy al trabajo", "Going to work"),
             listOf("me voy al trabajo", "me voy a trabajar", "voy al trabajo", "voy a trabajar", "heading to work", "going to work", "i'm going to work"),
-            listOf("qué tiempo hace", "llévame al trabajo")
+            ReplyLanguage.ui(listOf("qué tiempo hace", "llévame al trabajo"), listOf("what's the weather like", "take me to work"))
         )
     )
 }

@@ -87,10 +87,18 @@ class MainViewModel(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MainUiState())
 
+    /** Language the summary on screen is written in. */
+    private var briefLang = ReplyLanguage.app.name
+
+    /** The app language changed while the app was running (Settings → Language): the summary is rewritten. */
+    fun refreshIfLanguageChanged() {
+        if (briefLang != ReplyLanguage.app.name) generateDailyBriefing()
+    }
+
     init {
-        // The summary is cached: only generated if there is none or it is from another day (saves AI requests)
+        // The summary is cached: only generated if there is none, it is from another day or in another language (saves AI requests)
         val saved = briefStore.load()
-        if (saved != null && saved.date == LocalDate.now()) {
+        if (saved != null && saved.date == LocalDate.now() && saved.lang == ReplyLanguage.app.name) {
             _briefing.value = BriefingState(text = saved.text, engine = saved.engine, version = 0)
         } else {
             generateDailyBriefing()
@@ -146,8 +154,10 @@ class MainViewModel(
         if (_briefing.value.isLoading) return
         _briefing.update { it.copy(isLoading = true) }
         viewModelScope.launch {
+            ReplyLanguage.current = ReplyLanguage.app // the Home summary is in the app's language
+            briefLang = ReplyLanguage.app.name
             val result = runCatching { repository.generateDailyBriefing() }.getOrNull()
-            if (result != null) briefStore.save(result.reply, result.engine)
+            if (result != null) briefStore.save(result.reply, result.engine, ReplyLanguage.app.name)
             _briefing.update {
                 BriefingState(
                     text = result?.reply ?: it.text ?: ReplyLanguage.ui("No he podido preparar el resumen ahora mismo.", "I couldn't prepare the summary right now."),
