@@ -1,4 +1,5 @@
 package io.github.salex27.lumi.presentation.assistant
+import io.github.salex27.lumi.domain.assistant.ReplyLanguage
 
 import android.Manifest
 import android.content.Context
@@ -32,10 +33,10 @@ import io.github.salex27.lumi.service.wakeword.WakeWordService
 import io.github.salex27.lumi.presentation.theme.LumiAppTheme
 
 /**
- * Asistente flotante. Es una Activity translúcida (no un overlay de Service) porque:
- *  1. AICore/Gemini Nano solo permite inferencia con la app en primer plano.
- *  2. Así puede registrarse como "Asistente digital" del sistema (intent ASSIST): pulsación larga
- *     del botón lateral o gesto desde la esquina abre este panel sobre cualquier app.
+ * Floating assistant. It is a translucent Activity (not a Service overlay) because:
+ *  1. AICore/Gemini Nano only allows inference with the app in the foreground.
+ *  2. That way it can register as the system "Digital assistant" (ASSIST intent): a long press of the side button or
+ *     the corner gesture opens this panel over any app.
  */
 class AssistantActivity : ComponentActivity() {
 
@@ -50,21 +51,21 @@ class AssistantActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(Color.Transparent.toArgb())
         )
         super.onCreate(savedInstanceState)
-        // Con el móvil bloqueado Lumi aparece encima (como Gemini/Google Assistant); lo que necesite otra app
-        // pide desbloquear primero (ver whenUnlocked)
+        // With the phone locked Lumi appears on top (like Gemini/Google Assistant); anything that needs another app
+        // asks to unlock first (see whenUnlocked)
         setShowWhenLocked(true)
         setTurnScreenOn(true)
 
-        // Invocado como asistente del sistema (o con EXTRA_START_LISTENING) → empezar a escuchar, como Gemini
-        // Solo en el primer arranque, no al recrear la Activity (rotación): evita reenviar/re-escuchar
+        // Invoked as the system assistant (or with EXTRA_START_LISTENING) → start listening, like Gemini.
+        // Only on the first start, not when the Activity is recreated (rotation): avoids resending / listening again
         val firstLaunch = savedInstanceState == null
         val autoListen = firstLaunch && (intent.action == Intent.ACTION_ASSIST ||
             intent.action == Intent.ACTION_VOICE_COMMAND ||
             intent.getBooleanExtra(EXTRA_START_LISTENING, false))
         val initialPrompt = if (!firstLaunch) null else intent.getStringExtra(EXTRA_PROMPT) ?: sharedPrompt(intent)
-        // Fuera de la app (botón lateral, «Oye Lumi», widget, tile) → píldora compacta; desde la app → conversación
+        // Outside the app (side button, "Oye Lumi", widget, tile) → compact pill; from the app → conversation
         val compact = intent.getBooleanExtra(EXTRA_COMPACT, intent.action == Intent.ACTION_ASSIST || intent.action == Intent.ACTION_VOICE_COMMAND)
-        // Abierta sola por «Oye Lumi»: más cautela (confirmación y cierre automático si no hay orden clara)
+        // Opened on its own by "Oye Lumi": more caution (confirmation and auto-close if there is no clear command)
         val fromWakeWord = intent.getBooleanExtra(EXTRA_FROM_WAKE_WORD, false)
 
         setContent {
@@ -89,12 +90,12 @@ class AssistantActivity : ComponentActivity() {
                         onFinalResult = { viewModel.sendVoice(it, fromWakeWord && !quiet) },
                         onError = { viewModel.setVoiceError(it) }, // visible en la píldora / barra
                         quiet = quiet,
-                        // Seguía escuchando y no dijiste nada más: la píldora (fuera de la app) se retira sola
+                        // It kept listening and you said nothing else: the pill (outside the app) goes away on its own
                         onSilence = { if (compact) lifecycleScope.launch { kotlinx.coroutines.delay(1_200); if (!voice.isListening.value) finish() } }
                     )
                 }
 
-                // Conversación seguida: al acabar de responder por voz (y de hablar), Lumi vuelve a escuchar
+                // Continuous conversation: once the voice reply finishes (and Lumi stops speaking), Lumi listens again
                 val listenAgain by viewModel.listenAgain.collectAsStateWithLifecycle()
                 LaunchedEffect(listenAgain) {
                     if (listenAgain == 0 || !app.settings.current.continueConversation || !hasMic) return@LaunchedEffect
@@ -107,11 +108,11 @@ class AssistantActivity : ComponentActivity() {
 
                 val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
                     hasMic = granted
-                    if (granted) listen() else viewModel.setVoiceError("Sin permiso de micrófono: escribe o concédelo en Ajustes")
+                    if (granted) listen() else viewModel.setVoiceError(ReplyLanguage.ui("Sin permiso de micrófono: escribe o concédelo en Ajustes", "No microphone permission: type, or grant it in Settings"))
                 }
 
                 LaunchedEffect(Unit) {
-                    // Botón de un aviso («Escribir a Roberto»): se ejecuta la acción directamente
+                    // A reminder's button ("Text Roberto"): the action runs directly
                     if (firstLaunch) intent.getStringExtra(EXTRA_DEVICE)?.let { io.github.salex27.lumi.domain.assistant.DeviceCommand.parse(it) }?.let {
                         viewModel.runTaskAction(it, intent.getLongExtra(EXTRA_DONE_TASK, 0L))
                         return@LaunchedEffect
@@ -123,31 +124,31 @@ class AssistantActivity : ComponentActivity() {
                 }
                 DisposableEffect(Unit) { onDispose { voice.stopListening() } }
 
-                // Acción del móvil pedida por voz o texto («llama a mamá», «pon una alarma a las 7»…)
+                // Phone action asked for by voice or text ("call mum", "set an alarm at 7"…)
                 var pendingDevice by remember { mutableStateOf<io.github.salex27.lumi.domain.assistant.DeviceCommand?>(null) }
                 val devicePermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
                     val cmd = pendingDevice ?: return@rememberLauncherForActivityResult
                     pendingDevice = null
                     when {
-                        // Permiso de llamadas (concedido o no): se reintenta; si se denegó, abrirá el marcador
+                        // Call permission (granted or not): retried; if it was denied, the dialer opens
                         Manifest.permission.CALL_PHONE in result && Manifest.permission.READ_CONTACTS !in result -> viewModel.retryDevice(cmd)
                         result[Manifest.permission.READ_CONTACTS] == true -> viewModel.retryDevice(cmd)
-                        else -> viewModel.say("Sin acceso a tus contactos no puedo buscar a quién llamar. Puedes darme el número.", isError = true)
+                        else -> viewModel.say(ReplyLanguage.t("Sin acceso a tus contactos no puedo buscar a quién llamar. Puedes darme el número.", "Without access to your contacts I can't look up who to call. You can give me the number."), isError = true)
                     }
                 }
                 LaunchedEffect(state.device) {
                     val cmd = state.device ?: return@LaunchedEffect
                     val contact = state.deviceContact
                     viewModel.deviceHandled()
-                    // Bloqueado y la acción abre otra app (llamada, WhatsApp, Spotify…) → primero desbloquear
+                    // Locked and the action opens another app (call, WhatsApp, Spotify…) → unlock first
                     if (!cmd.staysInLumi && isLocked()) {
                         whenUnlocked(
                             onUnlocked = { viewModel.retryDevice(cmd, contact) },
-                            onCancelled = { viewModel.say("Desbloquea el móvil y vuelve a pedírmelo.", isError = true); viewModel.nextDevice() }
+                            onCancelled = { viewModel.say(ReplyLanguage.t("Desbloquea el móvil y vuelve a pedírmelo.", "Unlock the phone and ask me again."), isError = true); viewModel.nextDevice() }
                         )
                         return@LaunchedEffect
                     }
-                    // Elegido entre varios → se aprende como alias («mamá» → AA Mamá) para la próxima vez
+                    // Chosen among several → learned as an alias ("mamá" → AA Mamá) for next time
                     if (contact != null) {
                         val spoken = (cmd as? io.github.salex27.lumi.domain.assistant.DeviceCommand.Call)?.contact
                             ?: (cmd as? io.github.salex27.lumi.domain.assistant.DeviceCommand.Message)?.contact
@@ -155,8 +156,8 @@ class AssistantActivity : ComponentActivity() {
                     }
                     when (val outcome = io.github.salex27.lumi.presentation.agent.DeviceActions.execute(this@AssistantActivity, cmd, contact, app.contactAliases)) {
                         is io.github.salex27.lumi.presentation.agent.DeviceActions.Outcome.Done -> {
-                            // Rutina: siguiente acción. Si no queda nada y la acción abrió otra app (llamada, WhatsApp…),
-                            // la píldora se retira. En lifecycleScope: limpiar el estado reinicia este efecto y cancelaría la espera.
+                            // Routine: next action. If nothing is left and the action opened another app (call, WhatsApp…),
+                            // the pill goes away. In lifecycleScope: clearing the state restarts this effect and would cancel the wait.
                             lifecycleScope.launch {
                                 kotlinx.coroutines.delay(if (cmd.staysInLumi) 250 else 700)
                                 if (!viewModel.nextDevice() && !cmd.staysInLumi) finish()
@@ -164,7 +165,7 @@ class AssistantActivity : ComponentActivity() {
                         }
                         is io.github.salex27.lumi.presentation.agent.DeviceActions.Outcome.NeedsAccess -> {
                             if (viewModel.routineActive) {
-                                viewModel.say("No he podido activar No molestar: dale acceso en Ajustes → Accesos.", isError = true)
+                                viewModel.say(ReplyLanguage.t("No he podido activar No molestar: dale acceso en Ajustes → Accesos.", "I couldn't turn on Do Not Disturb: give me access in Settings → Access."), isError = true)
                                 viewModel.nextDevice()
                             } else {
                                 viewModel.say(outcome.message, isError = true)
@@ -183,12 +184,12 @@ class AssistantActivity : ComponentActivity() {
                     }
                 }
 
-                // «Edita lo del dentista» → la app con el editor de esa tarea abierto
+                // "Edit the dentist one" → the app with that task's editor open
                 LaunchedEffect(state.openTaskId) {
                     val id = state.openTaskId ?: return@LaunchedEffect
                     viewModel.openTaskHandled()
-                    // lifecycleScope y no el efecto: al limpiar el estado el efecto se reinicia y cancelaría la espera
-                    whenUnlocked(onCancelled = { viewModel.say("Desbloquea el móvil para editar la tarea.", isError = true) }) { lifecycleScope.launch {
+                    // lifecycleScope and not the effect: clearing the state restarts the effect and would cancel the wait
+                    whenUnlocked(onCancelled = { viewModel.say(ReplyLanguage.t("Desbloquea el móvil para editar la tarea.", "Unlock the phone to edit the task."), isError = true) }) { lifecycleScope.launch {
                         kotlinx.coroutines.delay(600)
                         startActivity(
                             Intent(this@AssistantActivity, MainActivity::class.java)
@@ -199,18 +200,18 @@ class AssistantActivity : ComponentActivity() {
                     } }
                 }
 
-                // «Llévame a…» → app de mapas elegida en Ajustes (o el selector del sistema)
+                // "Take me to…" → the maps app chosen in Settings (or the system chooser)
                 LaunchedEffect(state.navigateTo) {
                     val destination = state.navigateTo ?: return@LaunchedEffect
                     viewModel.navigationHandled()
-                    whenUnlocked(onCancelled = { viewModel.say("Desbloquea el móvil para abrir la ruta.", isError = true) }) { lifecycleScope.launch {
+                    whenUnlocked(onCancelled = { viewModel.say(ReplyLanguage.t("Desbloquea el móvil para abrir la ruta.", "Unlock the phone to open the route."), isError = true) }) { lifecycleScope.launch {
                         kotlinx.coroutines.delay(900) // que se lea la respuesta antes de salir
                         if (io.github.salex27.lumi.presentation.nav.MapsLauncher.open(this@AssistantActivity, destination, app.settings.current.mapsApp)) finish()
-                        else viewModel.setVoiceError("No hay ninguna app de mapas instalada")
+                        else viewModel.setVoiceError(ReplyLanguage.ui("No hay ninguna app de mapas instalada", "There's no maps app installed"))
                     } }
                 }
 
-                // Activación por voz sin orden (no oyó nada o nadie confirma) → se cierra sola
+                // Voice activation without a command (heard nothing or nobody confirms) → closes on its own
                 if (fromWakeWord) {
                     LaunchedEffect(state.voiceError, state.messages.size) {
                         if (state.voiceError != null && state.messages.size <= 1) { kotlinx.coroutines.delay(2_500); finish() }
@@ -260,7 +261,7 @@ class AssistantActivity : ComponentActivity() {
 
     private fun isLocked() = getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
 
-    /** Ejecuta [onUnlocked] ya mismo si el móvil está desbloqueado; si no, pide huella/PIN y sigue al desbloquear. */
+    /** Runs [onUnlocked] right away if the phone is unlocked; otherwise asks for fingerprint/PIN and continues once unlocked. */
     private fun whenUnlocked(onCancelled: () -> Unit = {}, onUnlocked: () -> Unit) {
         val km = getSystemService(android.app.KeyguardManager::class.java)
         if (km == null || !km.isKeyguardLocked) { onUnlocked(); return }
@@ -271,7 +272,7 @@ class AssistantActivity : ComponentActivity() {
         })
     }
 
-    // «Oye Lumi» suelta el micrófono mientras el asistente está abierto
+    // "Oye Lumi" releases the microphone while the assistant is open
     override fun onStart() {
         super.onStart()
         WakeWordService.pause(this)
@@ -290,8 +291,8 @@ class AssistantActivity : ComponentActivity() {
     }
 
     /**
-     * «Compartir → Lumi» desde cualquier app. Un enlace se guarda como «Revisar: título» con la URL como
-     * nota (descripción explícita); un texto normal se interpreta como un comando más.
+     * "Share → Lumi" from any app. A link is saved as "Read later: title" with the URL as a note (explicit
+     * description); plain text is interpreted as one more command.
      */
     private fun sharedPrompt(intent: Intent): String? {
         if (intent.action != Intent.ACTION_SEND) return null
@@ -300,8 +301,8 @@ class AssistantActivity : ComponentActivity() {
         if (text.isBlank()) return subject
         val url = Regex("https?://\\S+").find(text)?.value
         return if (url != null) {
-            val title = subject ?: text.replace(url, "").trim().ifBlank { "enlace" }
-            "Revisar: ${title.take(80)}, nota: $url"
+            val title = (subject ?: text.replace(url, "").trim().ifBlank { ReplyLanguage.ui("enlace", "link") }).take(80)
+            ReplyLanguage.ui("Revisar: $title, nota: $url", "add a task Read later: $title, note: $url")
         } else text.take(500)
     }
 
@@ -314,13 +315,13 @@ class AssistantActivity : ComponentActivity() {
 
         const val EXTRA_COMPACT = "compact"
         const val EXTRA_FROM_WAKE_WORD = "from_wake_word"
-        /** Leer en voz alta la respuesta al [EXTRA_PROMPT] (p.ej. «Escuchar» en el resumen de la mañana). */
+        /** Read the reply to [EXTRA_PROMPT] aloud (e.g. "Listen" in the morning summary). */
         const val EXTRA_SPEAK = "speak"
-        /** Acción del móvil a ejecutar nada más abrir (botón de un aviso) y tarea a dar por hecha. */
+        /** Phone action to run right after opening (a reminder's button) and the task to mark done. */
         const val EXTRA_DEVICE = "device"
         const val EXTRA_DONE_TASK = "done_task"
 
-        /** «Hablar con Lumi» desde una notificación: píldora compacta escuchando. */
+        /** "Talk to Lumi" from a notification: compact pill, listening. */
         fun talkPendingIntent(context: Context): android.app.PendingIntent = android.app.PendingIntent.getActivity(
             context, 31, intent(context, startListening = true, compact = true),
             android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE

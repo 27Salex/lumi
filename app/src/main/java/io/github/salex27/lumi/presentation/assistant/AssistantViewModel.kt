@@ -1,4 +1,5 @@
 package io.github.salex27.lumi.presentation.assistant
+import io.github.salex27.lumi.domain.assistant.LanguageDetector
 
 import io.github.salex27.lumi.domain.assistant.ReplyLanguage
 import androidx.lifecycle.ViewModel
@@ -34,35 +35,35 @@ sealed interface ChatMessage {
 data class AssistantUiState(
     val messages: List<ChatMessage> = emptyList(),
     val isThinking: Boolean = false,
-    /** Ids de mensajes que ya terminaron la animación de escritura (no se re-animan al recomponer). */
+    /** Ids of messages whose typing animation already finished (not re-animated on recomposition). */
     val revealed: Set<Long> = emptySet(),
-    /** Último error del micrófono (se muestra en la píldora; antes se ignoraba y parecía que la voz "no funcionaba"). */
+    /** Last microphone error (shown in the pill; it used to be ignored and voice seemed "not to work"). */
     val voiceError: String? = null,
     /**
-     * Abierta por «Oye Lumi» y lo oído no suena a una orden (p.ej. conversación de fondo): se pide confirmación
-     * en vez de crear tareas por error.
+     * Opened by "Oye Lumi" and what it heard doesn't sound like a command (e.g. background conversation): confirmation
+     * is asked instead of creating tasks by mistake.
      */
     val pendingConfirmation: String? = null,
-    /** Ruta pedida («llévame a casa»): la Activity abre la app de mapas y lo limpia. */
+    /** Requested route ("take me home"): the Activity opens the maps app and clears it. */
     val navigateTo: io.github.salex27.lumi.domain.model.NavDestination? = null,
-    /** «¿Te refieres a…?»: tareas candidatas; al elegir se ejecuta el comando con esa tarea. */
+    /** "Did you mean…?": candidate tasks; choosing one runs the command with that task. */
     val choice: AIProcessingResult.Choose? = null,
-    /** Varios contactos posibles para llamar / escribir. */
+    /** Several possible contacts to call / text. */
     val contactChoice: ContactChoice? = null,
-    /** Abrir el editor de esta tarea (la Activity abre la app y lo limpia). */
+    /** Open this task's editor (the Activity opens the app and clears it). */
     val openTaskId: Long? = null,
-    /** Acción del móvil pendiente de ejecutar (la Activity la lanza y lo limpia). */
+    /** Pending phone action (the Activity launches it and clears it). */
     val device: DeviceCommand? = null,
     val deviceContact: DeviceActions.Contact? = null,
-    /** Lumi preguntó algo que falta («¿Qué le digo a Víctor?»): la siguiente frase lo completa. */
+    /** Lumi asked for something missing ("What should I tell Víctor?"): the next sentence fills it in. */
     val followUp: AIProcessingResult.AskFollowUp? = null,
-    /** Rutina: acciones que faltan por lanzar (después de [device]) y la ruta del final. */
+    /** Routine: actions still to launch (after [device]) and the final route. */
     val deviceQueue: List<DeviceCommand> = emptyList(),
     val routineNavigate: io.github.salex27.lumi.domain.model.NavDestination? = null,
-    /** Lumi acaba de leer los mensajes de alguien: «respóndele que…» va a esa persona. */
+    /** Lumi just read someone's messages: "reply that…" goes to that person. */
     val replyTarget: io.github.salex27.lumi.domain.assistant.IncomingMessage? = null
 ) {
-    /** Textos de las opciones a elegir (tareas o contactos). */
+    /** Texts of the options to choose from (tasks or contacts). */
     val optionLabels: List<String>
         get() = choice?.options?.map { it.title }
             ?: contactChoice?.options?.map { "${it.name} · ${it.label}" }
@@ -71,15 +72,16 @@ data class AssistantUiState(
 
 data class ContactChoice(val command: DeviceCommand, val options: List<DeviceActions.Contact>)
 
-/** Respuesta hablada/escrita a «¿Te refieres a…?»: índice elegido, -1 = ninguna, null = no es una respuesta. */
+/** Spoken/typed answer to "Did you mean…?": chosen index, -1 = none, null = not an answer. Spanish and English. */
 internal fun parseChoiceAnswer(text: String, labels: List<String>): Int? {
     val t = java.text.Normalizer.normalize(text.lowercase().trim(), java.text.Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "")
         .trim('.', '!', ' ', ',')
-    if (Regex("^(?:no|ninguna|ninguno|cancela|nada|olvidalo|dejalo)$").matches(t)) return -1
-    if (Regex("^(?:si|vale|esa|ese|eso|correcto|exacto|claro|venga|ok|la primera|el primero|primera|primero|1|uno|una)$").matches(t)) return 0
-    if (Regex("^(?:la segunda|el segundo|segunda|segundo|2|dos)$").matches(t)) return 1.takeIf { it < labels.size }
-    if (Regex("^(?:la tercera|el tercero|tercera|tercero|3|tres)$").matches(t)) return 2.takeIf { it < labels.size }
-    // Por nombre: «la de Víctor al trabajo»
+    if (Regex("^(?:no|ninguna|ninguno|cancela|nada|olvidalo|dejalo|none|neither|cancel|nothing|forget it|never ?mind|no thanks)$").matches(t)) return -1
+    if (Regex("^(?:si|vale|esa|ese|eso|correcto|exacto|claro|venga|ok|la primera|el primero|primera|primero|1|uno|una|" +
+            "yes|yeah|yep|sure|okay|right|correct|that one|go ahead|do it|send it|the first one|the first|first|one)$").matches(t)) return 0
+    if (Regex("^(?:la segunda|el segundo|segunda|segundo|2|dos|the second one|the second|second|two)$").matches(t)) return 1.takeIf { it < labels.size }
+    if (Regex("^(?:la tercera|el tercero|tercera|tercero|3|tres|the third one|the third|third|three)$").matches(t)) return 2.takeIf { it < labels.size }
+    // By name: "la de Víctor al trabajo" / "the one with Víctor"
     val words = t.split(" ").filter { it.length >= 4 }
     if (words.isEmpty()) return null
     val scores = labels.map { l ->
@@ -93,7 +95,7 @@ internal fun parseChoiceAnswer(text: String, labels: List<String>): Int? {
 class AssistantViewModel(
     private val repository: TaskRepository,
     orchestrator: AssistantOrchestrator,
-    /** Lee la respuesta en voz alta (solo si la petición llegó por voz). */
+    /** Reads the reply aloud (only if the request came by voice). */
     private val speak: (String) -> Unit = {}
 ) : ViewModel() {
 
@@ -102,7 +104,7 @@ class AssistantViewModel(
     val activeEngine: StateFlow<String> = orchestrator.activeEngine
 
     private var nextId = 0L
-    /** La petición en curso llegó por voz → la respuesta se lee en voz alta (manos libres). */
+    /** The current request came by voice → the reply is read aloud (hands-free). */
     private var voiceTurn = false
 
     init {
@@ -110,8 +112,10 @@ class AssistantViewModel(
         append(
             ChatMessage.Assistant(
                 id = nextId++,
-                text = "${DueDateFormatter.greeting(now, ReplyLanguage.app)}. ¿En qué te ayudo? Puedes pedirme que apunte algo, " +
-                    "preguntarme qué hacer ahora o decirme que ya terminaste una tarea."
+                text = "${DueDateFormatter.greeting(now, ReplyLanguage.app)}. " + ReplyLanguage.ui(
+                    "¿En qué te ayudo? Puedes pedirme que apunte algo, preguntarme qué hacer ahora o decirme que ya terminaste una tarea.",
+                    "How can I help? You can ask me to note something down, ask what to do now or tell me you finished a task."
+                )
             )
         )
         viewModelScope.launch { orchestrator.refreshActiveEngine() }
@@ -122,15 +126,17 @@ class AssistantViewModel(
     private fun send(text: String, fromVoice: Boolean) {
         val prompt = text.trim()
         if (prompt.isEmpty() || _state.value.isThinking) return
-        // ¿Responde a una pregunta de Lumi («¿Qué le digo a Víctor?»)?
+        // Replies in the language the user is speaking (also Lumi's local answers below)
+        ReplyLanguage.current = LanguageDetector.detect(prompt, ReplyLanguage.current)
+        // Is it answering a question from Lumi ("What should I tell Víctor?")?
         _state.value.followUp?.takeIf { it.slot == "confirm" }?.let { f ->
-            // «¿Lo envío?» / «¿Te la pongo?» → sí ejecuta, no cancela, otra cosa se trata como frase nueva
-            val answer = parseChoiceAnswer(prompt, listOf("confirmar"))
+            // "Shall I send it?" / "Shall I set it?" → yes runs, no cancels, anything else is treated as a new sentence
+            val answer = parseChoiceAnswer(prompt, listOf("confirm"))
             _state.update { it.copy(followUp = null) }
             if (answer != null) {
                 voiceTurn = fromVoice
                 append(ChatMessage.User(nextId++, prompt))
-                if (answer < 0) say("Vale, no lo hago.") else run { repository.executeCommand(f.command) }
+                if (answer < 0) say(t("Vale, no lo hago.", "OK, I won't.")) else run { repository.executeCommand(f.command) }
                 return
             }
         }
@@ -139,17 +145,17 @@ class AssistantViewModel(
             voiceTurn = fromVoice
             append(ChatMessage.User(nextId++, prompt))
             val msg = DeviceCommand.parse(f.command.device) as? DeviceCommand.Message
-            if (msg == null || Regex("(?iu)^(?:nada|d[eé]jalo|cancela|olv[ií]dalo|no)$").matches(prompt)) {
-                append(ChatMessage.Assistant(nextId++, "Vale, no envío nada.")); return
+            if (msg == null || Regex("(?iu)^(?:nada|d[eé]jalo|cancela|olv[ií]dalo|no|nothing|cancel|forget it|never ?mind)$").matches(prompt)) {
+                append(ChatMessage.Assistant(nextId++, t("Vale, no envío nada.", "OK, I won't send anything."))); return
             }
             val filled = when (f.slot) {
-                "contact" -> msg.copy(contact = prompt.removePrefix("a ").trim())
-                else -> msg.copy(text = prompt.removePrefix("que ").trim().replaceFirstChar { it.uppercase() })
+                "contact" -> msg.copy(contact = prompt.removePrefix("a ").removePrefix("to ").trim())
+                else -> msg.copy(text = prompt.removePrefix("que ").removePrefix("that ").trim().replaceFirstChar { it.uppercase() })
             }
             run { repository.executeCommand(f.command.copy(device = filled.serialize())) }
             return
         }
-        // ¿Es la respuesta a «¿Te refieres a…?»? («sí», «la segunda», «no»…)
+        // Is it the answer to "Did you mean…?" ("yes", "the second one", "no"…)
         val labels = _state.value.optionLabels
         if (labels.isNotEmpty()) {
             val answer = parseChoiceAnswer(prompt, labels)
@@ -158,24 +164,25 @@ class AssistantViewModel(
                 append(ChatMessage.User(nextId++, prompt))
                 if (answer < 0) {
                     _state.update { it.copy(choice = null, contactChoice = null) }
-                    append(ChatMessage.Assistant(nextId++, "Vale, no toco nada."))
-                    if (fromVoice) speak("Vale, no toco nada.")
+                    append(ChatMessage.Assistant(nextId++, t("Vale, no toco nada.", "OK, I won't touch anything.")))
+                    if (fromVoice) speak(t("Vale, no toco nada.", "OK, I won't touch anything."))
                 } else pick(answer, echo = false)
                 return
             }
-            _state.update { it.copy(choice = null, contactChoice = null) } // otra cosa: se descarta la pregunta
+            _state.update { it.copy(choice = null, contactChoice = null) } // something else: the question is dropped
         }
         voiceTurn = fromVoice
         _state.update { it.copy(voiceError = null) }
         append(ChatMessage.User(nextId++, prompt))
+        val replyWho = _state.value.replyTarget?.conversation.orEmpty()
         val rewritten = withReplyTarget(prompt)
-        if (rewritten.isEmpty()) { say("¿Qué le digo a ${(DeviceCommand.parse(_state.value.followUp?.command?.device) as? DeviceCommand.Message)?.contact.orEmpty()}?"); return }
+        if (rewritten.isEmpty()) { say(t("¿Qué le digo a $replyWho?", "What should I tell $replyWho?")); return }
         run { repository.processNaturalLanguageCommand(rewritten) }
     }
 
     /**
-     * Tras leer los mensajes de alguien: «respóndele que ya voy» / «dile que sí» → «dile a Víctor que ya voy»;
-     * «sí» a «¿Le respondo?» → Lumi pregunta qué le dice.
+     * After reading someone's messages: "reply that I'm coming" / "tell them yes" → "tell Víctor that I'm coming";
+     * "yes" to "Shall I reply?" → Lumi asks what to say.
      */
     private fun withReplyTarget(prompt: String): String {
         val target = _state.value.replyTarget ?: return prompt
@@ -184,8 +191,12 @@ class AssistantViewModel(
         Regex("(?iu)^(?:s[ií],?\\s+)?(?:resp[oó]nde(?:le)?|cont[eé]sta(?:le)?|dile|escr[ií]bele|p[oó]nle)\\s+(?:que\\s+)?(.+)$").find(prompt.trim())?.let { m ->
             if (!Regex("(?iu)^a\\s+").containsMatchIn(m.groupValues[1])) return "dile a $who que ${m.groupValues[1]}"
         }
-        if (parseChoiceAnswer(prompt, listOf(who)) == 0 || Regex("(?iu)^(?:resp[oó]nde(?:le)?|cont[eé]sta(?:le)?)$").matches(prompt.trim())) {
-            val msg = DeviceCommand.Message(who, "", !target.app.contains("mensaje", true))
+        Regex("(?i)^(?:yes,?\\s+)?(?:reply|answer|tell\\s+(?:him|her|them)|text\\s+(?:him|her|them)|say)\\s+(?:that\\s+)?(.+)$").find(prompt.trim())?.let { m ->
+            return "tell $who that ${m.groupValues[1]}"
+        }
+        if (parseChoiceAnswer(prompt, listOf(who)) == 0 ||
+            Regex("(?iu)^(?:resp[oó]nde(?:le)?|cont[eé]sta(?:le)?|reply|answer(?: (?:him|her|them))?)$").matches(prompt.trim())) {
+            val msg = DeviceCommand.Message(who, "", !target.app.contains("mensaje", true) && !target.app.contains("messages", true))
             _state.update {
                 it.copy(followUp = AIProcessingResult.AskFollowUp(
                     io.github.salex27.lumi.domain.model.TaskAICommand(
@@ -198,14 +209,14 @@ class AssistantViewModel(
         return prompt
     }
 
-    fun planMyDay() = quick("¿Qué hago ahora?") { repository.planMyDay() }
-    fun briefing() = quick("¿Cómo voy?") { repository.generateDailyBriefing() }
+    fun planMyDay() = quick(ReplyLanguage.ui("¿Qué hago ahora?", "What should I do now?")) { repository.planMyDay() }
+    fun briefing() = quick(ReplyLanguage.ui("¿Cómo voy?", "How am I doing?")) { repository.generateDailyBriefing() }
 
     fun markRevealed(id: Long) = _state.update { it.copy(revealed = it.revealed + id) }
 
     fun setVoiceError(message: String?) = _state.update { it.copy(voiceError = message) }
 
-    /** Resultado de voz. Si Lumi se abrió sola por «Oye Lumi», solo se ejecuta directamente si parece una orden. */
+    /** Voice result. If Lumi opened on its own through "Oye Lumi", it only runs directly if it sounds like a command. */
     fun sendVoice(text: String, fromWakeWord: Boolean) {
         if (fromWakeWord && !io.github.salex27.lumi.service.wakeword.CommandLikeness.looksLikeCommand(text)) {
             _state.update { it.copy(pendingConfirmation = text) }
@@ -220,7 +231,7 @@ class AssistantViewModel(
 
     fun navigationHandled() = _state.update { it.copy(navigateTo = null) }
 
-    /** El usuario eligió la opción [index] (tocándola o respondiendo). */
+    /** The user chose option [index] (by tapping it or answering). */
     fun pick(index: Int, echo: Boolean = true) {
         val s = _state.value
         s.choice?.let { choice ->
@@ -239,20 +250,20 @@ class AssistantViewModel(
 
     fun pickNone() {
         _state.update { it.copy(choice = null, contactChoice = null) }
-        append(ChatMessage.Assistant(nextId++, "Vale, no toco nada."))
+        append(ChatMessage.Assistant(nextId++, t("Vale, no toco nada.", "OK, I won't touch anything.")))
     }
 
     fun openTaskHandled() = _state.update { it.copy(openTaskId = null) }
     fun deviceHandled() = _state.update { it.copy(device = null, deviceContact = null) }
 
-    /**
-     * Rutina: lanza la siguiente acción de la cola. Cuando se acaba, la ruta (si la hay).
-     * Devuelve true si aún queda algo por hacer (la Activity no debe cerrarse).
-     */
-    /** Hay una rutina en marcha: los accesos que falten se mencionan, sin abrir pantallas del sistema a mitad. */
+    /** A routine is running: missing accesses are mentioned, without opening system screens halfway through. */
     var routineActive = false
         private set
 
+    /**
+     * Routine: launches the next action in the queue. When it is empty, the route (if any).
+     * Returns true if something is still left to do (the Activity must not close).
+     */
     fun nextDevice(): Boolean {
         val s = _state.value
         return when {
@@ -263,17 +274,18 @@ class AssistantViewModel(
     }
 
     private val _listenAgain = MutableStateFlow(0)
-    /** Cambia cuando Lumi ha contestado a una frase dicha por voz: la Activity vuelve a escuchar al acabar de hablar. */
+    /** Changes when Lumi has answered something said by voice: the Activity listens again once it finishes speaking. */
     val listenAgain: StateFlow<Int> = _listenAgain.asStateFlow()
 
     /**
-     * Botón de un aviso («Escribir a Roberto», «Llamar a mamá»): lanza la acción y da la tarea por hecha.
+     * A reminder's button ("Text Roberto", "Call mum"): runs the action and marks the task done.
      */
     fun runTaskAction(command: DeviceCommand, taskId: Long) {
         append(ChatMessage.Assistant(nextId++, when (command) {
-            is DeviceCommand.Call -> "Llamando a ${command.contact}."
-            is DeviceCommand.Message -> "Te abro el chat con ${command.contact}" + if (command.text.isNotBlank()) " con el mensaje escrito." else "."
-            else -> "Hecho."
+            is DeviceCommand.Call -> t("Llamando a ${command.contact}.", "Calling ${command.contact}.")
+            is DeviceCommand.Message -> t("Te abro el chat con ${command.contact}", "Opening the chat with ${command.contact}") +
+                if (command.text.isNotBlank()) t(" con el mensaje escrito.", " with the message written.") else "."
+            else -> t("Hecho.", "Done.")
         }))
         _state.update { it.copy(device = command) }
         if (taskId > 0) viewModelScope.launch {
@@ -281,16 +293,16 @@ class AssistantViewModel(
         }
     }
 
-    /** Lumi dice algo y lo lee en voz alta (abierta desde la notificación de la mañana con «Escuchar»). */
+    /** Sends a spoken request (opened from the morning notification with "Listen"): the reply is read aloud. */
     fun sendSpoken(text: String) = send(text, fromVoice = true)
     fun retryDevice(command: DeviceCommand, contact: DeviceActions.Contact? = null) = _state.update { it.copy(device = command, deviceContact = contact) }
     fun askContact(command: DeviceCommand, options: List<DeviceActions.Contact>) {
         _state.update { it.copy(contactChoice = ContactChoice(command, options)) }
-        append(ChatMessage.Assistant(nextId++, "Tengo varios. ¿A cuál?"))
-        if (voiceTurn) speak("Tengo varios. ¿A cuál?")
+        append(ChatMessage.Assistant(nextId++, t("Tengo varios. ¿A cuál?", "I have several. Which one?")))
+        if (voiceTurn) speak(t("Tengo varios. ¿A cuál?", "I have several. Which one?"))
     }
 
-    /** Mensaje de Lumi que no viene del repositorio (p.ej. «no encuentro a Ana en tus contactos»). */
+    /** A message from Lumi that doesn't come from the repository (e.g. "I can't find Ana in your contacts"). */
     fun say(text: String, isError: Boolean = false) {
         append(ChatMessage.Assistant(nextId++, text, isError = isError))
         if (voiceTurn) speak(text)
@@ -301,14 +313,14 @@ class AssistantViewModel(
     private fun quick(label: String, block: suspend () -> AIProcessingResult) {
         if (_state.value.isThinking) return
         voiceTurn = false
+        ReplyLanguage.current = ReplyLanguage.app
         append(ChatMessage.User(nextId++, label))
-        run(block)
     }
 
     private fun run(block: suspend () -> AIProcessingResult) {
         _state.update { it.copy(isThinking = true) }
         viewModelScope.launch {
-            val result = runCatching { block() }.getOrElse { AIProcessingResult.Error("Algo ha fallado: ${it.localizedMessage}") }
+            val result = runCatching { block() }.getOrElse { AIProcessingResult.Error(t("Algo ha fallado: ", "Something went wrong: ") + it.localizedMessage) }
             val tasks = when (result) {
                 is AIProcessingResult.Created -> listOf(result.task)
                 is AIProcessingResult.Updated -> listOf(result.task)
@@ -365,3 +377,6 @@ class AssistantViewModel(
         override fun <T : ViewModel> create(modelClass: Class<T>): T = AssistantViewModel(repository, orchestrator, speak) as T
     }
 }
+
+/** Lumi's local replies in the language of the conversation. */
+private fun t(es: String, en: String) = ReplyLanguage.t(es, en)

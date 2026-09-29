@@ -35,6 +35,7 @@
     <string name="compact_type_hint">Escribe a Lumi…</string>
     <string name="confirm_heard">He oído «%1$s». ¿Quieres que lo apunte?</string>
     <string name="confirm_yes">Sí, apúntalo</string>
+    <string name="contact_not_found">No encuentro «%1$s» en tus contactos</string>
     <string name="count_events_one">%1$d evento</string>
     <string name="count_events_other">%1$d eventos</string>
     <string name="count_tasks_one">%1$d tarea</string>
@@ -58,6 +59,7 @@
     <string name="geofence_no_background">Falta el permiso de ubicación «Todo el tiempo».</string>
     <string name="geofence_not_available">Los avisos por lugar necesitan «Precisión de la ubicación de Google» activada (Ajustes del móvil → Ubicación).</string>
     <string name="geofence_too_many">Demasiados avisos por lugar activos (máximo 100).</string>
+    <string name="google_tasks_no_consent">No se completó el permiso</string>
     <string name="group_done">Hechas</string>
     <string name="group_no_date">Sin fecha</string>
     <string name="group_overdue">Vencidas</string>
@@ -91,6 +93,7 @@
     <string name="notif_leaving">Saliendo %1$s</string>
     <string name="open_app">Abrir la app</string>
     <string name="overdue">Vencida</string>
+    <string name="place_needs_precise">Sin permiso de ubicación precisa no puedo guardar lugares</string>
     <string name="previous_day">Día anterior</string>
     <string name="prompt_how_am_i_doing">¿Cómo voy hoy?</string>
     <string name="prompt_today_summary">resumen de hoy</string>
@@ -129,6 +132,7 @@
     <string name="swipe_done">Hecha</string>
     <string name="swipe_pending">Pendiente</string>
     <string name="swipe_tomorrow">Mañana</string>
+    <string name="tab_home">Inicio</string>
     <string name="tab_progress">Progreso</string>
     <string name="tab_tasks">Tareas</string>
     <string name="tasks_empty">Sin tareas. Toca + o háblale a Lumi.</string>
@@ -141,8 +145,10 @@
     <string name="vosk_install_failed">No se pudo instalar el modelo</string>
     <string name="vosk_invalid_model">El modelo descargado no es válido</string>
     <string name="wake_channel_description">Aviso permanente mientras Lumi escucha la palabra de activación</string>
+    <string name="wake_needs_mic">Lumi necesita el micrófono para oír «Oye Lumi»</string>
     <string name="wake_notif_text">Escucha local, sin internet. Solo reacciona a «Oye Lumi».</string>
     <string name="wake_notif_title">Di «Oye Lumi»</string>
+    <string name="wake_start_failed">No se pudo iniciar la escucha: %1$s</string>
     <string name="wake_tap_to_talk">Toca para hablar</string>
     <string name="wake_voice_mismatch">La voz no se parece lo bastante</string>
     <string name="widget_all_clear">Todo al día</string>

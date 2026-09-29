@@ -1,4 +1,6 @@
 package io.github.salex27.lumi.presentation.main
+import io.github.salex27.lumi.R
+import androidx.compose.ui.res.stringResource
 
 import android.Manifest
 import android.content.Intent
@@ -85,22 +87,21 @@ import io.github.salex27.lumi.presentation.theme.LumiAppTheme
 import io.github.salex27.lumi.presentation.theme.Lumi
 import io.github.salex27.lumi.service.wakeword.WakeWordService
 import kotlinx.coroutines.launch
-
-private enum class Tab(val label: String, val icon: ImageVector, val selectedIcon: ImageVector) {
-    HOME("Inicio", Icons.Outlined.Home, Icons.Filled.Home),
-    TASKS("Tareas", Icons.Outlined.CheckCircle, Icons.Filled.CheckCircle),
-    AGENDA("Agenda", Icons.Outlined.CalendarMonth, Icons.Filled.CalendarMonth),
-    STATS("Progreso", Icons.Outlined.Insights, Icons.Filled.Insights)
+private enum class Tab(@androidx.annotation.StringRes val label: Int, val icon: ImageVector, val selectedIcon: ImageVector) {
+    HOME(R.string.tab_home, Icons.Outlined.Home, Icons.Filled.Home),
+    TASKS(R.string.tab_tasks, Icons.Outlined.CheckCircle, Icons.Filled.CheckCircle),
+    AGENDA(R.string.agenda, Icons.Outlined.CalendarMonth, Icons.Filled.CalendarMonth),
+    STATS(R.string.tab_progress, Icons.Outlined.Insights, Icons.Filled.Insights)
 }
 
 class MainActivity : ComponentActivity() {
 
     companion object {
-        /** Abrir el editor de esta tarea al entrar («edita lo del dentista» desde el asistente). */
+        /** Open this task's editor on entry ("edit the dentist one" from the assistant). */
         const val EXTRA_EDIT_TASK_ID = "edit_task_id"
     }
 
-    /** Tarea que el asistente pidió editar (se consume al abrir el editor). */
+    /** Task the assistant asked to edit (consumed when the editor opens). */
     private val pendingEditId = kotlinx.coroutines.flow.MutableStateFlow<Long?>(null)
 
     override fun onNewIntent(intent: Intent) {
@@ -128,12 +129,12 @@ class MainActivity : ComponentActivity() {
         settingsViewModel.refreshPermissions()
     }
 
-    /** «Oye Lumi»: micrófono → (opcional) mostrar sobre otras apps → descargar modelo → arrancar servicio. */
+    /** "Oye Lumi": microphone → (optional) display over other apps → download the model → start the service. */
     private val wakeMicPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) continueWakeWordSetup() else settingsViewModel.onWakeWordError("Lumi necesita el micrófono para oír «Oye Lumi»")
+        if (granted) continueWakeWordSetup() else settingsViewModel.onWakeWordError(getString(R.string.wake_needs_mic))
     }
 
-    /** Lugar que se guardará en cuanto se conceda la ubicación. */
+    /** Place to save as soon as the location permission is granted. */
     private var pendingPlace: Pair<String, String>? = null
 
     private val locationPermission = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -142,11 +143,11 @@ class MainActivity : ComponentActivity() {
         if (result[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
             place?.let { settingsViewModel.savePlaceHere(it.first, it.second) }
         } else {
-            settingsViewModel.onPlaceError("Sin permiso de ubicación precisa no puedo guardar lugares")
+            settingsViewModel.onPlaceError(getString(R.string.place_needs_precise))
         }
     }
 
-    // Android 11+: «Todo el tiempo» solo se puede elegir en la pantalla de permisos del sistema
+    // Android 11+: "Allow all the time" can only be chosen on the system permission screen
     private val backgroundLocationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         settingsViewModel.refreshPermissions()
         lifecycleScope.launch { app.placeReminders.resyncAll() }
@@ -161,7 +162,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Alias manual: busca el contacto en la agenda (pide permiso si hace falta) y lo guarda. */
+    /** Manual alias: finds the contact in the address book (asks for the permission if needed) and saves it. */
     private var pendingAlias: Pair<String, String>? = null
     private val contactsPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         val p = pendingAlias ?: return@registerForActivityResult
@@ -178,7 +179,7 @@ class MainActivity : ComponentActivity() {
         val found = io.github.salex27.lumi.presentation.agent.DeviceActions.findContacts(this, contactName)
         val contact = found.firstOrNull()
         if (contact == null) {
-            android.widget.Toast.makeText(this, "No encuentro «$contactName» en tus contactos", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(this, getString(R.string.contact_not_found, contactName), android.widget.Toast.LENGTH_SHORT).show()
         } else {
             app.contactAliases.save(alias, contact)
             android.widget.Toast.makeText(this, "«$alias» → ${contact.name}", android.widget.Toast.LENGTH_SHORT).show()
@@ -195,7 +196,7 @@ class MainActivity : ComponentActivity() {
         when (val r = app.googleTasksAuth.resultFromIntent(result.data)) {
             is GoogleTasksAuth.Result.Token -> settingsViewModel.onGoogleTasksAuthorized()
             is GoogleTasksAuth.Result.Failed -> settingsViewModel.onGoogleTasksError(r.message)
-            is GoogleTasksAuth.Result.NeedsConsent -> settingsViewModel.onGoogleTasksError("No se completó el permiso")
+            is GoogleTasksAuth.Result.NeedsConsent -> settingsViewModel.onGoogleTasksError(getString(R.string.google_tasks_no_consent))
         }
     }
 
@@ -213,7 +214,7 @@ class MainActivity : ComponentActivity() {
             val settings by app.settings.settings.collectAsStateWithLifecycle()
             LumiAppTheme(themeMode = settings.themeMode) {
                 val dark = Lumi.colors.isDark
-                // Barras del sistema transparentes con iconos oscuros en modo claro y claros en modo oscuro
+                // Transparent system bars with dark icons in light mode and light ones in dark mode
                 DisposableEffect(dark) {
                     val style = if (dark) SystemBarStyle.dark(Color.Transparent.toArgb())
                     else SystemBarStyle.light(Color.Transparent.toArgb(), Color.Transparent.toArgb())
@@ -224,7 +225,7 @@ class MainActivity : ComponentActivity() {
                 var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
                 var showSettings by rememberSaveable { mutableStateOf(false) }
                 var editing by remember { mutableStateOf<Task?>(null) }
-                // El asistente pidió editar una tarea → se abre su editor
+                // The assistant asked to edit a task → its editor opens
                 val editRequest by pendingEditId.collectAsStateWithLifecycle()
                 LaunchedEffect(editRequest) {
                     val id = editRequest ?: return@LaunchedEffect
@@ -335,12 +336,12 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         settingsViewModel.refreshPermissions()
         agendaViewModel.refresh()
-        // Reuniones nuevas del calendario / permiso de ubicación recién concedido
+        // New calendar meetings / location permission just granted
         app.appScope.launch { app.liveUpdates.refresh(); app.placeReminders.resyncAll() }
         app.appScope.launch { app.weather.forecast() } // usa la guardada si tiene < 30 min
-        // El micrófono en segundo plano solo puede arrancarse con la app visible (Android 14+)
+        // Background microphone can only be started with the app visible (Android 14+)
         val s = app.settings.current
-        // v3.5: el detector «Oye Lumi» va dentro de la app → se escucha ya; Vosk (huella de voz) se descarga aparte
+        // v3.5: the "Oye Lumi" detector ships inside the app → listening starts now; Vosk (voice print) downloads separately
         if (s.wakeWordEnabled && hasMic()) startWakeWordIfPossible()
     }
 
@@ -358,7 +359,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // ── «Oye Lumi» ──────────────────────────────────────────────────────────
+    // ── "Oye Lumi" ──────────────────────────────────────────────────────────
 
     private fun hasMic() = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 
@@ -367,15 +368,15 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Se marca como activado ANTES de descargar: la descarga corre en el scope de la app (sobrevive a esta
-     * pantalla) y, si la Activity se recrea, onResume arranca la escucha en cuanto el modelo esté listo.
-     * El permiso «Mostrar sobre otras apps» ya no se abre a la vez (cerraba la pantalla y cancelaba la descarga):
-     * es un botón aparte en Ajustes.
+     * Marked as enabled BEFORE downloading: the download runs in the app scope (it outlives this screen) and, if the
+     * Activity is recreated, onResume starts listening as soon as the model is ready.
+     * The "Display over other apps" permission is no longer opened at the same time (it closed the screen and
+     * cancelled the download): it is a separate button in Settings.
      */
     private fun continueWakeWordSetup() {
         app.settings.update { it.copy(wakeWordEnabled = true) }
         settingsViewModel.onWakeWordError(null)
-        // El detector no necesita descargas; el modelo de Vosk solo hace falta para «Entrenar mi voz»
+        // The detector needs no downloads; the Vosk model is only needed for "Train my voice"
         startWakeWordIfPossible()
         app.appScope.launch { app.wakeWordModel.download() }
     }
@@ -383,7 +384,7 @@ class MainActivity : ComponentActivity() {
     private fun startWakeWordIfPossible() {
         if (!WakeWordService.running.value) {
             runCatching { WakeWordService.start(this) }
-                .onFailure { settingsViewModel.onWakeWordError("No se pudo iniciar la escucha: ${it.message}") }
+                .onFailure { settingsViewModel.onWakeWordError(getString(R.string.wake_start_failed, it.message ?: "")) }
         }
     }
 
@@ -397,9 +398,9 @@ private fun BottomBar(current: Tab, onSelect: (Tab) -> Unit) {
     val c = Lumi.colors
     Column {
         Box(Modifier.fillMaxWidth().height(0.5.dp).background(c.outline))
-        // Barra propia (no NavigationBarItem): la de Material anima a la vez el tamaño del indicador, la
-        // posición de la etiqueta y el cambio de icono, y en el S25 los iconos parecían temblar. Aquí la
-        // geometría es fija y solo se animan colores (v3.1).
+        // Our own bar (not NavigationBarItem): Material's animates the indicator size, the label position and the icon
+        // change at the same time, and on the S25 the icons seemed to shake. Here the geometry is fixed and only
+        // colors animate (v3.1).
         Row(
             Modifier.fillMaxWidth().background(c.background).navigationBarsPadding().height(64.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -428,6 +429,6 @@ private fun LumiNavItem(tab: Tab, selected: Boolean, modifier: Modifier, onClick
             Icon(if (selected) tab.selectedIcon else tab.icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(22.dp))
         }
         Spacer(Modifier.height(4.dp))
-        Text(tab.label, style = MaterialTheme.typography.labelMedium, color = textColor, maxLines = 1)
+        Text(stringResource(tab.label), style = MaterialTheme.typography.labelMedium, color = textColor, maxLines = 1)
     }
 }

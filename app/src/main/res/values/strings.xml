@@ -35,6 +35,7 @@
     <string name="compact_type_hint">Write to Lumi…</string>
     <string name="confirm_heard">I heard «%1$s». Should I note it down?</string>
     <string name="confirm_yes">Yes, note it</string>
+    <string name="contact_not_found">I can\'t find «%1$s» in your contacts</string>
     <string name="count_events_one">%1$d event</string>
     <string name="count_events_other">%1$d events</string>
     <string name="count_tasks_one">%1$d task</string>
@@ -58,6 +59,7 @@
     <string name="geofence_no_background">The «Allow all the time» location permission is missing.</string>
     <string name="geofence_not_available">Place reminders need «Google Location Accuracy» turned on (phone Settings → Location).</string>
     <string name="geofence_too_many">Too many active place reminders (100 at most).</string>
+    <string name="google_tasks_no_consent">The permission wasn\'t completed</string>
     <string name="group_done">Done</string>
     <string name="group_no_date">No date</string>
     <string name="group_overdue">Overdue</string>
@@ -91,6 +93,7 @@
     <string name="notif_leaving">Leaving %1$s</string>
     <string name="open_app">Open the app</string>
     <string name="overdue">Overdue</string>
+    <string name="place_needs_precise">Without the precise location permission I can\'t save places</string>
     <string name="previous_day">Previous day</string>
     <string name="prompt_how_am_i_doing">How am I doing today?</string>
     <string name="prompt_today_summary">summary of today</string>
@@ -129,6 +132,7 @@
     <string name="swipe_done">Done</string>
     <string name="swipe_pending">Pending</string>
     <string name="swipe_tomorrow">Tomorrow</string>
+    <string name="tab_home">Home</string>
     <string name="tab_progress">Progress</string>
     <string name="tab_tasks">Tasks</string>
     <string name="tasks_empty">No tasks. Tap + or talk to Lumi.</string>
@@ -141,8 +145,10 @@
     <string name="vosk_install_failed">Couldn\'t install the model</string>
     <string name="vosk_invalid_model">The downloaded model isn\'t valid</string>
     <string name="wake_channel_description">Ongoing notice while Lumi listens for the wake word</string>
+    <string name="wake_needs_mic">Lumi needs the microphone to hear «Oye Lumi»</string>
     <string name="wake_notif_text">Local listening, no internet. Only reacts to «Oye Lumi».</string>
     <string name="wake_notif_title">Say «Oye Lumi»</string>
+    <string name="wake_start_failed">Couldn\'t start listening: %1$s</string>
     <string name="wake_tap_to_talk">Tap to talk</string>
     <string name="wake_voice_mismatch">The voice isn\'t similar enough</string>
     <string name="widget_all_clear">All caught up</string>
