@@ -103,6 +103,9 @@ class TaskManagerApplication : Application() {
     val weather: com.antigravity.gemininanotaskmanager.data.weather.WeatherService by lazy {
         com.antigravity.gemininanotaskmanager.data.weather.WeatherService(this, places)
     }
+    val backup: com.antigravity.gemininanotaskmanager.data.backup.BackupManager by lazy {
+        com.antigravity.gemininanotaskmanager.data.backup.BackupManager(this, database, repository)
+    }
     val routines: com.antigravity.gemininanotaskmanager.data.routines.RoutinesStore by lazy {
         com.antigravity.gemininanotaskmanager.data.routines.RoutinesStore(this)
     }

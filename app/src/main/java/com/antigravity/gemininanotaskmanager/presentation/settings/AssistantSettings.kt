@@ -147,6 +147,63 @@ fun AssistantSettings(app: TaskManagerApplication) {
     }
 
     RoutinesSection(app)
+    BackupSection(app)
+}
+
+/**
+ * Copia de seguridad: exportar a un fichero (Drive, Descargas…) e importarla en otro móvil o en otra instalación.
+ * Tras importar, la app se reinicia para volver a leer ajustes, lugares y rutinas.
+ */
+@Composable
+private fun BackupSection(app: TaskManagerApplication) {
+    val c = Lumi.colors
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var status by remember { mutableStateOf<String?>(null) }
+    val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            status = runCatching { app.backup.export(uri) }.fold(
+                { "Copia guardada: ${it.tasks} tareas, ${it.memories} recuerdos, ajustes, lugares y rutinas." },
+                { "No se pudo guardar: ${it.message}" }
+            )
+        }
+    }
+    val importLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            runCatching { app.backup.import(uri) }.fold({ s ->
+                status = "Importado: ${s.tasks} tareas y ${s.memories} recuerdos nuevos. Reiniciando Lumi…"
+                kotlinx.coroutines.delay(1_500)
+                // Reinicio limpio: ajustes, lugares y rutinas se vuelven a leer del disco
+                val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+                    ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                context.startActivity(intent)
+                Runtime.getRuntime().exit(0)
+            }, { status = "No se pudo importar: ${it.message}" })
+        }
+    }
+
+    SectionHeader("Copia de seguridad", Modifier.padding(start = 4.dp, top = 12.dp))
+    Text("Guarda tus tareas, memoria, lugares, rutinas, contactos rápidos y ajustes en un fichero (por ejemplo en Drive) para cambiar de móvil o reinstalar. La API key de Gemini no se incluye.",
+        style = MaterialTheme.typography.bodySmall, color = c.textSecondary, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
+    ListGroup {
+        ListRow("Exportar copia", "Crea un fichero .json con todo", onClick = {
+            exportLauncher.launch("lumi-copia-${java.time.LocalDate.now()}.json")
+        }, trailing = { Text("Exportar", style = MaterialTheme.typography.labelLarge, color = c.accentText) })
+        ListDivider()
+        ListRow("Importar copia", "Añade lo de una copia a lo que ya tienes (no borra nada)", onClick = {
+            importLauncher.launch(arrayOf("application/json", "application/octet-stream", "*/*"))
+        }, trailing = { Text("Importar", style = MaterialTheme.typography.labelLarge, color = c.accentText) })
+        status?.let {
+            ListDivider()
+            Text(it, style = MaterialTheme.typography.bodySmall, color = c.textPrimary, modifier = Modifier.padding(16.dp))
+        }
+    }
 }
 
 @Composable
