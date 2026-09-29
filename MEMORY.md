@@ -1,7 +1,8 @@
-# 🧠 MEMORY.md — Registro de decisiones
+# MEMORY.md — Decision log
 
-Decisiones de diseño y problemas conocidos del proyecto. Añadir entradas nuevas arriba, con fecha,
-**qué** se decidió y **por qué**. Para reglas técnicas generales ver `AGENTS.md`; tareas pendientes en `TODO.md`.
+Design decisions and known issues. Add new entries at the top, dated, with **what** was decided and **why**. General
+technical rules live in `AGENTS.md`; pending work in `TODO.md`. (Entries before 1.0 were written in Spanish and
+translated when the project went public; version numbers before 1.0.0 refer to the private builds 1.x–3.7.5.)
 
 ---
 
@@ -15,429 +16,448 @@ Decisiones de diseño y problemas conocidos del proyecto. Añadir entradas nueva
   per sentence). Screens must use the app language (`uiLabel`, `uiLocale`, `lang = ReplyLanguage.app`), never the plain
   `label` getter, or an English chat turns a Spanish app's lists English. Chat replies (including the view model's local
   ones like "OK, I won't") follow the conversation language; choice answers accept English ("yes", "the second one").
+- **English understanding:** `EnglishCommands` + `EnglishDateParser` mirror the Spanish rules; `RuleBasedEngine.parse`
+  dispatches on the detected language. The LLM prompts are in English (shorter, ~1,300 tokens) and state the reply language.
+- **Conversation context** (`ConversationContext`, last 4 turns + last task for 10 min): follow-ups in both languages
+  ("move it to Friday", «ponle prioridad alta», "and tomorrow?") set `refersToLast` and are RULES_FIRST.
 - **Per-app language:** `res/xml/locales_config.xml` + Settings → Appearance → Language (Android 13+, `LocaleManager`).
   The daily summary cache stores its language and is regenerated when the app language changes.
 - **Voice:** `LumiSpeaker` picks the TTS voice per reply (English text is not read with a Spanish voice).
 - **Default routines** are created in the app language (names and steps); triggers understand both languages.
 - **Create-task sheet** now also asks "Discard changes?" when closing, but only if something was changed (user request);
   the old shortcut "new task with an empty title closes silently" was removed.
+- **Place search attribution:** Photon/OpenStreetMap results show "© OpenStreetMap contributors" (ODbL requires it);
+  Photon and the Geocoder are queried in the app language.
+- **Gemma in the emulator with 6 GB** instead of 8: with 8 GB the host (16 GB) ran out of memory while idle.
 
-## 2026-09-29 — v3.7.4: Gemma probada de verdad (emulador) → el título se perdía; fechas; GPU que tira la app
+## 2026-09-29 — Going public: package rename, versioning restart, license
 
-Por primera vez se probó Gemma 4 E2B real (mismo .litertlm y LiteRT-LM que en el S25) en el emulador:
-- **Bug gordo:** Gemma pone el título de una tarea nueva en `newTitle` (campo de renombrar, que salía primero en el
-  esquema) y deja `targetTitle` vacío → Lumi usaba siempre el título de las reglas («Tengo dentista», «Me recuerdes
-  llamar a mi madre», «Que se llama…»). Arreglo: `AssistantPrompts.movedTitle` recoloca newTitle→targetTitle (salvo
-  EDIT) y el esquema pone targetTitle primero y newTitle al final («solo en EDIT»).
-- **Fechas:** Gemma falla con los días de la semana («el viernes» → domingo 4). En `reconcile` manda la fecha de las
-  reglas; la del LLM solo si las reglas no vieron ninguna.
-- Las DECISIONES de Gemma fueron buenas (ASK en «estoy cansadísimo» / «qué ceno con huevos», UPDATE_STATUS en «lo del
-  informe ya lo he terminado»), mejores que las reglas. Por eso se aplazó el «router en dos pasos»: el problema era
-  la fontanería, no la decisión. Revisar con más frases antes de rehacerlo.
-- «(tengo que) acordarme de que X» → REMEMBER. Respuestas generales sin saludo.
-- **GPU que tira la app:** en el emulador el backend GPU de LiteRT-LM usa WebGPU y muere con SIGSEGV (no capturable).
-  `GemmaLocalEngine`: en emulador solo CPU; y en cualquier móvil se marca `gpu_trial_pending` (commit) antes de probar
-  la GPU y se borra tras la primera respuesta → si la app muere a mitad, al volver se usa CPU en vez de caer en bucle.
-- **Probar Gemma en el emulador:** AVD `Medium_Phone` con `disk.dataPartition.size = 16G` y `hw.ramSize = 8192`
-  (con 2 GB se congelaba entero). CPU: ~10 s por interpretación, 1-2 min por respuesta larga. Logs:
-  `adb logcat -s LumiInterpret` (crudo del LLM, reglas, final, tiempos, respuestas). Batería de frases:
-  `tools/gemma_batch.sh < tools/gemma_frases.txt`. La RTX 4060 del PC no se puede usar dentro del emulador (solo
-  gráficos); para cientos de frases valdría Ollama en el PC, pero no es el mismo runtime que el móvil.
+- The user wants Lumi public on GitHub for work (portfolio), learning and "having the assistant I wanted"; not on the
+  Play Store (no profit either way, and a Play release needs a real privacy/review process).
+- **Package `io.github.salex27.lumi`** (GitHub user 27Salex; a package segment can't start with a digit). "Gemini" was
+  removed from package, folder, class and doc names; Gemini Nano and the Gemini API are still named as supported engines.
+  This supersedes the old rule "the applicationId never changes": 1.0.0 is a separate install, so data moves with the
+  backup and Gemma must be downloaded again.
+- **Versioning restarts at 1.0.0** (versionCode 1) for the new app id: "3.8" as a first public version would confuse.
+- **License Apache-2.0**: permissive, patent grant, same license as most of the stack (AndroidX, LiteRT, Vosk).
+  Third-party terms (Gemma Terms of Use, Open-Meteo CC BY 4.0 non-commercial, OSM ODbL, Inter OFL) in `THIRD_PARTY_NOTICES.md`.
+- **Backup** (`BackupManager`, format 1): tasks + custom reminder offsets, memories and the prefs files
+  (assistant settings, places, routines, contact aliases) in one JSON file. Excluded on purpose: the Gemini API key and
+  phone-tied ids (calendar id and sync, Google Tasks account and ids). Import merges without deleting, then restarts the app.
+  It is a permanent feature, not only for the 3.7.5 → 1.0.0 move (changing phones, reinstalling).
 
-## 2026-09-29 — v3.7.3: las preguntas se responden; la memoria solo si se pide
+## 2026-09-29 — v3.7.4: Gemma tested for real (emulator) → the title got lost; dates; a GPU crash
 
-«He dejado una natilla en la nevera abierta toda la noche, ¿me la podría comer?» → Gemma eligió REMEMBER y se
-guardó como recuerdo permanente, sin responder.
-- `AssistantIntents.looksLikeQuestion`: preguntas sin «¿?» (la voz las pierde): «me la puedo comer», «se puede»,
-  «es malo/seguro…», «estará bueno», «qué pasa si», «cuánto dura»… → ASK. Las peticiones a Lumi («¿puedes
-  apuntar…?», «¿me recuerdas…?») no cuentan.
-- `reconcile`: REMEMBER/FORGET del LLM solo valen si el usuario lo pide (`asksToRemember`: «recuerda que», «ten en
-  cuenta», «apunta que», «mi X es…»); si no, pregunta → ASK, si no → reglas. Un CREATE del LLM sobre una
-  pregunta clara (reglas = ASK) → ASK.
-- Prompt: REMEMBER «SOLO si lo pide expresamente» + ejemplo de la natilla como ASK. Tests: `QuestionsTest`
-  (con un LLM falso que devuelve REMEMBER, como hizo Gemma).
+For the first time the real Gemma 4 E2B (same .litertlm and LiteRT-LM as on the S25) was tested on the emulator:
+- **Big bug:** Gemma put a new task's title in `newTitle` (the rename field, which came first in the schema) and left
+  `targetTitle` empty → Lumi always used the rules' title ("Tengo dentista", "Me recuerdes llamar a mi madre",
+  "Que se llama…"). Fix: `AssistantPrompts.movedTitle` moves newTitle → targetTitle (except for EDIT) and the schema lists
+  targetTitle first and newTitle last ("EDIT only").
+- **Dates:** Gemma gets weekdays wrong ("el viernes" → Sunday the 4th). In `reconcile` the rules' date wins; the LLM's
+  only if the rules found none.
+- Gemma's DECISIONS were good (ASK for «estoy cansadísimo» / «qué ceno con huevos», UPDATE_STATUS for «lo del informe
+  ya lo he terminado»), better than the rules. So the "two-step router" was postponed: the problem was the plumbing, not
+  the decision. Revisit with more phrases before redoing it.
+- «(tengo que) acordarme de que X» → REMEMBER. General answers without a greeting.
+- **A GPU crash that kills the app:** on the emulator LiteRT-LM's GPU backend uses WebGPU and dies with SIGSEGV (not
+  catchable). `GemmaLocalEngine`: CPU only on emulators; on any phone a `gpu_trial_pending` flag is committed before
+  trying the GPU and cleared after the first answer → if the app dies halfway, it uses the CPU next time instead of looping.
+- **Testing Gemma on the emulator:** AVD `Medium_Phone` with `disk.dataPartition.size = 16G` (it froze with 2 GB of RAM).
+  CPU: ~10 s per interpretation, 1–2 min per long answer. Logs: `adb logcat -s LumiInterpret` (raw LLM output, rules,
+  final, timings, answers). Phrase batch: `tools/gemma_batch.sh < tools/gemma_phrases.txt`. The PC's RTX 4060 can't be
+  used inside the emulator (graphics only); for hundreds of phrases Ollama on the PC would do, but it isn't the phone's runtime.
 
-## 2026-09-29 — v3.7.2: «Que se llama…» en el título (Gemma) y respuestas con «TODO»
+## 2026-09-29 — v3.7.3: questions get answered; memory only on request
 
-«créame una tarea que se llama hacer X» → Gemma devolvió el título «Que se llama hacer X» y respondió «Buenos
-días… Está marcada como TODO».
-- `TaskPhraseParser.cleanTitle` (pura, testeada) se aplica a TODO título, venga del motor que venga (reglas,
-  reconcile y `buildAndSave`): quita «(créame) una tarea», «que se llama/llame», «llamada», «titulada», «con el
-  nombre de», «tarea:». Antes solo se reconocía «que se llame» (subjuntivo) y solo en las reglas.
-- Prompt de respuestas: el estado va en español (pendiente/en marcha…), prohibido mencionar datos internos
-  (TODO, mayúsculas, JSON) y no saludar a mitad de conversación.
-- **Lección:** cualquier limpieza de títulos debe ir en el punto común (repositorio), no solo en las reglas: con
-  Gemma activo el título viene del LLM.
+«He dejado una natilla en la nevera abierta toda la noche, ¿me la podría comer?» → Gemma chose REMEMBER and it was saved
+as a permanent memory, without an answer.
+- `AssistantIntents.looksLikeQuestion`: questions without «¿?» (voice loses them): «me la puedo comer», «se puede»,
+  «es malo/seguro…», «estará bueno», «qué pasa si», «cuánto dura»… → ASK. Requests to Lumi («¿puedes apuntar…?»,
+  «¿me recuerdas…?») don't count.
+- `reconcile`: the LLM's REMEMBER/FORGET only count if the user asks (`asksToRemember`: «recuerda que», «ten en cuenta»,
+  «apunta que», «mi X es…»); otherwise a question → ASK, else → rules. An LLM CREATE over a clear question (rules = ASK) → ASK.
+- Prompt: REMEMBER "ONLY if explicitly asked" + the custard example as ASK. Tests: `QuestionsTest` (with a fake LLM that
+  returns REMEMBER, as Gemma did).
 
-## 2026-09-29 — v3.7.1: la tarea «Avisar a X» enseña a quién está vinculada
+## 2026-09-29 — v3.7.2: «Que se llama…» in the title (Gemma) and replies saying "TODO"
 
-El usuario probó «avisar a Roberto…» y creyó que no funcionaba: solo veía una tarea «Avisa a…» sin ningún vínculo
-al contacto (el botón solo existía al saltar el aviso por lugar, y «casa» ni siquiera estaba guardada).
-- `ActionPreview` resuelve el contacto AL CREAR (alias → número literal → agenda) y la respuesta lo dice:
-  «Entonces tendrás un botón para enviar un WhatsApp a Roberto Pérez («Ya he llegado a casa»)…», o qué falta
-  (sin permiso de contactos, no encontrado, varios).
-- Editor de tarea: tarjeta `TaskActionCard` bajo «Lugar» con contacto, número, mensaje y «Probar ahora».
-- Títulos en infinitivo: «Avisa a Roberto» → «Avisar a Roberto» (avisa/escribe/llama/manda/envía…).
-- Sigue sin enviarse solo: WhatsApp no lo permite; la opción real sería SMS automático (SEND_SMS), pendiente de
-  que el usuario la quiera.
+«créame una tarea que se llama hacer X» → Gemma returned the title «Que se llama hacer X» and answered «Buenos días…
+Está marcada como TODO».
+- `TaskPhraseParser.cleanTitle` (pure, tested) is applied to EVERY title, whatever engine it comes from (rules,
+  reconcile and `buildAndSave`): removes «(créame) una tarea», «que se llama/llame», «llamada», «titulada», «con el nombre
+  de», «tarea:» (and English "a task called"). Before, only «que se llame» was handled, and only in the rules.
+- Reply prompt: the status is phrased naturally (pending / in progress…), internal data (TODO, capitals, JSON) is
+  forbidden, and no greeting in the middle of a conversation.
+- **Lesson:** any title clean-up belongs at the common point (the repository), not only in the rules: with Gemma
+  active, the title comes from the LLM.
 
-## 2026-09-28 — v3.7.0: voz que no corta, varias órdenes por frase, «avisa a X al llegar», sitios por nombre
+## 2026-09-29 — v3.7.1: an «Avisar a X» task shows who it's linked to
 
-Quejas del usuario (con captura): el micro corta al hacer una pausa; no admite varias cosas seguidas («parece una
-Alexa»); «Una tarea llamada escribir a Roberto para cuando vuelva a casa» creó una tarea con ese título entero;
-quería avisar a alguien al llegar; el campo de lugar de la tarea solo servía con calles exactas.
+The user tried «avisar a Roberto…» and thought it didn't work: they only saw a task «Avisa a…» with no link to the
+contact (the button only existed when the place reminder fired, and «casa» wasn't even saved).
+- `ActionPreview` resolves the contact WHEN CREATING (alias → literal number → address book) and the reply says so:
+  "Then you'll have a button to send a WhatsApp to Roberto Pérez («Ya he llegado a casa»)…", or what's missing (no
+  contacts permission, not found, several).
+- Task editor: a `TaskActionCard` under "Place" with contact, number, message and "Try now".
+- Infinitive titles: «Avisa a Roberto» → «Avisar a Roberto» (avisa/escribe/llama/manda/envía…).
+- It still doesn't send on its own: WhatsApp doesn't allow it; the real option would be automatic SMS (SEND_SMS),
+  pending the user wanting it.
 
-- **Voz encadenada** (`VoiceSpeechManager`): el reconocedor de Google da el resultado tras ~1 s de silencio e ignora
-  los extras de silencio → al llegar un trozo se guarda y se vuelve a escuchar; se envía tras `voicePauseMs` sin
-  hablar (Corta 0,9 s / Normal 1,5 s / Larga 2,5 s, Ajustes → Conversación por voz). Parar = enviar lo dicho.
-- **Conversación seguida**: tras responder a una frase dicha por voz (y acabar de hablar), la píldora vuelve a
-  escuchar en modo «quiet» (si no dices nada se cierra sin error). No se hace si Lumi se va a otra app.
-- **Varias órdenes** (`CommandSplitter`, puro): solo se corta ANTES de un verbo de orden en imperativo (lista cerrada),
-  así «comprar pan y leche» y «dile a Ana que compre pan y que me espere» no se rompen; «…y avísame cuando llegue a
-  casa / y ponle prioridad alta» se vuelve a pegar a la orden anterior. Cada trozo pasa por la cadena normal (LLM
-  incluido) y se reúne en un `AIProcessingResult.Routine` (acciones en cola + tareas). Si un trozo pregunta
-  («¿Te refieres a…?»), se para ahí. Las listas de infinitivos siguen yendo al brain dump.
-- **Títulos**: «(crea) una tarea llamada X» → X (`TASK_NAMED_REGEX`); lugar con «para cuando vuelva/regrese», «al
-  volver». Si el LLM devuelve un título «sin limpiar» (con «tarea llamada», «cuando llegue», «recuérdame»…) manda el
-  de las reglas (`looksUncleaned`).
-- **«Avisa a Roberto cuando llegue a casa»** = tarea con aviso por lugar (no un mensaje ahora: LATER/lugar en el
-  texto). `TaskActions` (puro) detecta «llamar a X», «escribir/avisar a X (que …)» → el aviso lleva un botón
-  («Llamar», «Enviar a Roberto») que abre la píldora con EXTRA_DEVICE, lanza la acción y da la tarea por hecha.
-  «Avisar a X» sin texto + lugar → «Ya he llegado a casa». **No se envía solo**: WhatsApp no tiene API para enviar
-  sin tocar (wa.me deja el texto escrito); enviar SMS automáticos pediría SEND_SMS → descartado por ahora.
-- **Sitios por nombre** (`PlaceSearch`): Photon (OpenStreetMap, gratis, sin clave, con User-Agent) sesgado a tu
-  ubicación + Geocoder para direcciones. «Cuando llegue al Mercadona»: si no es un lugar propio (casa, trabajo…)
-  se usa el más cercano **a < 60 km**; si Lumi no sabe dónde estás, NO elige (en el emulador eligió una farmacia de
-  Italia) y pide guardar el lugar. La respuesta dice la dirección elegida.
-- Probado en emulador: la frase del usuario + «pon una alarma a las 7» + «qué tiempo hace en Madrid» en una sola
-  frase (3 resultados correctos), Mercadona sin ubicación, botón «Enviar» (abre wa.me). La voz no se puede probar
-  en el emulador. Tests: `Lumi37Test`.
+## 2026-09-28 — v3.7.0: voice that doesn't cut off, several commands per sentence, «avisa a X al llegar», places by name
 
-## 2026-09-28 — v3.6.0: Lumi asistente (tiempo, preguntas, resumen de la mañana, mensajes, rutinas, bloqueo)
+User complaints (with a screenshot): the mic cuts off on a pause; it doesn't take several things in a row ("it feels like
+an Alexa"); «Una tarea llamada escribir a Roberto para cuando vuelva a casa» created a task with that whole title; they
+wanted to let someone know on arrival; the task's place field only worked with exact street addresses.
 
-Petición del usuario: que Lumi se sienta asistente y no solo un atajo de tareas con voz. Eligió 1 (tiempo), 3 (preguntas
-generales), 4 (resumen de la mañana), B (leer mensajes) y C (rutinas, con énfasis en la alarma según agenda/tareas), y
-pidió que funcione con la pantalla bloqueada.
+- **Chained voice** (`VoiceSpeechManager`): Google's recognizer returns the result after ~1 s of silence and ignores the
+  silence extras → each chunk is kept and listening restarts; it is sent after `voicePauseMs` without speech (Short 0.9 s
+  / Normal 1.5 s / Long 2.5 s, Settings → Voice conversation). Stop = send what was said.
+- **Continuous conversation:** after answering something said by voice (and finishing speaking), the pill listens again
+  in "quiet" mode (if you say nothing it closes without an error). Not when Lumi goes to another app.
+- **Several commands** (`CommandSplitter`, pure): only splits BEFORE an imperative command verb (closed list), so
+  «comprar pan y leche» and «dile a Ana que compre pan y que me espere» aren't broken; «…y avísame cuando llegue a casa /
+  y ponle prioridad alta» is glued back to the previous command. Each chunk goes through the normal chain (LLM included)
+  and they are gathered into an `AIProcessingResult.Routine` (queued actions + tasks). If a chunk asks back ("Did you
+  mean…?"), it stops there. Lists of infinitives still go to the brain dump.
+- **Titles:** «(crea) una tarea llamada X» → X (`TASK_NAMED_REGEX`); place with «para cuando vuelva/regrese», «al volver».
+  If the LLM returns an "uncleaned" title (with «tarea llamada», «cuando llegue», «recuérdame»…) the rules' title wins
+  (`looksUncleaned`).
+- **«Avisa a Roberto cuando llegue a casa»** = a task with a place reminder (not a message now: LATER/place in the text).
+  `TaskActions` (pure) detects «llamar a X», «escribir/avisar a X (que …)» → the reminder carries a button ("Call", "Send
+  to Roberto") that opens the pill with EXTRA_DEVICE, runs the action and marks the task done. «Avisar a X» with no text
+  + place → «Ya he llegado a casa». **It doesn't send on its own:** WhatsApp has no API to send without a tap (wa.me
+  leaves the text written); automatic SMS would need SEND_SMS → dropped for now.
+- **Places by name** (`PlaceSearch`): Photon (OpenStreetMap, free, no key, with a User-Agent) biased to your location +
+  the Geocoder for addresses. «Cuando llegue al Mercadona»: if it isn't one of your places (home, work…) the nearest one
+  **within 60 km** is used; if Lumi doesn't know where you are it does NOT pick (on the emulator it picked a pharmacy in
+  Italy) and asks to save the place. The reply states the chosen address.
+- Tested on the emulator: the user's sentence + «pon una alarma a las 7» + «qué tiempo hace en Madrid» in one sentence
+  (3 correct results), Mercadona without a location, the "Send" button (opens wa.me). Voice can't be tested on the
+  emulator. Tests: `Lumi37Test`.
 
-- **Tiempo con Open-Meteo** (`data/weather/WeatherService`): gratis, sin API key (uso no comercial). Ubicación aproximada
-  (lastLocation < 6 h, si no getCurrentLocation 6 s) → lugar «casa» → última conocida. Ciudades con su geocoder gratuito.
-  Caché 30 min en memoria + JSON crudo en prefs (Inicio lo muestra sin red). **Por qué no la IA:** los números salen de
-  Open-Meteo y las frases de `WeatherAdvisor` (puro, testeado); un LLM pequeño inventaría temperaturas.
-- **Avisos del tiempo en tareas al aire libre** (`WeatherAdvisor.taskWarnings`, palabras clave: correr, bici, playa…):
-  en el resumen del día y al crear la tarea, **solo con la previsión ya descargada** (no se espera a la red al crear).
-- **Preguntas generales** (acción ASK; RECALL sin datos personales cae aquí): 1) `QuickMath` sin IA (los LLM pequeños
-  fallan cuentas), 2) si pide datos actuales (`needsFreshData`) → Gemini online con la herramienta `google_search`
-  (`askWeb`; si falla, sin ella), 3) el LLM disponible con `generalSystem`, 4) sin LLM o respuesta `NO_LO_SE` →
-  búsqueda en Google (DeviceCommand.WebSearch). Nunca se crea una tarea con una pregunta.
-- **Alarma inteligente** (`AlarmPlanner`, puro): lo primero del día entre 5:00 y 13:00 (reunión, tarea con hora o entrar
-  a trabajar de L-V) − preparación (60) − trayecto (30, solo si hay dirección/lugar o es el trabajo), redondeo a 5 min.
-  «Mañana» a las 2:00 es hoy. Pregunta («¿a qué hora…?») → confirma antes; orden → la pone (AlarmClock SKIP_UI).
-  En el repaso de la tarde se propone con un botón que es un PendingIntent de **Activity** (desde un receptor Android
-  no deja abrir el reloj).
-- **Resumen de la mañana** (`MorningScheduler`, 8:00 por defecto, ±15 min): lo escriben reglas (`DayBriefComposer`),
-  no la IA, para que llegue aunque Gemma no esté cargada. «Escuchar» abre la píldora con EXTRA_SPEAK (lo lee en voz alta).
-- **Leer mensajes** (`LumiNotificationListener`): solo notificaciones ACTIVAS (= sin leer), en memoria, nada en disco.
-  MessagingStyle si lo hay; si no, título/texto. Responder con la acción «Responder» de la notificación (como Android
-  Auto), **siempre tras confirmar** («¿Lo envío?»); si la notificación ya no está → wa.me/SMS. «Dile a X que…» usa
-  esta vía si X tiene un mensaje sin leer con «Responder». Las claves de notificación llevan «|» → URL-encode al serializar.
-- **Rutinas** (`RoutinesStore` + `RoutineMatcher`): frase exacta (sin tildes/signos/«oye lumi») → pasos que son frases
-  normales interpretadas SOLO con reglas (rápido y predecible); un paso que acabaría en CREATE se salta con aviso.
-  Acciones que no salen de Lumi primero (alarma, No molestar…), luego las que abren apps, la ruta al final.
-  Dentro de una rutina no se abren pantallas de permisos (se menciona); `inRoutine` evita repetir la alarma en el resumen.
-  Predefinidas: Buenas noches, Buenos días, Me voy a casa, Me voy al trabajo (editables/restaurables).
-- **No molestar**: `setInterruptionFilter` con el acceso ACCESS_NOTIFICATION_POLICY (en Android 15+ es el modo de Lumi).
-- **Pantalla bloqueada**: AssistantActivity con `setShowWhenLocked/setTurnScreenOn`; lo que abre otra app (llamar,
-  WhatsApp, mapas, editar) pide desbloquear con `requestDismissKeyguard` y sigue solo al desbloquear. Alarma,
-  temporizador, linterna, No molestar y responder mensajes funcionan sin desbloquear (`DeviceCommand.staysInLumi`).
-- Probado en emulador: tiempo real de Madrid sobre la pantalla de bloqueo, «buenas noches» (alarma 7:30 + No molestar
-  + resumen de mañana), ajustes nuevos. El emulador no da ubicación (tiempo «aquí» sin probar), ni hay mensajes reales.
-- Tests: `Lumi36Test` (frases, tiempo, alarma, resumen, mensajes, rutinas).
+## 2026-09-28 — v3.6.0: Lumi the assistant (weather, questions, morning summary, messages, routines, lock screen)
 
-## 2026-09-28 — v3.5.0: «Oye Lumi» con openWakeWord + mensajes y llamadas arreglados
+User request: make Lumi feel like an assistant, not just a voice shortcut for tasks. They chose weather, general
+questions, a morning summary, reading messages and routines (stressing an alarm based on the calendar/tasks), and asked
+for it to work on the lock screen.
 
-- **Vosk fuera de la detección**: su modelo español no tiene «lumi» en el vocabulario (nunca lo transcribe). Ahora
-  `OyeLumiDetector` = openWakeWord: melspectrogram.tflite + embedding_model.tflite (LiteRT 1.4.0, en assets) + un MLP
-  propio (1536→128→64→1, `WakeClassifier` en Kotlin puro, `assets/oww/oye_lumi.bin`). Trozos de 80 ms (1280 muestras
-  + 480 de contexto → 8 frames mel → 1 embedding); ventana de 16 embeddings. Vosk queda solo para la huella de voz
-  (se calcula sobre los últimos 2 s al detectar) y para «Entrenar mi voz»; el detector no necesita descargas.
-- **Entrenamiento** (scripts en el scratchpad de la sesión, `oww/`): 2 268 positivos con edge-tts (45 voces es-* de
-  20 países + 12 multilingües, velocidades y tonos variados), aumentos (velocidad, eco sintético, ruido de colores,
-  conversación de fondo, SNR 3-25 dB), 480 frases trampa, 252 frases normales, 347 h de negativos reales (primeros 3 GB
-  de ACAV100M de openWakeWord por HTTP Range) y minado de negativos difíciles en media validación. 5 voces apartadas.
-  Iteraciones: v1 72 falsas/h (sobreajuste a voces TTS) → v2 0 falsas/h pero 40 % acierto (peso negativo 50) →
-  v3 (peso 8 y 2,3× positivos) elegido. Evaluación «en directo» (frase dentro de 3 s, 13 ventanas).
-- **Umbrales**: Estricta 0,6 (66 % acierto voces nuevas / 0 falsas/h / 7,5 % trampas), Normal 0,4 (75 % / 0,4 / 13 %),
-  Relajada 0,3 (81 % / 0,75 / 19 %); paciencia 1 (exigir varias ventanas perdía más aciertos que falsas quitaba).
-  Las trampas las filtran además la huella de voz y la confirmación «¿Quieres que lo apunte?».
-- **Paridad verificada**: `WakeClassifierTest` (Kotlin = PyTorch, 1e-4) y en el emulador con `WakeSelfTestReceiver`
-  (adb, protegido con DUMP): mismas puntuaciones que la tubería en directo de Python (0,8457 / 0,9970 / 0,0198).
-- **Plantillas personales descartadas**: la similitud coseno de embeddings no separa «Oye Lumi» de frases trampa de la
-  misma voz (0,84 vs 0,80).
-- **WhatsApp acababa como tarea**: la regla solo aceptaba una forma exacta. Ahora: detección de intención (canal +
-  verbo, también en infinitivo «enviar WhatsApp a…»), varios patrones, y el LLM (`assistant.ask`) extrae destinatario y
-  texto y lo pasa a estilo directo («dile que si viene a cenar» → «¿Vienes a cenar?»). Si falta algo, `AskFollowUp`
-  («¿Qué le digo a Víctor?»). «Recuérdame enviar…» o una fecha en la orden → sigue siendo tarea.
-- **Llamar solo marcaba**: CALL_PHONE se pedía junto a contactos y, si faltaba, se abría el marcador. Ahora se pide
-  justo al llamar (una vez); si se deniega, marcador.
+- **Weather with Open-Meteo** (`data/weather/WeatherService`): free, no API key (non-commercial use). Approximate
+  location (lastLocation < 6 h, else getCurrentLocation 6 s) → the "home" place → last known. Cities through its free
+  geocoder. 30-min in-memory cache + raw JSON in prefs (Home shows it offline). **Why not the AI:** the numbers come from
+  Open-Meteo and the sentences from `WeatherAdvisor` (pure, tested); a small LLM would invent temperatures.
+- **Weather warnings for outdoor tasks** (`WeatherAdvisor.taskWarnings`, keywords: run, bike, beach…): in the day brief
+  and when creating the task, **only with an already downloaded forecast** (creating never waits for the network).
+- **General questions** (ASK; RECALL without personal data falls here): 1) `QuickMath` without AI (small LLMs get sums
+  wrong), 2) if it needs current data (`needsFreshData`) → online Gemini with the `google_search` tool (`askWeb`; without
+  it if that fails), 3) the available LLM with `generalSystem`, 4) no LLM or a `NO_LO_SE` answer → a Google search
+  (DeviceCommand.WebSearch). A question never creates a task.
+- **Smart alarm** (`AlarmPlanner`, pure): the first thing of the day between 5:00 and 13:00 (meeting, timed task or
+  starting work Mon–Fri) − getting ready (60) − travel (30, only with an address/place or for work), rounded to 5 min.
+  «Mañana» at 2:00 means today. A question ("what time…?") → confirms first; a command → sets it (AlarmClock SKIP_UI).
+  The evening check-in suggests it with a button that is an **Activity** PendingIntent (Android won't let a receiver
+  open the clock).
+- **Morning summary** (`MorningScheduler`, 8:00 by default, ±15 min): written by rules (`DayBriefComposer`), not the
+  AI, so it arrives even if Gemma isn't loaded. "Listen" opens the pill with EXTRA_SPEAK (reads it aloud).
+- **Reading messages** (`LumiNotificationListener`): only ACTIVE notifications (= unread), in memory, nothing on disk.
+  MessagingStyle when present; otherwise title/text. Replies use the notification's own "Reply" action (like Android
+  Auto), **always after confirming** ("Shall I send it?"); if the notification is gone → wa.me/SMS. «Dile a X que…» uses
+  this path if X has an unread message with "Reply". Notification keys contain "|" → URL-encoded when serialized.
+- **Routines** (`RoutinesStore` + `RoutineMatcher`): an exact phrase (ignoring accents/punctuation/"oye lumi") → steps
+  that are normal sentences interpreted ONLY by the rules (fast and predictable); a step that would end up as CREATE is
+  skipped with a note. Actions that stay in Lumi first (alarm, Do Not Disturb…), then those that open apps, the route
+  last. Inside a routine no permission screens are opened (they're mentioned); `inRoutine` avoids repeating the alarm in
+  the summary. Defaults: Good night, Good morning, Going home, Going to work (editable/restorable).
+- **Do Not Disturb:** `setInterruptionFilter` with ACCESS_NOTIFICATION_POLICY (on Android 15+ it is Lumi's own mode).
+- **Lock screen:** AssistantActivity with `setShowWhenLocked/setTurnScreenOn`; anything that opens another app (call,
+  WhatsApp, maps, edit) asks to unlock with `requestDismissKeyguard` and continues once unlocked. Alarm, timer,
+  flashlight, Do Not Disturb and message replies work without unlocking (`DeviceCommand.staysInLumi`).
+- Tested on the emulator: real Madrid weather over the lock screen, «buenas noches» (7:30 alarm + Do Not Disturb +
+  tomorrow's summary), new settings. The emulator has no location ("here" weather untested) nor real messages.
+- Tests: `Lumi36Test` (phrases, weather, alarm, summary, messages, routines).
 
-## 2026-09-28 — v3.4.0: modo agente (editar, memoria bajo demanda, acciones del móvil, contactos)
+## 2026-09-28 — v3.5.0: "Oye Lumi" with openWakeWord + messages and calls fixed
 
-- **Encontrar la tarea correcta** (`TaskMatcher`, puro): palabras clave sin tildes/plurales/muletillas; puntuación =
-  0,6·cobertura del título + 0,4·precisión. Segura si ≥ 0,7 y destaca (≥ 0,15 sobre la 2.ª); si no, «¿Te refieres a…?»
-  con hasta 3 candidatas (`AIProcessingResult.Choose`, se re-ejecuta con `targetId`). Se responde tocando o diciendo
-  «sí / la segunda / no / la del cumpleaños» (`parseChoiceAnswer`). «Ya terminé X» sin coincidencia ya NO crea una tarea.
-- **EDIT**: renombrar, fecha, área, prioridad, nota, lugar; «edita X» sin cambios abre el editor (MainActivity con
-  `EXTRA_EDIT_TASK_ID`). Renombrar «de X a Y» es ambiguo con «a» → `RenameSplitter` elige el corte que encaja con una tarea.
-- **Memoria bajo demanda** (tabla `memories`, Room v7, `MemoryRetriever` tipo BM25): nunca se carga entera; al LLM solo
-  le llegan los 2-3 recuerdos relacionados con la frase. «Recuerda que…» con obligación o fecha = tarea, no recuerdo.
-  Las preguntas → RECALL (memoria + tareas), nunca una tarea nueva. Ajustes → Memoria para ver/olvidar/añadir.
-- **Reglas primero** para órdenes claras (DEVICE, REMEMBER, FORGET, NAVIGATE, EDIT): no se espera a Gemma/Gemini;
-  el resto va al LLM con el esquema ampliado y la app resuelve la tarea con `TaskMatcher` (el LLM no necesita el título exacto).
-- **Acciones del móvil** (`DeviceCommandParser` puro + `DeviceActions`): abrir app, alarma, temporizador, llamar,
-  WhatsApp/SMS prellenado (wa.me), música (MEDIA_PLAY_FROM_SEARCH), búsqueda, wifi/Bluetooth/volumen, linterna.
-  «Llamar al banco» (infinitivo) y «llama al banco mañana» siguen siendo tareas.
-- **Contactos**: búsqueda sin tildes que ignora prefijos de acceso rápido («AA Mamá») y usa el apodo; varios →
-  «¿A cuál?» y se aprende como alias (`ContactAliases`); Ajustes → Contactos rápidos. Con CALL_PHONE llama directo.
-- **Bug corregido**: los efectos que limpiaban su propio estado y luego esperaban (`delay`) se cancelaban (el efecto se
-  reinicia al cambiar la clave) → «llévame a…» (3.2/3.3) nunca abría el mapa y «edita» no abría el editor. Ahora la
-  espera va en `lifecycleScope`. Regla: en un `LaunchedEffect(clave)`, no suspender después de cambiar esa clave.
-- **«Oye Lumi» con Vosk no funciona**: el modelo español no tiene «lumi» en su vocabulario, así que nunca lo transcribe.
-  Pendiente de decisión: detector de palabra de activación real (openWakeWord o Porcupine).
+- **Vosk out of detection:** its Spanish model has no "lumi" in the vocabulary (it never transcribes it). Now
+  `OyeLumiDetector` = openWakeWord: melspectrogram.tflite + embedding_model.tflite (LiteRT 1.4.0, in assets) + our own
+  MLP (1536→128→64→1, `WakeClassifier` in pure Kotlin, `assets/oww/oye_lumi.bin`). 80 ms chunks (1280 samples + 480 of
+  context → 8 mel frames → 1 embedding); a window of 16 embeddings. Vosk stays only for the voice print (computed over
+  the last 2 s on detection) and "Train my voice"; the detector needs no downloads.
+- **Training** (scripts in the session scratchpad, `oww/`): 2,268 positives with edge-tts (45 es-* voices from 20
+  countries + 12 multilingual, varied speeds and pitches), augmentation (speed, synthetic echo, colored noise, background
+  conversation, SNR 3–25 dB), 480 trap phrases, 252 normal phrases, 347 h of real negatives (the first 3 GB of
+  openWakeWord's ACAV100M over HTTP Range) and hard-negative mining on half the validation set. 5 voices held out.
+  Iterations: v1 72 false/h (overfit to TTS voices) → v2 0 false/h but 40 % recall (negative weight 50) → v3 (weight 8 and
+  2.3× positives) chosen. "Live" evaluation (phrase within 3 s, 13 windows).
+- **Thresholds:** Strict 0.6 (66 % recall on new voices / 0 false/h / 7.5 % traps), Normal 0.4 (75 % / 0.4 / 13 %),
+  Relaxed 0.3 (81 % / 0.75 / 19 %); patience 1 (requiring several windows lost more hits than false triggers it removed).
+  Traps are further filtered by the voice print and the "Should I note it down?" confirmation.
+- **Parity verified:** `WakeClassifierTest` (Kotlin = PyTorch, 1e-4) and on the emulator with `WakeSelfTestReceiver` (adb,
+  protected with DUMP): the same scores as the live Python pipeline (0.8457 / 0.9970 / 0.0198).
+- **Personal templates dropped:** cosine similarity of embeddings doesn't separate "Oye Lumi" from trap phrases in the
+  same voice (0.84 vs 0.80).
+- **WhatsApp ended up as a task:** the rule only accepted one exact form. Now: intent detection (channel + verb, also the
+  infinitive «enviar WhatsApp a…»), several patterns, and the LLM (`assistant.ask`) extracts the recipient and text and
+  turns it into direct speech («dile que si viene a cenar» → «¿Vienes a cenar?»). If something is missing, `AskFollowUp`
+  ("What should I tell Víctor?"). «Recuérdame enviar…» or a date in the command → still a task.
+- **Calling only dialed:** CALL_PHONE was requested with contacts and, if missing, the dialer opened. Now it is requested
+  right when calling (once); if denied, the dialer.
 
-## 2026-09-28 — v3.3.0: «Oye Lumi» más tolerante, lugares con dirección, tarjeta de hueco libre
+## 2026-09-28 — v3.4.0: agent mode (edit, on-demand memory, phone actions, contacts)
 
-- **«Oye Lumi» seguía sin reconocer al usuario, incluso en «Relajada».** Causas: (1) «Relajada» solo bajaba el umbral de
-  voz; el filtro de frase exigía «oye/hola/ey/hey» exactos y el modelo pequeño transcribe a menudo «hoy lumi», «o lumi»;
-  (2) sin huella de voz (frases muy cortas) se descartaba en silencio; (3) el entrenamiento solo aceptaba muestras que
-  ya empezaban por «oye». Cambios (`WakePhrases.matches`): la sensibilidad controla también la frase (palabras de llamada
-  ampliadas en Normal/Relajada, tolerancia de la frase entera 0 / ~1 / 1-2, hasta 4 palabras en Relajada); el
-  entrenamiento guarda la FRASE tal como la transcribe el modelo con tu voz (vía B) → hay que volver a entrenar; en
-  Relajada se acepta sin huella. Diagnóstico en Ajustes → Mi voz: última frase oída, % de voz y motivo.
-  «luni» se descartó como variante (activaba con «hola luna llena»). Las 20 frases de conversación siguen sin activar.
-- **Tarjeta de hueco libre**: al pulsar «Empezar» la tarea sigue en la tarjeta en modo «En marcha» (Hecho / Ahora no);
-  «Ahora no» la oculta hasta el siguiente hueco. Minutos legibles («4 h 56 min»).
-- **Lugares en tareas**: `PlaceTrigger` admite dirección suelta con coordenadas (buscada con el Geocoder del sistema,
-  gratis, sesgado a ~50 km de tus lugares) y modo «Sin aviso» (solo referencia + «Cómo llegar»). El editor sugiere los
-  lugares guardados, busca «Otra dirección…» y permite «Guardar como lugar». Ajustes → Lugares: «Añadir buscando la
-  dirección» (sin estar allí). Formato compatible con v3.1 («casa|ARRIVE»).
+- **Finding the right task** (`TaskMatcher`, pure): keywords without accents/plurals/fillers; score = 0.6·title coverage +
+  0.4·precision. Confident if ≥ 0.7 and it stands out (≥ 0.15 over the 2nd); otherwise "Did you mean…?" with up to 3
+  candidates (`AIProcessingResult.Choose`, re-run with `targetId`). Answered by tapping or saying «sí / la segunda / no /
+  la del cumpleaños» (`parseChoiceAnswer`). «Ya terminé X» without a match NO LONGER creates a task.
+- **EDIT:** rename, date, area, priority, note, place; «edita X» without changes opens the editor (MainActivity with
+  `EXTRA_EDIT_TASK_ID`). Renaming «de X a Y» is ambiguous with «a» → `RenameSplitter` picks the split that matches a task.
+- **On-demand memory** (`memories` table, Room v7, BM25-like `MemoryRetriever`): never loaded whole; the LLM only gets
+  the 2–3 memories related to the sentence. «Recuerda que…» with an obligation or a date = a task, not a memory.
+  Questions → RECALL (memory + tasks), never a new task. Settings → Memory to view/forget/add.
+- **Rules first** for clear commands (DEVICE, REMEMBER, FORGET, NAVIGATE, EDIT): no waiting for Gemma/Gemini; the rest
+  goes to the LLM with the extended schema and the app resolves the task with `TaskMatcher` (the LLM doesn't need the
+  exact title).
+- **Phone actions** (pure `DeviceCommandParser` + `DeviceActions`): open an app, alarm, timer, call, prefilled
+  WhatsApp/SMS (wa.me), music (MEDIA_PLAY_FROM_SEARCH), search, wifi/Bluetooth/volume, flashlight. «Llamar al banco»
+  (infinitive) and «llama al banco mañana» are still tasks.
+- **Contacts:** accent-insensitive search that ignores quick-access prefixes («AA Mamá») and uses the nickname; several →
+  "Which one?" and learned as an alias (`ContactAliases`); Settings → Quick contacts. With CALL_PHONE it calls directly.
+- **Bug fixed:** effects that cleared their own state and then waited (`delay`) got cancelled (the effect restarts when
+  its key changes) → «llévame a…» (3.2/3.3) never opened the map and «edita» didn't open the editor. The wait now runs in
+  `lifecycleScope`. Rule: in a `LaunchedEffect(key)`, don't suspend after changing that key.
+- **"Oye Lumi" with Vosk doesn't work:** the Spanish model has no "lumi" in its vocabulary, so it never transcribes it.
+  Pending decision: a real wake word detector (openWakeWord or Porcupine). (Solved in 3.5.0.)
 
-## 2026-09-28 — v3.2.0: chip de Android 16, Lumi proactiva, rutas y logo «Mirada»
+## 2026-09-28 — v3.3.0: more tolerant "Oye Lumi", places with an address, free-gap card
 
-- **Now Bar no disponible**: en el S25 el usuario solo veía la notificación. En One UI la Now Bar / píldora de la pantalla
-  de bloqueo es para apps de Samsung y socios; no se puede forzar. Se sustituye por el **chip de la barra de estado de
-  Android 16** (API 36): `Notification.ProgressStyle` + petición de promoción + cronómetro (como Maps). Android 16 deja
-  desactivar el chip por app → `NotificationManager.canPostPromotedNotifications()` y Ajustes muestra el estado
-  (`LiveUpdateManager.ChipStatus`) con acceso a `ACTION_APP_NOTIFICATION_PROMOTION_SETTINGS`. Si el sistema no pone
-  `FLAG_PROMOTED_ONGOING`, se avisa («tu versión no lo convierte en chip»).
-- **Huecos libres** (`FreeTimeFinder`, puro): hueco ≥ 25 min entre reuniones/tareas con hora (8–22 h) + tarea sin hora
-  que adelantar. Tarjeta en Inicio (Empezar / Otra) y en la respuesta de «¿qué hago ahora?».
-- **Repaso de la tarde** (`CheckInComposer` puro + `CheckInScheduler`): 20:00 por defecto (17–23), solo si hoy hubo algo;
-  Pasar a mañana / Responder (comando normal) / Hablar con Lumi.
-- **«Hablar»** en el chip y en el repaso → píldora escuchando (`AssistantActivity.talkPendingIntent`).
-- **Rutas en la app elegida** (`MapsLauncher`): Google Maps y Waze abren navegación directa; el resto `geo:`; «Preguntar»
-  = selector. Comando `NAVIGATE` («llévame a casa», «¿cómo llego a la reunión?»): lugar guardado → coordenadas;
-  «la reunión» → próxima reunión con dirección (`AgendaEvent.location`); si no, el texto tal cual.
-- **Bug TTS**: faltaba `<queries>` con `android.intent.action.TTS_SERVICE`; sin él, en Android 11+ TextToSpeech puede no
-  encontrar el motor y Lumi no hablaba.
-- **Logo «Mirada»** (elegido por el usuario entre Chispa / Líquido / Mirada / Cristal): dos círculos que se solapan con
-  dos ojos en el solape. Sin giros (el giro + degradado de barrido «saltaba» y no le gustaba). Parpadea, mira a los lados,
-  mira arriba al pensar, ojos «^ ^» al completar. El icono de notificación conserva el punto (a 24 dp no se ven ojos).
+- **"Oye Lumi" still didn't recognize the user, even on "Relaxed".** Causes: (1) "Relaxed" only lowered the voice
+  threshold; the phrase filter required exact «oye/hola/ey/hey» and the small model often transcribes «hoy lumi», «o
+  lumi»; (2) without a voice print (very short phrases) it was silently dropped; (3) training only accepted samples that
+  already started with «oye». Changes (`WakePhrases.matches`): the sensitivity also controls the phrase (more calling
+  words on Normal/Relaxed, whole-phrase tolerance 0 / ~1 / 1–2, up to 4 words on Relaxed); training stores the PHRASE as
+  the model transcribes it in your voice (path B) → you need to retrain; on Relaxed it accepts without a voice print.
+  Diagnostics in Settings → My voice: last phrase heard, voice % and reason. «luni» was rejected as a variant (it
+  triggered with «hola luna llena»). The 20 conversation phrases still don't trigger.
+- **Free-gap card:** after "Start" the task stays on the card in "In progress" mode (Done / Not now); "Not now" hides it
+  until the next gap. Readable minutes ("4 h 56 min").
+- **Places in tasks:** `PlaceTrigger` accepts an ad hoc address with coordinates (found with the system Geocoder, free,
+  biased to ~50 km around your places) and a "No reminder" mode (just a reference + "Directions"). The editor suggests
+  saved places, searches "Other address…" and allows "Save as a place". Settings → Places: "Add by searching the address"
+  (without being there). Format compatible with v3.1 («casa|ARRIVE»).
 
-## 2026-09-28 — v3.1.0: prioridad, lugares, Now Bar, voz de respuesta, píldora arriba
+## 2026-09-28 — v3.2.0: Android 16 chip, proactive Lumi, routes and the "Gaze" logo
 
-Plan aprobado por el usuario (doc «Lumi — Plan v3.1»). Decisiones:
-- **Barra inferior propia** (`LumiNavItem` en MainActivity): la `NavigationBarItem` de Material animaba a la vez indicador,
-  etiqueta e icono y en el S25 «temblaba». Geometría fija, solo se animan colores. No volver a NavigationBarItem.
-- **Píldora compacta arriba** (tipo Dynamic Island): cae con un muelle, se cierra deslizando hacia arriba, respuesta y
-  confirmación debajo; brillo solo en el borde superior (`TopEdgeGlow`). No tapa teclado ni barra de gestos.
-- **Prioridad** `TaskPriority` NONE/LOW/MEDIUM/HIGH (tres niveles + ninguna; el usuario no eligió «solo urgente»).
-  Room 5→6 (`priority TEXT NOT NULL DEFAULT 'NONE'`, `place_trigger TEXT`). Reglas: «urgente/importante/cuanto antes/!!»
-  → HIGH, «no es urgente/sin prisa/cuando pueda» → LOW (el orden de las reglas importa). Acción nueva `SET_PRIORITY`
-  («pon X como urgente», «prioriza X»). Afecta a: orden de listas (conmutable «Orden: fecha»), DayPlanner (HIGH primero),
-  ReminderPlanner (víspera 20:00 también sin hora), widget y brief. Google Tasks no tiene prioridad → solo local.
-- **Confirmar al salir del editor**: `confirmValueChange` del sheet intercepta deslizar/tocar fuera/atrás si hay cambios;
-  diálogo Guardar / Descartar / Seguir editando. Nueva tarea vacía se cierra sin preguntar.
-- **Now Bar / actualización en directo** (`LiveUpdateManager` + `LiveUpdatePlanner` puro): notificación continua
-  promocionada (`setRequestPromotedOngoing`, `setShortCriticalText`, cronómetro en cuenta atrás) con la próxima tarea con
-  hora o reunión en las próximas 2 h. Se recalcula con alarmas en el siguiente cambio (máx. cada hora), al guardar tareas
-  y al abrir la app. «Ocultar» esconde ese elemento. Se excluyen los eventos que Lumi creó para sus tareas.
-- **Lumi habla** (`LumiSpeaker`): TTS del sistema solo cuando la petición llegó por voz; foco de audio con ducking; se
-  calla si vuelves a hablar o escribes. Ajuste «Respuestas habladas» (activado por defecto).
-- **Avisos por lugar**: geovallas de Play Services (`play-services-location` 21.3.0), una por tarea, radio 150 m, sin
-  disparo inicial, **un solo aviso** por tarea+lugar (como Recordatorios de Apple; se rearma si cambias el lugar o se
-  repite). Lugares en Ajustes → Lugares («Guardar aquí», sinónimos oficina/curro → trabajo). Si dictas un lugar no
-  guardado, la tarea lo guarda igualmente y Lumi explica cómo guardarlo. Requiere «Ubicación todo el tiempo» para
-  funcionar con la app cerrada. Las geovallas se re-registran al arrancar el móvil. Los fallos de registro se explican
-  en Ajustes → Lugares (1000 = falta «Precisión de la ubicación de Google», 1004 = falta «Todo el tiempo»).
-- **Hoja del editor**: en este BOM, «atrás» llama a `onDismissRequest` sin pasar por `confirmValueChange` → las dos rutas
-  comprueban cambios, y «Seguir editando» vuelve a subir la hoja (`sheetState.show()`).
-- **Verificado en emulador (API 36)**: migración 5→6 sobre una 3.0.3 instalada, píldora arriba, prioridad + lugar por
-  voz, diálogo de descartar, guardar lugar, notificación en directo con cuenta atrás. No verificable en emulador: el chip
-  promocionado de la Now Bar (depende de One UI 8), las geovallas disparándose (el emulador no tiene la precisión de
-  Google) y la voz del TTS (emulador sin audio).
+- **Now Bar not available:** on the S25 the user only saw the notification. On One UI the Now Bar / lock screen pill is
+  for Samsung apps and partners; it can't be forced. Replaced by the **Android 16 status bar chip** (API 36):
+  `Notification.ProgressStyle` + a promotion request + a chronometer (like Maps). Android 16 lets users turn the chip off
+  per app → `NotificationManager.canPostPromotedNotifications()`, and Settings shows the state (`LiveUpdateManager.ChipStatus`)
+  with a link to `ACTION_APP_NOTIFICATION_PROMOTION_SETTINGS`. If the system doesn't set `FLAG_PROMOTED_ONGOING`, the
+  user is told ("your version doesn't turn it into a chip").
+- **Free gaps** (`FreeTimeFinder`, pure): a gap ≥ 25 min between meetings/timed tasks (8–22 h) + an untimed task to get
+  ahead on. A card on Home (Start / Another) and in the "what should I do now?" answer.
+- **Evening check-in** (pure `CheckInComposer` + `CheckInScheduler`): 20:00 by default (17–23), only if something
+  happened today; Move to tomorrow / Reply (a normal command) / Talk to Lumi.
+- **"Talk"** on the chip and the check-in → the pill, listening (`AssistantActivity.talkPendingIntent`).
+- **Routes in the chosen app** (`MapsLauncher`): Google Maps and Waze open navigation directly; the rest `geo:`; "Ask" =
+  chooser. `NAVIGATE` command («llévame a casa», «¿cómo llego a la reunión?»): saved place → coordinates; «la reunión» →
+  next meeting with an address (`AgendaEvent.location`); otherwise the text as is.
+- **TTS bug:** the `<queries>` entry for `android.intent.action.TTS_SERVICE` was missing; without it, on Android 11+
+  TextToSpeech may not find the engine and Lumi didn't speak.
+- **"Gaze" logo** (chosen by the user among Spark / Liquid / Gaze / Crystal): two overlapping circles with two eyes in
+  the overlap. No spinning (the spin + sweep gradient "jumped" and they didn't like it). It blinks, looks around, looks
+  up when thinking, "^ ^" eyes on completion. The notification icon keeps the dot (eyes aren't visible at 24 dp).
 
-## 2026-09-28 — v3.0.3: «Oye Lumi» saltaba con conversaciones + «Entrenar mi voz»
+## 2026-09-28 — v3.1.0: priority, places, Now Bar, spoken replies, pill at the top
 
-- **Causa:** la gramática cerrada de 3.0.2 fuerza a Vosk a encajar *cualquier* audio en una de las frases → con 20 frases de
-  conversación sintéticas saltó en 18/20, y con confianza 1.0 (la confianza no sirve para filtrar).
-- **Decisión 1 — transcripción libre + filtro de frase corta** (`WakePhrases.isWakePhrase`): el resultado final debe tener
-  2-3 palabras, empezar por oye/hola/ey/hey y el resto parecerse a «lumi» (Levenshtein ≤ 1 sobre «lumi/lomi/alumni…»).
-  Resultado: 0/20 falsos positivos, 3/5 positivos. **Regla para el usuario:** «Oye Lumi», *pausa*, y luego la petición
-  (como Siri). Decir todo seguido no activa.
-- **Decisión 2 — Voice Match local** (`VoiceProfile.kt`): modelo de huella `vosk-model-spk-0.4` (13 MB, x-vector de 128),
-  se descarga con el modelo de voz (existentes: se baja solo al abrir la app). Entrenamiento con 3 muestras de «Oye Lumi»;
-  se guarda la media y cómo transcribió Vosk el «Lumi» del usuario (amplía los nombres aceptados). Umbral de coseno por
-  sensibilidad: Estricta 0.55 / Normal 0.45 / Relajada 0.35 (medido: misma voz 0.69–0.97, otra voz ≈ 0.03). Sin perfil
-  entrenado, solo aplica el filtro de frase. Todo queda en el móvil (SharedPreferences `voice_profile`).
-- **Decisión 3 — red de seguridad:** si el asistente se abre por «Oye Lumi» (`EXTRA_FROM_WAKE_WORD`) y lo oído no parece una
-  orden (`CommandLikeness`), se pregunta «He oído «X». ¿Quieres que lo apunte?» en vez de crear tareas. Sin respuesta en
-  8 s, o si no oyó nada (2,5 s), se cierra solo.
+Plan approved by the user ("Lumi — Plan v3.1"). Decisions:
+- **Own bottom bar** (`LumiNavItem` in MainActivity): Material's `NavigationBarItem` animated indicator, label and icon at
+  once and it "shook" on the S25. Fixed geometry, only colors animate. Don't go back to NavigationBarItem.
+- **Compact pill at the top** (Dynamic Island style): drops with a spring, closes by swiping up, reply and confirmation
+  below; glow only on the top edge (`TopEdgeGlow`). It doesn't cover the keyboard or the gesture bar.
+- **Priority** `TaskPriority` NONE/LOW/MEDIUM/HIGH (three levels + none; the user didn't choose "urgent only"). Room 5→6
+  (`priority TEXT NOT NULL DEFAULT 'NONE'`, `place_trigger TEXT`). Rules: «urgente/importante/cuanto antes/!!» → HIGH,
+  «no es urgente/sin prisa/cuando pueda» → LOW (rule order matters). New `SET_PRIORITY` action («pon X como urgente»,
+  «prioriza X»). Affects: list order (switchable "Sort: date"), DayPlanner (HIGH first), ReminderPlanner (day-before at
+  20:00 even without a time), widget and brief. Google Tasks has no priority → local only.
+- **Confirm before leaving the editor:** the sheet's `confirmValueChange` intercepts swipe/tap outside/back when there are
+  changes; Save / Discard / Keep editing dialog. (A new empty task closed without asking; changed in 1.0: see above.)
+- **Now Bar / live update** (`LiveUpdateManager` + pure `LiveUpdatePlanner`): a promoted ongoing notification
+  (`setRequestPromotedOngoing`, `setShortCriticalText`, countdown chronometer) with the next timed task or meeting in the
+  next 2 h. Recomputed with alarms at the next change (at most hourly), when tasks are saved and when the app opens.
+  "Hide" hides that item. Events Lumi created for its tasks are excluded.
+- **Lumi speaks** (`LumiSpeaker`): system TTS only when the request came by voice; audio focus with ducking; goes quiet
+  if you talk or type again. "Spoken replies" setting (on by default).
+- **Place reminders:** Play Services geofences (`play-services-location` 21.3.0), one per task, 150 m radius, no initial
+  trigger, **a single reminder** per task+place (like Apple Reminders; re-armed if the place changes or it repeats).
+  Places in Settings → Places ("Save here", synonyms oficina/curro → trabajo). If you dictate an unsaved place, the task
+  keeps it anyway and Lumi explains how to save it. Needs "Allow all the time" location to work with the app closed.
+  Geofences are re-registered when the phone boots. Registration failures are explained in Settings → Places (1000 =
+  "Google Location Accuracy" missing, 1004 = "All the time" missing).
+- **Editor sheet:** in this BOM, "back" calls `onDismissRequest` without going through `confirmValueChange` → both paths
+  check for changes, and "Keep editing" raises the sheet again (`sheetState.show()`).
+- **Verified on the emulator (API 36):** migration 5→6 over an installed 3.0.3, pill at the top, priority + place by
+  voice, discard dialog, saving a place, live notification with a countdown. Not verifiable on the emulator: the
+  promoted Now Bar chip (depends on One UI 8), geofences firing (the emulator lacks Google's accuracy) and the TTS voice
+  (no audio on the emulator).
 
-## 2026-09-28 — v3.0.2: «Oye Lumi» no se activaba
+## 2026-09-28 — v3.0.3: "Oye Lumi" fired during conversations + "Train my voice"
 
-- **Causa:** «lumi» no está en el vocabulario del modelo español de Vosk. Con gramática cerrada, Vosk descarta en silencio
-  las palabras desconocidas (`Ignoring word missing in vocabulary: 'lumi'`), así que solo podía reconocer «oye»/«hola» y el
-  detector (que busca «lumi») nunca saltaba. **Comprobado** cargando el modelo con Vosk en Python y con audio sintético es-ES.
-- **Arreglo:** gramática con «lu mi» (dos palabras del vocabulario que suenan igual) → 3/3 activaciones, 0/5 falsos positivos.
-  Se descartó añadir «lo mi»: falso positivo con «la luz del mediodía». Frases en `WakePhrases` con test de regresión
-  (falla si alguien vuelve a poner «lumi» en la gramática).
-- Regla: **cualquier palabra nueva en la gramática de Vosk hay que comprobarla contra el vocabulario del modelo.**
+- **Cause:** 3.0.2's closed grammar forces Vosk to fit *any* audio into one of the phrases → with 20 synthetic
+  conversation phrases it fired 18/20 times, with confidence 1.0 (confidence is useless as a filter).
+- **Decision 1 — free transcription + short-phrase filter** (`WakePhrases.isWakePhrase`): the final result must have 2–3
+  words, start with oye/hola/ey/hey and the rest must resemble "lumi" (Levenshtein ≤ 1 over «lumi/lomi/alumni…»).
+  Result: 0/20 false positives, 3/5 positives. **Rule for the user:** "Oye Lumi", *pause*, then the request (like Siri).
+  Saying it all at once doesn't trigger.
+- **Decision 2 — local Voice Match** (`VoiceProfile.kt`): voice print model `vosk-model-spk-0.4` (13 MB, 128-dim x-vector),
+  downloaded with the voice model. Trained with 3 "Oye Lumi" samples; the average is stored plus how Vosk transcribed
+  the user's "Lumi" (widening the accepted names). Cosine threshold per sensitivity: Strict 0.55 / Normal 0.45 / Relaxed
+  0.35 (measured: same voice 0.69–0.97, another voice ≈ 0.03). Without a trained profile only the phrase filter applies.
+  Everything stays on the phone (SharedPreferences `voice_profile`).
+- **Decision 3 — safety net:** if the assistant opens through "Oye Lumi" (`EXTRA_FROM_WAKE_WORD`) and what it heard
+  doesn't look like a command (`CommandLikeness`), it asks "I heard «X». Should I note it down?" instead of creating
+  tasks. With no answer in 8 s, or if it heard nothing (2.5 s), it closes on its own.
 
-## 2026-09-28 — v3.0.1: descarga de «Oye Lumi» y errores de voz
+## 2026-09-28 — v3.0.2: "Oye Lumi" didn't trigger
 
-- **Síntoma (en la calle, con datos):** «No se ha podido descargar el modelo» al activar «Oye Lumi». El servidor está bien
-  (desde el PC baja en 1 s). **Causas:** (1) la descarga corría en el `lifecycleScope` de la pantalla y a la vez se abría el
-  permiso «Mostrar sobre otras apps» → si Samsung cerraba la Activity, se cancelaba y se mostraba como error;
-  (2) sin reintentos ni reanudación en una red móvil inestable; (3) el motivo real no se mostraba.
-  **Arreglo:** descarga en el scope de la app, reanudable (HTTP Range) con 4 intentos, motivo visible + «Reintentar»,
-  el permiso de superposición es ahora un botón aparte, y «Oye Lumi» queda activado aunque la descarga siga en curso.
-- **Vosk `setPause(true)` NO suelta el micrófono** (sigue grabando): el reconocedor de Google recibiría silencio. Ahora se usa
-  `stop()` y se reanuda con `startListening()`.
-- Los errores del reconocedor de voz ya se muestran en el asistente (antes se ignoraban y parecía que la voz «no funcionaba»).
-  Fuera de casa, el caso típico es `ERROR_NETWORK`: sin el paquete de español sin conexión, Google necesita internet.
+- **Cause:** "lumi" isn't in the vocabulary of Vosk's Spanish model. With a closed grammar, Vosk silently drops unknown
+  words (`Ignoring word missing in vocabulary: 'lumi'`), so it could only recognize "oye"/"hola" and the detector (which
+  looks for "lumi") never fired. **Verified** by loading the model with Vosk in Python and synthetic es-ES audio.
+- **Fix:** a grammar with «lu mi» (two vocabulary words that sound the same) → 3/3 triggers, 0/5 false positives. «lo mi»
+  was rejected: a false positive with «la luz del mediodía». Phrases in `WakePhrases` with a regression test.
+- Rule: **any new word in the Vosk grammar must be checked against the model's vocabulary.** (Superseded by openWakeWord in 3.5.0.)
 
-## 2026-09-28 — v3.0 «Lumi 3.0»
+## 2026-09-28 — v3.0.1: "Oye Lumi" download and voice errors
 
-### Diseño (petición: serio, mezcla Manus × Revolut × toque Apple; sin luciérnaga, se mantiene el nombre)
-- **Sistema de diseño** en `presentation/theme/LumiTheme.kt`: tokens `LumiColors` (claro: blanco + azul cielo `#38BDF8`;
-  oscuro: casi negro + magenta pastel `#F5A9D0`), tipografía **Inter** (la más parecida a SF, OFL, incluida en `res/font`),
-  superficies planas, bordes finos. Acceso: `Lumi.colors`. Selector Sistema/Claro/Oscuro en Ajustes.
-- En claro, el azul cielo no tiene contraste suficiente como texto sobre blanco → se usa `accentText = #0284C7` para textos/iconos
-  y `accent` solo para rellenos (con texto oscuro encima).
-- **Fuera**: degradados en textos/botones, aurora, emojis de categoría (ahora icono + color de la paleta validada), emojis en las
-  respuestas (el prompt pide estilo sobrio). **El degradado solo existe en la marca de Lumi.**
-- **Logo de Lumi** (`LumiMark`): dos arcos entrelazados azul cielo/magenta + núcleo; estados IDLE/LISTENING/THINKING/SPEAKING/SUCCESS
-  (respira, se abre con la voz, orbita al pensar, se cierra al completar). Versión estática generada para icono, widget y notificación.
-- **Asistente en dos modos**: compacto (píldora tipo Siri/Gemini, voz primero, tocar el logo → escribir) cuando se invoca desde fuera
-  (botón lateral, «Oye Lumi», widget, tile); completo (conversación) desde la barra de la app. La barra de la app tiene logo + texto.
-- Brillo de borde (estilo Apple Intelligence) solo en modo compacto mientras escucha/piensa.
+- **Symptom (outdoors, on mobile data):** "Couldn't download the model" when turning on "Oye Lumi". The server was fine
+  (1 s from the PC). **Causes:** (1) the download ran in the screen's `lifecycleScope` while the "Display over other apps"
+  permission opened → if Samsung closed the Activity, it was cancelled and shown as an error; (2) no retries or resume on
+  a flaky mobile network; (3) the real reason wasn't shown. **Fix:** download in the app scope, resumable (HTTP Range)
+  with 4 attempts, visible reason + "Retry", the overlay permission is now a separate button, and "Oye Lumi" stays on
+  while the download continues.
+- **Vosk `setPause(true)` does NOT release the microphone** (it keeps recording): Google's recognizer would get silence.
+  Now `stop()` is used and listening resumes with `startListening()`.
+- Speech recognizer errors are now shown in the assistant (they used to be ignored and voice seemed "not to work").
+  Outdoors the typical case is `ERROR_NETWORK`: without the offline Spanish pack, Google needs internet.
 
-### Funciones
-- **Avisos múltiples** (tabla `reminders`, Room v5): Lumi decide los AUTO con `ReminderPlanner` (cita importante: víspera 20:00 +
-  antelación elegida + 10 min; fecha límite: 2 días antes, ese día 9:00 y 18:00; reunión vinculada: 15 min antes). El usuario añade
-  CUSTOM relativos ("avísame 2 horas antes" o en el editor) que siguen al vencimiento si cambia. Interruptor para desactivar los AUTO.
-- **Recurrencia** (`Recurrence`, texto compacto "WEEKLY:MO,TH"): al completar se crea la siguiente con los mismos avisos personalizados.
-  Solo con "cada/todos los/los + día" (no "el lunes y el jueves", que es puntual).
-- **Reprogramar**: solo imperativos (mueve, pospón, aplaza, retrasa, adelanta, cambia, pasa, reprograma). Infinitivos ("pasar la ITV")
-  son tareas nuevas. Si no se encuentra la tarea a mover → se crea como tarea nueva.
-- **Brain dump**: solo se divide si CADA trozo empieza por verbo ("comprar pan y leche" = 1 tarea); la fecha dicha una vez se comparte.
-- **Reuniones**: pista "para la reunión del X" → `MeetingMatcher` (palabras en común; genérica → próxima reunión). Sin fecha propia,
-  la tarea vence 1 h antes de la reunión.
-- **Captura rápida**: compartir → Lumi (enlaces como «Revisar: …» con la URL en la nota), tile de Ajustes rápidos, responder desde la
-  notificación de un aviso ("hecho", "en 20 minutos" = volver a avisar, "pospón una hora" = mover, "mañana a las 10").
-- **«Oye Lumi»**: Vosk (Apache 2.0, modelo español pequeño de 40 MB) con gramática cerrada ["oye lumi","hola lumi","hey lumi"]:
-  no transcribe nada más. Servicio en primer plano tipo micrófono; solo se arranca con la app visible (restricción de Android 14),
-  se pausa mientras el asistente usa el micro y opcionalmente con la pantalla apagada. Para abrir el asistente sobre otras apps usa
-  la exención de SYSTEM_ALERT_WINDOW; sin ese permiso muestra una notificación. **No sustituye a «Hey Google»** (reservado al sistema).
+## 2026-09-28 — v3.0 "Lumi 3.0"
 
-## 2026-09-28 (mañana) — v2.1.1: Gemma en GPU
+### Design (request: serious, a Manus × Revolut mix with an Apple touch; no firefly, the name stays)
+- **Design system** in `presentation/theme/LumiTheme.kt`: `LumiColors` tokens (light: white + sky blue `#38BDF8`; dark:
+  near-black + pastel magenta `#F5A9D0`), **Inter** typeface (the closest to SF, OFL, bundled in `res/font`), flat
+  surfaces, thin borders. Access: `Lumi.colors`. System/Light/Dark selector in Settings.
+- In light mode sky blue lacks contrast as text on white → `accentText = #0284C7` for text/icons and `accent` only for
+  fills (with dark text on top).
+- **Removed:** gradients on text/buttons, the aurora, category emojis (now icon + color from the validated palette),
+  emojis in replies (the prompt asks for a sober style). **The gradient only exists in Lumi's brand.**
+- **Lumi logo** (`LumiMark`): two interlaced sky blue/magenta arcs + a core; IDLE/LISTENING/THINKING/SPEAKING/SUCCESS
+  states. A static version generated for the icon, widget and notification. (Replaced by "Gaze" in 3.2.)
+- **Assistant in two modes:** compact (Siri/Gemini-style pill, voice first, tap the logo → type) when invoked from
+  outside (side button, "Oye Lumi", widget, tile); full (conversation) from the app's bar.
+- Edge glow (Apple Intelligence style) only in compact mode while listening/thinking.
 
-- **Problema (visto en el S25 con el diagnóstico):** Gemma cargaba en GPU (12,6 s) pero cada respuesta fallaba con
-  «Can not find OpenCL library on this device» → Lumi caía a otro motor.
-  **Causa:** desde Android 12 las librerías nativas del fabricante (`libOpenCL.so`) no son visibles para las apps
-  si no se declaran. **Arreglo:** `<uses-native-library android:name="libOpenCL.so" / "libvndksupport.so" required=false>`
-  en el manifest (lo exige la guía oficial de LiteRT-LM para GPU).
-- **Red de seguridad:** si aun así la GPU falla al generar, `GemmaLocalEngine` recarga en **CPU**, reintenta la misma petición
-  y lo recuerda (`force_cpu` en prefs; `retryGpu()` lo revierte). Así sigue siendo IA local en vez de caer a la nube.
+### Features
+- **Multiple reminders** (`reminders` table, Room v5): Lumi decides the AUTO ones with `ReminderPlanner` (important
+  appointment: day before at 20:00 + chosen lead time + 10 min; deadline: 2 days before, that day at 9:00 and 18:00;
+  linked meeting: 15 min before). The user adds relative CUSTOM ones ("remind me 2 hours before" or in the editor) that
+  follow the due date if it changes. A switch turns the AUTO ones off.
+- **Recurrence** (`Recurrence`, compact text "WEEKLY:MO,TH"): completing creates the next one with the same custom
+  reminders. Only with «cada/todos los/los + día» (not «el lunes y el jueves», which is one-off).
+- **Rescheduling:** imperatives only (mueve, pospón, aplaza, retrasa, adelanta, cambia, pasa, reprograma). Infinitives
+  («pasar la ITV») are new tasks. If the task to move isn't found → it is created as a new task.
+- **Brain dump:** only split if EVERY chunk starts with a verb («comprar pan y leche» = 1 task); a date said once is shared.
+- **Meetings:** the hint «para la reunión del X» → `MeetingMatcher` (shared words; generic → next meeting). Without its
+  own date, the task is due 1 h before the meeting.
+- **Quick capture:** share → Lumi (links as «Revisar: …» with the URL as the note), Quick Settings tile, replying from a
+  reminder notification ("done", "in 20 minutes" = remind again, "postpone an hour" = move, "tomorrow at 10").
+- **"Oye Lumi"** (first version): Vosk (Apache 2.0, 40 MB small Spanish model) with a closed grammar. A microphone-type
+  foreground service; only started with the app visible (Android 14 restriction), paused while the assistant uses the
+  mic and optionally with the screen off. Opening the assistant over other apps uses the SYSTEM_ALERT_WINDOW exemption;
+  without that permission it shows a notification. **It doesn't replace "Hey Google"** (reserved for the system).
 
-## 2026-09-28 (noche) — v2.1 «Lumi» (decisiones tomadas sin el usuario, a petición suya)
+## 2026-09-28 (morning) — v2.1.1: Gemma on GPU
 
-### Mascota: Lumi 🌟 (sustituida en v3.0 por un logo abstracto; ver arriba)
-- **Decisión:** el asistente se llama **Lumi**, una luciérnaga de IA (no un robot físico). La app también se llama «Lumi».
-  **Por qué:** el usuario quería una mascota «cute» estilo las de las grandes empresas; una luciérnaga encaja con el orbe
-  luminoso y degradado que ya existía, así que se le puso carita en vez de rediseñar todo.
-- Carita animada en `AssistantOrb` (`AuraState`): IDLE parpadea y sonríe, LISTENING ojos grandes, THINKING mira de lado a lado,
-  SPEAKING mueve la boca, HAPPY ojos `^ ^` (tras completar una tarea). Icono de app y widget con la misma carita (`lumi_face.xml`).
-- **El `applicationId` NO cambia** (`io.github.salex27.lumi`) para que se actualice sobre la app instalada
-  sin perder datos ni el cliente OAuth. Los nombres de paquete Kotlin tampoco (refactor sin valor para el usuario).
+- **Problem (seen on the S25 with diagnostics):** Gemma loaded on GPU (12.6 s) but every answer failed with "Can not find
+  OpenCL library on this device" → Lumi fell back to another engine. **Cause:** since Android 12, vendor native libraries
+  (`libOpenCL.so`) aren't visible to apps unless declared. **Fix:** `<uses-native-library android:name="libOpenCL.so" /
+  "libvndksupport.so" required=false>` in the manifest (required by the official LiteRT-LM GPU guide).
+- **Safety net:** if the GPU still fails while generating, `GemmaLocalEngine` reloads on **CPU**, retries the same request
+  and remembers it (`force_cpu` in prefs; `retryGpu()` reverts it). So it stays local AI instead of falling to the cloud.
 
-### IA
-- **Gemma SIN timeout** (petición explícita): solo se pasa al siguiente motor si Gemma falla o no devuelve nada.
-  Si es lento, el usuario lo desactiva a mano en Ajustes. `AssistantOrchestrator` acepta timeout `null`.
-- **Causa de que v2.0 siempre cayera a Gemini cloud** (arreglado): `ThinkingConfig()` de LiteRT-LM viene con el
-  razonamiento ACTIVADO y presupuesto ilimitado; sin `maxOutputToken`; y el timeout de corrutina no para la generación
-  nativa, que seguía con el mutex tomado y bloqueaba todas las peticiones siguientes. Ahora: thinking off, tokens
-  limitados, streaming con `cancelProcess()` al cancelar. Diagnóstico visible en Ajustes («Probar Gemma»).
-- **Gemini Nano**: confirmado NO disponible en el Galaxy S25 del usuario (sin Prompt API). Se deja el código por si acaso.
-- **Descripciones**: solo si el usuario la da explícitamente («descripción …», «detalles …», «nota: …», «con la nota de que …»).
-  La IA solo puede rellenarla si el ≥80 % de sus palabras aparecen en lo que dijo el usuario (`isQuotedFrom`). Nunca se inventa.
+## 2026-09-28 (night) — v2.1 "Lumi" (decisions taken without the user, at their request)
 
-### Resumen diario
-- **Se guarda** (`BriefStore`, SharedPreferences) y solo se regenera si no hay ninguno, si es de **otro día**, o si el usuario
-  pulsa «actualizar». **Por qué:** el usuario no quería gastar peticiones a Gemini/tiempo de Gemma en cada apertura.
-  Lo de «otro día» lo añadí yo: un resumen de ayer diría «buenas noches» y tareas viejas.
-- El comentario de la pestaña Progreso lo generan reglas locales, **nunca la IA**, por la misma razón.
+### Mascot: Lumi (replaced in v3.0 by an abstract logo)
+- **Decision:** the assistant is called **Lumi**, an AI firefly (not a physical robot). The app is also called "Lumi".
+  **Why:** the user wanted a "cute" mascot like big companies have; a firefly fit the glowing gradient orb that already
+  existed, so it got a face instead of a full redesign.
+- ~~The `applicationId` does NOT change~~ (superseded by the 1.0 rename, see above).
+
+### AI
+- **Gemma WITHOUT a timeout** (explicit request): the next engine is only used if Gemma fails or returns nothing. If it
+  is slow, the user turns it off in Settings. `AssistantOrchestrator` accepts a `null` timeout.
+- **Why v2.0 always fell back to Gemini cloud** (fixed): LiteRT-LM's `ThinkingConfig()` comes with reasoning ON and an
+  unlimited budget; no `maxOutputToken`; and the coroutine timeout didn't stop native generation, which kept the mutex and
+  blocked every following request. Now: thinking off, limited tokens, streaming with `cancelProcess()` on cancel.
+  Diagnostics visible in Settings ("Test Gemma").
+- **Gemini Nano:** confirmed NOT available on the user's Galaxy S25 (no Prompt API). The code stays just in case.
+- **Descriptions:** only if the user gives one explicitly («descripción …», «detalles …», «nota: …», «con la nota de que
+  …»). The AI may only fill it if ≥ 80 % of its words appear in what the user said (`isQuotedFrom`). Never invented.
+
+### Daily summary
+- **Cached** (`BriefStore`, SharedPreferences) and only regenerated if there is none, it is from **another day**, or the
+  user taps "refresh". **Why:** the user didn't want to spend Gemini requests / Gemma time on every app start. "Another
+  day" was my addition: yesterday's summary would say "good night" and list old tasks. (1.0: also per language.)
+- The Progress tab comment is generated by local rules, **never the AI**, for the same reason.
 
 ### UI
-- Navegación inferior: **Inicio · Tareas · Agenda · Progreso**; Ajustes desde el engranaje de Inicio.
-- Inicio reducido a saludo + tarjeta de Lumi + «Hoy» + barra «Pregúntale a Lumi» (antes había demasiados botones).
-- Tareas: filtros como **desplegables** (área y estado), grupos Vencidas/Hoy/Próximas/Sin fecha/Hechas; tocar = editar;
-  «+» = crear a mano (`TaskEditSheet`).
-- Agenda: vista de día estilo Google Calendar (tira semanal, fila «todo el día», línea de tiempo con bloques de tareas y eventos,
-  columnas si se solapan, línea roja de «ahora»). Las tareas con hora duran 30 min en la vista.
-- Gráficos (skill dataviz): colores = pasos oscuros validados de la paleta de referencia (azul `#3987E5`, naranja `#D95926`).
-  El validador no se pudo ejecutar (no hay Node.js en el PC), pero son los slots 1-2 ya validados de la paleta de referencia;
-  la separación CVD no depende del fondo y nuestro fondo (`#111421`) es más oscuro que el de referencia → contraste ≥.
-- Voz: idioma por defecto **es-ES** (antes se usaba el idioma del sistema = inglés en el móvil del usuario). Selector en Ajustes.
+- Bottom navigation: **Home · Tasks · Agenda · Progress**; Settings from the gear on Home.
+- Home reduced to greeting + Lumi card + "Today" + the "Ask Lumi" bar (there were too many buttons before).
+- Tasks: filters as **dropdowns**, groups Overdue/Today/Upcoming/No date/Done; tap = edit; "+" = create by hand
+  (`TaskEditSheet`).
+- Agenda: a Google Calendar-style day view (week strip, all-day row, timeline with task and event blocks, columns when
+  they overlap, a red "now" line). Timed tasks last 30 min in the view.
+- Charts (dataviz skill): colors = validated dark steps of the reference palette (blue `#3987E5`, orange `#D95926`). The
+  validator couldn't run (no Node.js on the PC), but these are slots 1–2 of the already validated reference palette; CVD
+  separation doesn't depend on the background and ours (`#111421`) is darker than the reference → contrast ≥.
+- Voice: default language **es-ES** (the system language was English on the user's phone). Selector in Settings.
+  (1.0: the default follows the phone's language, and TTS follows each reply's language.)
 
-### Sincronización
-- **Google Calendar vía `CalendarContract`** (calendario del sistema) en vez de la API REST: gratis, sin Google Cloud,
-  el propio Android sincroniza con Google. Citas con hora → evento de 30 min sin alarma (el aviso lo da Lumi, para no duplicar).
-  Los eventos que crea Lumi se excluyen al leer la agenda (si no, saldrían duplicados).
-- **Google Tasks vía API REST + Authorization API** (`play-services-auth`). Requiere que el usuario cree un cliente OAuth Android
-  (guía: `docs/GOOGLE_TASKS_SETUP.md`; el SHA-1 se muestra en Ajustes con botón copiar). Lista propia «Lumi».
-  Conflictos: gana el cambio más reciente. Tombstones para borrados. Canceladas → se borran en Google.
-  Sincroniza al abrir la app y 3 s después de cada cambio (sin WorkManager: suficiente para uso personal).
-- `TaskChangeListener`: el repositorio notifica cambios a calendario, Google Tasks y widget (desacoplado).
-- `TaskEntity.mergeFrom(task)`: al actualizar desde el dominio se conservan los ids de sincronización (antes `toEntity()` los perdía).
+### Sync
+- **Google Calendar through `CalendarContract`** (the system calendar) instead of the REST API: free, no Google Cloud,
+  Android itself syncs with Google. Timed appointments → a 30-min event without an alarm (Lumi reminds, to avoid
+  duplicates). Events Lumi creates are excluded when reading the agenda (they'd show twice).
+- **Google Tasks through the REST API + the Authorization API** (`play-services-auth`). The user must create an Android
+  OAuth client (guide: `docs/GOOGLE_TASKS_SETUP.md`; the SHA-1 is shown in Settings with a copy button). Its own "Lumi"
+  list. Conflicts: the most recent change wins. Tombstones for deletions. Cancelled → deleted in Google. Syncs when the
+  app opens and 3 s after each change (no WorkManager: enough for personal use).
+- `TaskChangeListener`: the repository notifies calendar, Google Tasks and the widget of changes (decoupled).
+- `TaskEntity.mergeFrom(task)`: sync ids are kept when updating from the domain (`toEntity()` used to lose them).
 
 ### Toolchain (v2.0)
-- AGP 8.13.2 + Gradle 8.14.3 + Kotlin 2.4.20 + KSP 2.3.12 + compileSdk 36. Las AndroidX más nuevas (core 1.19, lifecycle 2.11,
-  activity 1.13, Compose BOM ≥ 2026.08) exigen compileSdk 37 + AGP 9.1 → se fijaron versiones anteriores. Migrar a AGP 9 es un
-  cambio aparte (Kotlin integrado en AGP, desaparece el plugin kotlin-android).
-- ⚠️ `Set-Content` de PowerShell 5 corrompe UTF-8; y en heredocs de bash, cuidado con `\n` en Python (se interpretó como salto de línea real y quitó sangrías) (pasó con `app/build.gradle.kts`): editar ficheros con Python o las herramientas de edición.
+- AGP 8.13.2 + Gradle 8.14.3 + Kotlin 2.4.20 + KSP 2.3.12 + compileSdk 36. The newest AndroidX (core 1.19, lifecycle
+  2.11, activity 1.13, Compose BOM ≥ 2026.08) require compileSdk 37 + AGP 9.1 → older versions are pinned. Moving to
+  AGP 9 is a separate change (Kotlin built into AGP, the kotlin-android plugin goes away).
+- PowerShell 5 `Set-Content` corrupts UTF-8; and in bash heredocs, careful with `\n` in Python (it was taken as a real
+  newline and removed indentation in `app/build.gradle.kts`): edit files with Python or the editing tools.
 
-## 2026-09-28 (día) — v2.0
+## 2026-09-28 (day) — v2.0
 
-- Motores de IA en cadena (`AssistantEngine`): Gemini Nano (AICore) → Gemma (LiteRT-LM, descarga ~2,6 GB) → Gemini cloud (API key
-  opcional, desactivado por defecto) → reglas. El LLM solo interpreta y redacta; los datos (plan, tareas) los calcula el código.
-- El overlay de `Service` se sustituyó por `AssistantActivity` translúcida: AICore solo infiere con una Activity en primer plano, y
-  así la app puede ser **asistente digital** del sistema (`ACTION_ASSIST`).
-- Fechas/horas en español con `SpanishDateParser` («a las 5» sin más = 17:00). Recordatorios con AlarmManager (+ «Hecho» / «+1 h»).
+- Chained AI engines (`AssistantEngine`): Gemini Nano (AICore) → Gemma (LiteRT-LM, ~2.6 GB download) → Gemini cloud
+  (optional API key, off by default) → rules. The LLM only interprets and phrases; data (plan, tasks) is computed by code.
+- The `Service` overlay was replaced by a translucent `AssistantActivity`: AICore only runs inference with a foreground
+  Activity, and this way the app can be the system **digital assistant** (`ACTION_ASSIST`).
+- Spanish dates/times with `SpanishDateParser` («a las 5» alone = 17:00). Reminders with AlarmManager (+ "Done" / "+1 h").
 
 ## 2026-09-28 — v1.x
 
-- Categorías fijas (`TaskCategory`), inferidas por IA → palabras clave → filtro activo → PERSONAL; editables con un toque.
-- Coincidencia de tareas en `UPDATE_STATUS`: LIKE y, si falla, solapamiento de palabras (evita duplicados).
+- Fixed categories (`TaskCategory`), inferred by AI → keywords → active filter → PERSONAL; editable with one tap.
+- Task matching in `UPDATE_STATUS`: LIKE and, if that fails, word overlap (avoids duplicates).
 
 ---
 
-## ⚠️ Problemas conocidos / deuda técnica
+## Known issues / technical debt
 
-- v3.0 probada en emulador (Android 16, claro y oscuro): Inicio, Tareas, Agenda, Progreso, Ajustes, editor, asistente compacto,
-  recurrencia y brain dump. Falta probar en el S25: «Oye Lumi», Gemma GPU, respuesta desde notificación, reuniones reales.
-- (v2.1) Nada de esto se había probado en el S25; en emulador (Android 16) funcionan Inicio, Tareas, Agenda, Progreso y el
-  asistente con el motor de reglas. Gemma, voz, calendario real y Google Tasks requieren el móvil / configuración OAuth.
-- Google Tasks solo tiene fecha (sin hora) → la hora vive solo en local.
-- La vista de Agenda no permite arrastrar bloques para cambiar la hora (se edita desde la hoja de edición).
-- No hay repositorio git: conviene `git init` para poder volver atrás.
+- Not yet verified on the S25: the Now Bar chip on One UI 8, place reminders with "all the time" location, "Oye Lumi"
+  with the real microphone, Gemma on GPU after the OpenCL fix, replying from a notification, real Google Calendar meetings.
+- The "Oye Lumi" detector was trained on Spanish voices only; English speakers may need "Relaxed" + voice training.
+- Google Tasks only has a date (no time) → the time lives only on the phone.
+- The Agenda view doesn't allow dragging blocks to change the time (edit from the sheet).
+- The APK is debug-signed (no release keystore): an app signed with another key can't update over it.

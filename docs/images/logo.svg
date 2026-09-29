@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="192" height="192">
+  <defs>
+    <radialGradient id="a" gradientUnits="userSpaceOnUse" cx="12.72" cy="18.96" r="23.04"><stop offset="0" stop-color="#8FDBFB"/><stop offset="1" stop-color="#38BDF8"/></radialGradient>
+    <radialGradient id="b" gradientUnits="userSpaceOnUse" cx="25.2" cy="18.96" r="23.04"><stop offset="0" stop-color="#F8CFE3"/><stop offset="1" stop-color="#F0A6CA"/></radialGradient>
+    <radialGradient id="c" gradientUnits="userSpaceOnUse" cx="24" cy="24" r="12.96"><stop offset="0" stop-color="#B9B6FB"/><stop offset="1" stop-color="#8E9AF6"/></radialGradient>
+    <clipPath id="left"><circle cx="17.76" cy="24" r="14.4"/></clipPath>
+  </defs>
+  <circle cx="17.76" cy="24" r="14.4" fill="url(#a)"/>
+  <circle cx="30.24" cy="24" r="14.4" fill="url(#b)"/>
+  <circle cx="30.24" cy="24" r="14.4" fill="url(#c)" clip-path="url(#left)"/>
+  <ellipse cx="21.84" cy="24" rx="1.15" ry="2.5" fill="#fff"/>
+  <ellipse cx="26.16" cy="24" rx="1.15" ry="2.5" fill="#fff"/>
+</svg>

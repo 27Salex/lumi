@@ -1,11 +1,11 @@
-# Compilación y cachés
+# Build outputs and caches
 build/
 app/build/
 .gradle/
 .kotlin/
 *.apk
 *.aab
-# Local (rutas del SDK, claves de firma)
+# Local (SDK paths, signing keys)
 local.properties
 *.jks
 *.keystore
@@ -13,5 +13,5 @@ local.properties
 .idea/
 *.iml
 .DS_Store
-# Salidas de pruebas manuales
+# Manual test outputs
 gemma_batch_out.txt
