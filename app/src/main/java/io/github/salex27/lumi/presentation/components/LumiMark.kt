@@ -113,7 +113,7 @@ fun LumiMark(state: LumiState, modifier: Modifier = Modifier, size: Dp = 40.dp, 
     val eyeOpen by animateFloatAsState(
         when (state) {
             LumiState.LISTENING -> 1.15f + 0.1f * voice
-            LumiState.SUCCESS -> 0f // se dibujan como arcos sonrientes
+            LumiState.SUCCESS -> 0f // drawn as smiling arcs
             else -> 1f
         },
         spring(stiffness = Spring.StiffnessMedium), label = "eyeOpen"

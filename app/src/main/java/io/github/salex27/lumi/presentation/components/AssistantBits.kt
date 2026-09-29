@@ -169,7 +169,7 @@ fun TaskRow(
                 SwipeToDismissBoxValue.EndToStart -> if (task.isActive) onTomorrow()
                 SwipeToDismissBoxValue.Settled -> Unit
             }
-            false // la fila vuelve a su sitio; la lista se actualiza sola
+            false // the row goes back to its place; the list updates itself
         }
     )
     SwipeToDismissBox(

@@ -123,7 +123,7 @@ private fun style(size: Int, weight: FontWeight, line: Int, tracking: Double = 0
 
 val LumiTypography = Typography(
     displaySmall = style(34, FontWeight.Bold, 40, -0.6),      // saludo / cifra grande
-    headlineMedium = style(26, FontWeight.Bold, 32, -0.4),    // títulos de pantalla
+    headlineMedium = style(26, FontWeight.Bold, 32, -0.4),    // screen titles
     titleLarge = style(20, FontWeight.SemiBold, 26, -0.2),
     titleMedium = style(16, FontWeight.SemiBold, 22),
     bodyLarge = style(16, FontWeight.Normal, 24),
@@ -131,7 +131,7 @@ val LumiTypography = Typography(
     bodySmall = style(13, FontWeight.Normal, 18),
     labelLarge = style(14, FontWeight.SemiBold, 20),
     labelMedium = style(12, FontWeight.Medium, 16),
-    labelSmall = style(11, FontWeight.SemiBold, 14, 0.6)      // cabeceras de sección en mayúsculas
+    labelSmall = style(11, FontWeight.SemiBold, 14, 0.6)      // uppercase section headers
 )
 
 // ── Categories: icon + color (light/dark steps of the validated reference palette) ──

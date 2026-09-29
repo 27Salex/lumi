@@ -69,8 +69,8 @@ class MainViewModel(
         val sorted = allTasks.sortedWith(
             compareBy<Task>(
                 { if (it.isActive) 0 else 1 },      // activas primero
-                { if (filters.sortByPriority) -it.priority.rank else 0 }, // luego las más importantes
-                { it.dueAt ?: Long.MAX_VALUE },     // lo que vence antes arriba
+                { if (filters.sortByPriority) -it.priority.rank else 0 }, // then the most important
+                { it.dueAt ?: Long.MAX_VALUE },     // whatever is due first on top
                 { -it.createdAt }
             )
         )

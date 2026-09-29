@@ -211,7 +211,7 @@ private fun Legend(items: List<Pair<String, Color>>) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(10.dp).clip(CircleShape).background(color))
                 Spacer(Modifier.width(6.dp))
-                Text(label, color = k.secondary, fontSize = 12.sp) // el texto usa tinta, no el color de la serie
+                Text(label, color = k.secondary, fontSize = 12.sp) // text uses ink, not the series color
             }
         }
     }
@@ -324,7 +324,7 @@ private fun LineChart(days: List<DayStat>, range: StatsRange) {
                 drawCircle(color, 3.dp.toPx(), last)
                 selected?.let { i ->
                     val p = pt(i, value(days[i]))
-                    drawCircle(k.surface, 6.dp.toPx(), p) // anillo del color de la superficie
+                    drawCircle(k.surface, 6.dp.toPx(), p) // ring in the surface color
                     drawCircle(color, 4.dp.toPx(), p)
                 }
             }

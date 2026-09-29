@@ -175,7 +175,7 @@ fun AgendaScreen(
                     }
                 }
 
-                // Línea de "ahora"
+                // "Now" line
                 if (isToday) {
                     val now = LocalTime.now()
                     val y = HOUR_HEIGHT * ((now.hour * 60 + now.minute) / 60f)

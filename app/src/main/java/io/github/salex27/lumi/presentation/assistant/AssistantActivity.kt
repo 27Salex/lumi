@@ -84,11 +84,11 @@ class AssistantActivity : ComponentActivity() {
                 var hasMic by remember { mutableStateOf(hasMicPermission()) }
 
                 fun listen(quiet: Boolean = false) {
-                    app.speaker.stop() // si Lumi estaba hablando, se calla para escucharte
+                    app.speaker.stop() // if Lumi was speaking, it goes quiet to listen to you
                     viewModel.setVoiceError(null)
                     voice.startListening(
                         onFinalResult = { viewModel.sendVoice(it, fromWakeWord && !quiet) },
-                        onError = { viewModel.setVoiceError(it) }, // visible en la píldora / barra
+                        onError = { viewModel.setVoiceError(it) }, // shown in the pill / bar
                         quiet = quiet,
                         // It kept listening and you said nothing else: the pill (outside the app) goes away on its own
                         onSilence = { if (compact) lifecycleScope.launch { kotlinx.coroutines.delay(1_200); if (!voice.isListening.value) finish() } }
@@ -179,7 +179,7 @@ class AssistantActivity : ComponentActivity() {
                         is io.github.salex27.lumi.presentation.agent.DeviceActions.Outcome.ChooseContact -> viewModel.askContact(outcome.command, outcome.options)
                         is io.github.salex27.lumi.presentation.agent.DeviceActions.Outcome.Failed -> {
                             viewModel.say(outcome.message, isError = true)
-                            viewModel.nextDevice() // en una rutina, un paso fallido no para los demás
+                            viewModel.nextDevice() // in a routine, one failed step doesn't stop the rest
                         }
                     }
                 }
@@ -205,7 +205,7 @@ class AssistantActivity : ComponentActivity() {
                     val destination = state.navigateTo ?: return@LaunchedEffect
                     viewModel.navigationHandled()
                     whenUnlocked(onCancelled = { viewModel.say(ReplyLanguage.t("Desbloquea el móvil para abrir la ruta.", "Unlock the phone to open the route."), isError = true) }) { lifecycleScope.launch {
-                        kotlinx.coroutines.delay(900) // que se lea la respuesta antes de salir
+                        kotlinx.coroutines.delay(900) // let the reply be read before leaving
                         if (io.github.salex27.lumi.presentation.nav.MapsLauncher.open(this@AssistantActivity, destination, app.settings.current.mapsApp)) finish()
                         else viewModel.setVoiceError(ReplyLanguage.ui("No hay ninguna app de mapas instalada", "There's no maps app installed"))
                     } }
@@ -243,7 +243,7 @@ class AssistantActivity : ComponentActivity() {
                             else -> micPermission.launch(Manifest.permission.RECORD_AUDIO)
                         }
                     },
-                    onStopVoice = { voice.finishNow() }, // lo dicho hasta ahora se envía
+                    onStopVoice = { voice.finishNow() }, // what was said so far is sent
                     onRevealed = viewModel::markRevealed,
                     onConfirmPending = viewModel::confirmPending,
                     onDiscardPending = { viewModel.discardPending(); if (fromWakeWord) finish() },

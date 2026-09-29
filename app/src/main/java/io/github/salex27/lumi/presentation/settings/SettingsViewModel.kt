@@ -204,7 +204,7 @@ class SettingsViewModel(private val app: TaskManagerApplication) : ViewModel(), 
 
     override fun setGemmaEnabled(enabled: Boolean) {
         app.settings.update { it.copy(gemmaEnabled = enabled) }
-        if (!enabled) app.gemmaEngine.release() // libera ~1-2 GB de RAM
+        if (!enabled) app.gemmaEngine.release() // frees ~1-2 GB of RAM
         else viewModelScope.launch { app.gemmaEngine.warmUp() }
     }
 
@@ -355,7 +355,7 @@ class SettingsViewModel(private val app: TaskManagerApplication) : ViewModel(), 
 
     /** Saves the current location as [key]. The Activity asks for the location permission first. */
     fun savePlaceHere(key: String, label: String) {
-        viewModelScope.launch { app.liveUpdates.refresh() } // también recalcula el estado del chip
+        viewModelScope.launch { app.liveUpdates.refresh() } // also recomputes the chip state
         placesStatus.update { it.copy(saving = key, error = null) }
         viewModelScope.launch {
             val location = app.placeReminders.currentLocation()

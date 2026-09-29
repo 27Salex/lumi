@@ -1,4 +1,6 @@
 package io.github.salex27.lumi.presentation.settings
+import io.github.salex27.lumi.R
+import androidx.compose.ui.res.stringResource
 
 import android.content.Intent
 import android.net.Uri
@@ -85,9 +87,9 @@ fun SettingsScreen(
     memories: List<io.github.salex27.lumi.domain.assistant.MemoryRetriever.Memory> = emptyList(),
     aliases: List<io.github.salex27.lumi.presentation.agent.ContactAliases.Alias> = emptyList(),
     onRemoveAlias: (String) -> Unit = {},
-    /** Añadir alias: (alias, nombre del contacto a buscar) → la Activity busca en la agenda (con permiso). */
+    /** Add an alias: (alias, contact name to look up) → the Activity searches the address book (with permission). */
     onAddAlias: (String, String) -> Unit = { _, _ -> },
-    /** Asistente, alarma, accesos y rutinas (v3.6, ver AssistantSettings). */
+    /** Assistant, alarm, access and routines (v3.6, see AssistantSettings). */
     assistantSection: @Composable () -> Unit = {}
 ) {
     val c = Lumi.colors
@@ -101,46 +103,46 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver", tint = c.textPrimary) }
-            Text("Ajustes", style = MaterialTheme.typography.headlineMedium, color = c.textPrimary)
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back), tint = c.textPrimary) }
+            Text(stringResource(R.string.settings), style = MaterialTheme.typography.headlineMedium, color = c.textPrimary)
         }
 
-        // ── Apariencia ──────────────────────────────────────────────────────
-        SectionHeader("Apariencia", Modifier.padding(start = 4.dp))
+        // ── Appearance ──────────────────────────────────────────────────────
+        SectionHeader(stringResource(R.string.appearance), Modifier.padding(start = 4.dp))
         ListGroup {
             Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("SYSTEM" to "Sistema", "LIGHT" to "Claro", "DARK" to "Oscuro").forEach { (mode, label) ->
+                listOf("SYSTEM" to stringResource(R.string.theme_system), "LIGHT" to stringResource(R.string.theme_light), "DARK" to stringResource(R.string.theme_dark)).forEach { (mode, label) ->
                     Segment(label, s.themeMode == mode, Modifier.weight(1f)) { actions.setThemeMode(mode) }
                 }
             }
         }
 
-        // ── Voz ─────────────────────────────────────────────────────────────
-        SectionHeader("Voz", Modifier.padding(start = 4.dp, top = 12.dp))
+        // ── Voice ───────────────────────────────────────────────────────────
+        SectionHeader(stringResource(R.string.voice), Modifier.padding(start = 4.dp, top = 12.dp))
         ListGroup {
-            ListRow("«Oye Lumi»", "Di su nombre para abrirla, sin tocar el móvil. Escucha local y sin internet.", trailing = {
+            ListRow(stringResource(R.string.wake_title), stringResource(R.string.wake_sub), trailing = {
                 Toggle(s.wakeWordEnabled) { if (it) onEnableWakeWord() else actions.disableWakeWord() }
             })
             when (val m = state.extras.wakeModel) {
                 is VoskModelManager.State.Downloading -> Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text(
-                        "Descargando el modelo para reconocer tu voz (53 MB)… ${(m.progress * 100).toInt()} %" + if (m.attempt > 1) " · reintento ${m.attempt - 1}" else "",
+                        stringResource(R.string.wake_model_downloading, (m.progress * 100).toInt()) + if (m.attempt > 1) stringResource(R.string.wake_model_retry_n, m.attempt - 1) else "",
                         style = MaterialTheme.typography.bodySmall, color = c.textSecondary
                     )
                     Spacer(Modifier.height(6.dp)); Progress(m.progress)
-                    Text("«Oye Lumi» ya funciona; esto solo hace falta para «Entrenar mi voz». Puedes salir: la descarga continúa.", style = MaterialTheme.typography.bodySmall, color = c.textTertiary)
+                    Text(stringResource(R.string.wake_model_note), style = MaterialTheme.typography.bodySmall, color = c.textTertiary)
                 }
-                VoskModelManager.State.Installing -> Box(Modifier.padding(16.dp)) { StatusText("Instalando modelo…", c.warning) }
+                VoskModelManager.State.Installing -> Box(Modifier.padding(16.dp)) { StatusText(stringResource(R.string.installing_model), c.warning) }
                 is VoskModelManager.State.Failed -> Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.weight(1f)) { StatusText("No se pudo descargar: ${m.reason}", c.danger) }
-                    PillButton("Reintentar", style = PillStyle.SECONDARY, onClick = onRetryWakeWord)
+                    Box(Modifier.weight(1f)) { StatusText(stringResource(R.string.download_failed, m.reason), c.danger) }
+                    PillButton(stringResource(R.string.retry), style = PillStyle.SECONDARY, onClick = onRetryWakeWord)
                 }
                 else -> Unit
             }
             if (s.wakeWordEnabled && !state.system.overlayGranted) {
                 ListDivider()
-                ListRow("Abrir sobre otras apps", "Para que Lumi aparezca encima de lo que estés usando al oír su nombre",
-                    onClick = onRequestOverlay, trailing = { Text("Permitir", style = MaterialTheme.typography.labelLarge, color = c.accentText) })
+                ListRow(stringResource(R.string.overlay_title), stringResource(R.string.overlay_sub),
+                    onClick = onRequestOverlay, trailing = { Text(stringResource(R.string.allow), style = MaterialTheme.typography.labelLarge, color = c.accentText) })
             }
             if (s.wakeWordEnabled) {
                 ListDivider()
@@ -148,13 +150,13 @@ fun SettingsScreen(
             }
             if (s.wakeWordEnabled) {
                 ListDivider()
-                ListRow("Solo con la pantalla encendida", "Ahorra batería", trailing = { Toggle(s.wakeWordScreenOnly, actions::setWakeWordScreenOnly) })
+                ListRow(stringResource(R.string.wake_screen_on), stringResource(R.string.saves_battery), trailing = { Toggle(s.wakeWordScreenOnly, actions::setWakeWordScreenOnly) })
                 ListDivider()
                 Box(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                     StatusText(
                         when {
-                            state.system.wakeWordRunning -> "Escuchando «Oye Lumi»"
-                            else -> "En pausa (abre la app para reactivar)"
+                            state.system.wakeWordRunning -> stringResource(R.string.wake_listening)
+                            else -> stringResource(R.string.wake_paused)
                         },
                         if (state.system.wakeWordRunning) c.success else c.warning
                     )
@@ -163,111 +165,111 @@ fun SettingsScreen(
             state.system.wakeWordError?.let { Box(Modifier.padding(16.dp)) { StatusText(it, c.danger) } }
             ListDivider()
             Column(Modifier.padding(16.dp)) {
-                Text("Idioma de la voz", style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
+                Text(stringResource(R.string.voice_language), style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AppSettings.VOICE_LANGUAGES.forEach { (tag, label) ->
-                        // "Español (España)" → "España", "Español (Latinoamérica)" → "Latinoamérica"
+                        // "Español (España)" → "España", "English (UK)" → "UK"
                         val short = label.substringAfter("(", label).removeSuffix(")").substringBefore(" (")
                         Segment(short, s.voiceLanguage == tag, Modifier.weight(1f)) { actions.setVoiceLanguage(tag) }
                     }
                 }
             }
             ListDivider()
-            ListRow("Respuestas habladas", "Cuando le hablas, Lumi te contesta en voz alta. Prueba «Oye Lumi, ¿qué tengo hoy?»",
+            ListRow(stringResource(R.string.spoken_replies), stringResource(R.string.spoken_replies_sub),
                 trailing = { Toggle(s.speakReplies, actions::setSpeakReplies) })
         }
 
-        // ── Inteligencia ────────────────────────────────────────────────────
-        SectionHeader("Inteligencia", Modifier.padding(start = 4.dp, top = 12.dp))
-        Text("Lumi usa el primer cerebro disponible: Gemini Nano → Gemma local → Gemini en la nube → reglas.",
+        // ── Intelligence ────────────────────────────────────────────────────
+        SectionHeader(stringResource(R.string.intelligence), Modifier.padding(start = 4.dp, top = 12.dp))
+        Text(stringResource(R.string.intelligence_sub),
             style = MaterialTheme.typography.bodySmall, color = c.textTertiary, modifier = Modifier.padding(horizontal = 4.dp))
         ListGroup {
-            ListRow("Gemma · en el dispositivo", "Privada, sin internet y gratis. 2,6 GB.", trailing = { Toggle(s.gemmaEnabled, actions::setGemmaEnabled) })
+            ListRow(stringResource(R.string.gemma_title), stringResource(R.string.gemma_sub), trailing = { Toggle(s.gemmaEnabled, actions::setGemmaEnabled) })
             ListDivider()
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 when (val g = state.gemmaState) {
                     GemmaModelManager.State.Ready -> {
                         StatusText(
                             when (state.gemmaLoad) {
-                                GemmaLocalEngine.LoadState.READY -> "Cargado y listo"
-                                GemmaLocalEngine.LoadState.LOADING -> "Cargando modelo…"
-                                GemmaLocalEngine.LoadState.ERROR -> "No se pudo cargar"
-                                GemmaLocalEngine.LoadState.IDLE -> "Descargado"
+                                GemmaLocalEngine.LoadState.READY -> stringResource(R.string.gemma_ready)
+                                GemmaLocalEngine.LoadState.LOADING -> stringResource(R.string.gemma_loading)
+                                GemmaLocalEngine.LoadState.ERROR -> stringResource(R.string.gemma_load_failed)
+                                GemmaLocalEngine.LoadState.IDLE -> stringResource(R.string.gemma_downloaded)
                             },
                             if (state.gemmaLoad == GemmaLocalEngine.LoadState.ERROR) c.danger else c.success
                         )
                         val d = state.extras.gemmaDiagnostics
                         Text(
-                            listOfNotNull("Backend ${d.backend ?: "—"}", d.loadMillis?.let { "carga ${it / 1000.0} s" },
-                                d.lastLatencyMillis?.let { "última respuesta ${it / 1000.0} s" }).joinToString(" · "),
+                            listOfNotNull(stringResource(R.string.gemma_backend, d.backend ?: "—"), d.loadMillis?.let { stringResource(R.string.gemma_load_time, "${it / 1000.0}") },
+                                d.lastLatencyMillis?.let { stringResource(R.string.gemma_last_latency, "${it / 1000.0}") }).joinToString(" · "),
                             style = MaterialTheme.typography.bodySmall, color = c.textTertiary
                         )
-                        d.lastError?.let { StatusText("Último error: $it", c.danger) }
-                        d.selfTestResult?.let { StatusText(it, if (it.startsWith("Error") || it.startsWith("Sin")) c.danger else c.success) }
+                        d.lastError?.let { StatusText(stringResource(R.string.last_error, it), c.danger) }
+                        d.selfTestResult?.let { StatusText(it, if (it.startsWith("«")) c.success else c.danger) }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             if (d.selfTestRunning) {
                                 CircularProgressIndicator(Modifier.size(16.dp), color = c.accentText, strokeWidth = 2.dp)
-                                Text("Pensando… (sin límite de tiempo)", style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
-                            } else PillButton("Probar Gemma", style = PillStyle.SECONDARY, onClick = actions::testGemma)
-                            PillButton("Eliminar", style = PillStyle.GHOST, onClick = actions::deleteGemma)
+                                Text(stringResource(R.string.gemma_thinking), style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
+                            } else PillButton(stringResource(R.string.gemma_test), style = PillStyle.SECONDARY, onClick = actions::testGemma)
+                            PillButton(stringResource(R.string.delete), style = PillStyle.GHOST, onClick = actions::deleteGemma)
                         }
                     }
                     is GemmaModelManager.State.Downloading -> {
-                        StatusText("Descargando ${(g.progress * 100).toInt()} % · solo Wi-Fi", c.warning)
+                        StatusText(stringResource(R.string.gemma_downloading_wifi, (g.progress * 100).toInt()), c.warning)
                         Progress(g.progress)
-                        PillButton("Cancelar", style = PillStyle.GHOST, onClick = actions::cancelGemmaDownload)
+                        PillButton(stringResource(R.string.cancel), style = PillStyle.GHOST, onClick = actions::cancelGemmaDownload)
                     }
                     is GemmaModelManager.State.Failed -> {
                         StatusText(g.reason, c.danger)
-                        PillButton("Reintentar", style = PillStyle.SECONDARY, onClick = actions::downloadGemma)
+                        PillButton(stringResource(R.string.retry), style = PillStyle.SECONDARY, onClick = actions::downloadGemma)
                     }
-                    GemmaModelManager.State.NotDownloaded -> PillButton("Descargar Gemma", onClick = actions::downloadGemma)
+                    GemmaModelManager.State.NotDownloaded -> PillButton(stringResource(R.string.gemma_download), onClick = actions::downloadGemma)
                 }
             }
             ListDivider()
-            ListRow("Gemini en la nube", "Más potente. Necesita internet y una API key gratuita.", trailing = { Toggle(s.cloudEnabled, actions::setCloudEnabled) })
+            ListRow(stringResource(R.string.cloud_title), stringResource(R.string.cloud_sub), trailing = { Toggle(s.cloudEnabled, actions::setCloudEnabled) })
             if (s.cloudEnabled) {
                 ListDivider()
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     var showKey by remember { mutableStateOf(false) }
                     Field(s.cloudApiKey, actions::setApiKey, "API key", secret = !showKey) {
-                        Icon(if (showKey) Icons.Default.VisibilityOff else Icons.Default.Visibility, "Mostrar", tint = c.textTertiary,
+                        Icon(if (showKey) Icons.Default.VisibilityOff else Icons.Default.Visibility, stringResource(R.string.show), tint = c.textTertiary,
                             modifier = Modifier.size(18.dp).clickable { showKey = !showKey })
                     }
-                    Field(s.cloudModel, actions::setCloudModel, "Modelo")
+                    Field(s.cloudModel, actions::setCloudModel, stringResource(R.string.model))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        PillButton("Probar conexión", style = PillStyle.SECONDARY, onClick = actions::testCloud)
-                        PillButton("Conseguir key", style = PillStyle.GHOST) { open(Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/apikey"))) }
+                        PillButton(stringResource(R.string.cloud_test), style = PillStyle.SECONDARY, onClick = actions::testCloud)
+                        PillButton(stringResource(R.string.cloud_get_key), style = PillStyle.GHOST) { open(Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/apikey"))) }
                     }
                     when (val t = state.system.cloudTest) {
-                        CloudTest.Running -> StatusText("Probando…", c.warning)
-                        CloudTest.Ok -> StatusText("Conexión correcta", c.success)
+                        CloudTest.Running -> StatusText(stringResource(R.string.testing), c.warning)
+                        CloudTest.Ok -> StatusText(stringResource(R.string.cloud_ok), c.success)
                         is CloudTest.Failed -> StatusText(t.message, c.danger)
                         CloudTest.Idle -> Unit
                     }
-                    Text("En el nivel gratuito Google puede usar tus textos para mejorar sus productos.", style = MaterialTheme.typography.bodySmall, color = c.textTertiary)
+                    Text(stringResource(R.string.cloud_free_tier), style = MaterialTheme.typography.bodySmall, color = c.textTertiary)
                 }
             }
             ListDivider()
             ListRow("Gemini Nano · AICore", when (state.nanoStatus) {
-                GeminiNanoEngine.Status.AVAILABLE -> "Disponible"
-                GeminiNanoEngine.Status.DOWNLOADABLE -> "Compatible, falta descargar"
-                GeminiNanoEngine.Status.DOWNLOADING -> "Descargando…"
-                GeminiNanoEngine.Status.UNAVAILABLE -> "No disponible en este móvil"
-                GeminiNanoEngine.Status.UNKNOWN -> "Comprobando…"
+                GeminiNanoEngine.Status.AVAILABLE -> stringResource(R.string.nano_available)
+                GeminiNanoEngine.Status.DOWNLOADABLE -> stringResource(R.string.nano_downloadable)
+                GeminiNanoEngine.Status.DOWNLOADING -> stringResource(R.string.nano_downloading)
+                GeminiNanoEngine.Status.UNAVAILABLE -> stringResource(R.string.nano_unavailable)
+                GeminiNanoEngine.Status.UNKNOWN -> stringResource(R.string.nano_checking)
             }, onClick = actions::checkNano)
         }
 
-        // ── Integraciones ───────────────────────────────────────────────────
-        SectionHeader("Integraciones", Modifier.padding(start = 4.dp, top = 12.dp))
+        // ── Integrations ────────────────────────────────────────────────────
+        SectionHeader(stringResource(R.string.integrations), Modifier.padding(start = 4.dp, top = 12.dp))
         ListGroup {
             if (!state.system.calendarGranted) {
-                ListRow("Google Calendar", "Ver tus eventos en la Agenda y vincular tareas a reuniones", onClick = onRequestCalendar, trailing = {
-                    Text("Conectar", style = MaterialTheme.typography.labelLarge, color = c.accentText)
+                ListRow("Google Calendar", stringResource(R.string.calendar_sub), onClick = onRequestCalendar, trailing = {
+                    Text(stringResource(R.string.connect), style = MaterialTheme.typography.labelLarge, color = c.accentText)
                 })
             } else {
-                ListRow("Crear eventos para citas", "Las tareas con hora aparecen en tu calendario", trailing = { Toggle(s.calendarSyncEnabled, actions::setCalendarSync) })
+                ListRow(stringResource(R.string.calendar_create_events), stringResource(R.string.calendar_create_events_sub), trailing = { Toggle(s.calendarSyncEnabled, actions::setCalendarSync) })
                 if (s.calendarSyncEnabled) state.system.calendars.forEach { cal ->
                     ListDivider()
                     ListRow(cal.name, cal.account, onClick = { actions.selectCalendar(cal.id) },
@@ -279,74 +281,74 @@ fun SettingsScreen(
             val gt = state.extras.googleTasksStatus
             if (s.googleTasksEnabled) {
                 ListRow("Google Tasks", when (gt) {
-                    GoogleTasksSync.Status.Running -> "Sincronizando…"
-                    is GoogleTasksSync.Status.Done -> "Sincronizado (↓${gt.pulled} ↑${gt.pushed})"
-                    is GoogleTasksSync.Status.Error -> "Error: ${gt.message}"
-                    GoogleTasksSync.Status.NeedsConsent -> "Hay que volver a dar permiso"
-                    GoogleTasksSync.Status.Idle -> "Conectado · lista «Lumi»"
+                    GoogleTasksSync.Status.Running -> stringResource(R.string.gtasks_syncing)
+                    is GoogleTasksSync.Status.Done -> stringResource(R.string.gtasks_synced, gt.pulled, gt.pushed)
+                    is GoogleTasksSync.Status.Error -> stringResource(R.string.gtasks_error, gt.message)
+                    GoogleTasksSync.Status.NeedsConsent -> stringResource(R.string.gtasks_needs_consent)
+                    GoogleTasksSync.Status.Idle -> stringResource(R.string.gtasks_connected)
                 }, onClick = if (gt == GoogleTasksSync.Status.NeedsConsent) onConnectGoogleTasks else actions::syncGoogleTasksNow, trailing = {
-                    Text("Desconectar", style = MaterialTheme.typography.labelLarge, color = c.danger, modifier = Modifier.clickable(onClick = actions::disconnectGoogleTasks))
+                    Text(stringResource(R.string.disconnect), style = MaterialTheme.typography.labelLarge, color = c.danger, modifier = Modifier.clickable(onClick = actions::disconnectGoogleTasks))
                 })
             } else {
-                ListRow("Google Tasks", "Sincroniza en los dos sentidos (gratis)", onClick = onConnectGoogleTasks, trailing = {
-                    Text("Conectar", style = MaterialTheme.typography.labelLarge, color = c.accentText)
+                ListRow("Google Tasks", stringResource(R.string.gtasks_sub), onClick = onConnectGoogleTasks, trailing = {
+                    Text(stringResource(R.string.connect), style = MaterialTheme.typography.labelLarge, color = c.accentText)
                 })
             }
             state.system.googleTasksError?.let { Box(Modifier.padding(16.dp)) { StatusText(it, c.danger) } }
             var showGuide by remember { mutableStateOf(false) }
             ListDivider()
-            ListRow("Configuración de Google Tasks", "Una sola vez, 10 min", onClick = { showGuide = !showGuide })
+            ListRow(stringResource(R.string.gtasks_setup), stringResource(R.string.gtasks_setup_sub), onClick = { showGuide = !showGuide })
             if (showGuide) Box(Modifier.padding(16.dp)) { GoogleTasksGuide(context.packageName, state.system.signingSha1) }
         }
 
-        // ── Asistente del sistema ───────────────────────────────────────────
-        SectionHeader("Abrir Lumi desde cualquier sitio", Modifier.padding(start = 4.dp, top = 12.dp))
+        // ── System assistant ────────────────────────────────────────────────
+        SectionHeader(stringResource(R.string.open_anywhere), Modifier.padding(start = 4.dp, top = 12.dp))
         ListGroup {
             ListRow(
-                "Asistente digital",
-                if (state.system.isDefaultAssistant) "Lumi es tu asistente ✓ (mantén pulsado el botón lateral)" else "Elige Lumi como asistente digital del móvil",
+                stringResource(R.string.digital_assistant),
+                stringResource(if (state.system.isDefaultAssistant) R.string.digital_assistant_on else R.string.digital_assistant_off),
                 onClick = { open(Intent(Settings.ACTION_VOICE_INPUT_SETTINGS)) }
             )
             ListDivider()
-            Text("También: desliza hacia abajo → Ajustes rápidos → añade el tile «Lumi», o comparte cualquier texto o enlace con Lumi.",
+            Text(stringResource(R.string.open_anywhere_note),
                 style = MaterialTheme.typography.bodySmall, color = c.textTertiary, modifier = Modifier.padding(16.dp))
         }
 
         assistantSection()
 
-        // ── Memoria ─────────────────────────────────────────────────────────
-        SectionHeader("Memoria", Modifier.padding(start = 4.dp, top = 12.dp))
-        Text("Lo que le pides a Lumi que recuerde («recuerda que el wifi de la oficina es…»). Solo se usa lo relacionado con cada pregunta y no sale del móvil.",
+        // ── Memory ──────────────────────────────────────────────────────────
+        SectionHeader(stringResource(R.string.memory), Modifier.padding(start = 4.dp, top = 12.dp))
+        Text(stringResource(R.string.memory_sub),
             style = MaterialTheme.typography.bodySmall, color = c.textSecondary, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
         MemorySection(memories, actions)
 
-        // ── Contactos rápidos ───────────────────────────────────────────────
-        SectionHeader("Contactos rápidos", Modifier.padding(start = 4.dp, top = 12.dp))
-        Text("Cómo llamas a tus contactos («mamá», «el jefe»). Lumi los aprende sola cuando eliges entre varios, e ignora prefijos como «AA».",
+        // ── Quick contacts ──────────────────────────────────────────────────
+        SectionHeader(stringResource(R.string.quick_contacts), Modifier.padding(start = 4.dp, top = 12.dp))
+        Text(stringResource(R.string.quick_contacts_sub),
             style = MaterialTheme.typography.bodySmall, color = c.textSecondary, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
         AliasSection(aliases, onRemoveAlias, onAddAlias)
 
-        // ── Lugares ─────────────────────────────────────────────────────────
-        SectionHeader("Lugares", Modifier.padding(start = 4.dp, top = 12.dp))
-        Text("Para avisos como «cuando llegue a casa, recuérdame…». Guarda cada lugar estando allí.",
+        // ── Places ──────────────────────────────────────────────────────────
+        SectionHeader(stringResource(R.string.places), Modifier.padding(start = 4.dp, top = 12.dp))
+        Text(stringResource(R.string.places_sub),
             style = MaterialTheme.typography.bodySmall, color = c.textSecondary, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
         PlacesSection(state.extras.places, actions, onSavePlaceHere, onRequestBackgroundLocation)
         MapsAppPicker(s.mapsApp, actions::setMapsApp)
 
-        // ── Horario y avisos ────────────────────────────────────────────────
-        SectionHeader("Horario y avisos", Modifier.padding(start = 4.dp, top = 12.dp))
+        // ── Schedule and reminders ────────────────────────────────────────────────
+        SectionHeader(stringResource(R.string.schedule_reminders), Modifier.padding(start = 4.dp, top = 12.dp))
         ListGroup {
-            Stepper("Empiezo a trabajar", "${s.workStartHour}:00",
+            Stepper(stringResource(R.string.work_start), "${s.workStartHour}:00",
                 { actions.setWorkHours((s.workStartHour - 1).coerceAtLeast(0), s.workEndHour) },
                 { actions.setWorkHours((s.workStartHour + 1).coerceAtMost(s.workEndHour - 1), s.workEndHour) })
             ListDivider()
-            Stepper("Termino de trabajar", "${s.workEndHour}:00",
+            Stepper(stringResource(R.string.work_end), "${s.workEndHour}:00",
                 { actions.setWorkHours(s.workStartHour, (s.workEndHour - 1).coerceAtLeast(s.workStartHour + 1)) },
                 { actions.setWorkHours(s.workStartHour, (s.workEndHour + 1).coerceAtMost(24)) })
             ListDivider()
             Column(Modifier.padding(16.dp)) {
-                Text("Aviso antes de una cita", style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
-                Text("Lumi añade además la víspera y 10 min antes cuando hace falta", style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
+                Text(stringResource(R.string.lead_title), style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
+                Text(stringResource(R.string.lead_sub), style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf(15, 30, 60, 120).forEach { m ->
@@ -355,7 +357,7 @@ fun SettingsScreen(
                 }
             }
             ListDivider()
-            ListRow("Próxima tarea en directo", "Chip con cuenta atrás en la barra de estado (Android 16), como el de Maps",
+            ListRow(stringResource(R.string.live_title), stringResource(R.string.live_sub),
                 trailing = { Toggle(s.liveUpdates, actions::setLiveUpdates) })
             if (s.liveUpdates) ChipStatusRow(state.system.chipStatus) {
                 open(
@@ -364,25 +366,25 @@ fun SettingsScreen(
                 )
             }
             ListDivider()
-            ListRow("Repaso de la tarde", "Lo que hiciste y lo que queda, con «Pasar a mañana» y respuesta por voz",
+            ListRow(stringResource(R.string.checkin_title), stringResource(R.string.checkin_sub),
                 trailing = { Toggle(s.checkInEnabled, actions::setCheckIn) })
             if (s.checkInEnabled) {
                 ListDivider()
-                Stepper("Hora del repaso", "${s.checkInHour}:00",
+                Stepper(stringResource(R.string.checkin_time), "${s.checkInHour}:00",
                     { actions.setCheckInHour((s.checkInHour - 1).coerceAtLeast(17)) },
                     { actions.setCheckInHour((s.checkInHour + 1).coerceAtMost(23)) })
             }
             if (!state.system.notificationsGranted) {
                 ListDivider()
-                ListRow("Notificaciones desactivadas", "Sin ellas no hay avisos", onClick = {
+                ListRow(stringResource(R.string.notifications_off), stringResource(R.string.notifications_off_sub), onClick = {
                     open(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
-                }, trailing = { Text("Activar", style = MaterialTheme.typography.labelLarge, color = c.accentText) })
+                }, trailing = { Text(stringResource(R.string.enable), style = MaterialTheme.typography.labelLarge, color = c.accentText) })
             }
             if (!state.system.exactAlarmsGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 ListDivider()
-                ListRow("Avisos puntuales", "Sin este permiso pueden llegar unos minutos tarde", onClick = {
+                ListRow(stringResource(R.string.exact_alarms), stringResource(R.string.exact_alarms_sub), onClick = {
                     open(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}")))
-                }, trailing = { Text("Permitir", style = MaterialTheme.typography.labelLarge, color = c.accentText) })
+                }, trailing = { Text(stringResource(R.string.allow), style = MaterialTheme.typography.labelLarge, color = c.accentText) })
             }
         }
         Spacer(Modifier.height(32.dp))
@@ -390,8 +392,8 @@ fun SettingsScreen(
 }
 
 /**
- * «Entrenar mi voz» (como Voice Match de Google): 3 veces «Oye Lumi». Después Lumi solo se activa con tu voz.
- * La huella se queda en el móvil.
+ * "Train my voice" (like Google's Voice Match): "Oye Lumi" 3 times. After that Lumi only wakes up for your voice.
+ * The voice print stays on the phone.
  */
 @Composable
 private fun VoiceTraining(voice: VoiceUi, actions: SettingsActions) {
@@ -399,55 +401,59 @@ private fun VoiceTraining(voice: VoiceUi, actions: SettingsActions) {
     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Mi voz", style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
+                Text(stringResource(R.string.my_voice), style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
                 Text(
-                    if (voice.trained) "Lumi solo responde a tu voz" else "Entrénala para que Lumi no se active con otras personas",
+                    stringResource(if (voice.trained) R.string.my_voice_on else R.string.my_voice_off),
                     style = MaterialTheme.typography.bodySmall, color = c.textSecondary
                 )
             }
-            if (voice.trained) StatusText("Entrenada", c.success)
+            if (voice.trained) StatusText(stringResource(R.string.trained), c.success)
         }
         if (voice.lastScore > 0f) {
-            StatusText("Lo último que se pareció a «Oye Lumi»: ${(voice.lastScore * 100).toInt()} % (se activa desde ${(voice.sensitivity.detectorThreshold * 100).toInt()} %)", c.textTertiary)
+            StatusText(stringResource(R.string.voice_last_score, (voice.lastScore * 100).toInt(), (voice.sensitivity.detectorThreshold * 100).toInt()), c.textTertiary)
         }
         voice.lastHeard?.let { h ->
-            val sim = h.similarity?.let { " · voz ${(it * 100).toInt()} %" }.orEmpty()
-            StatusText("Última vez oí «${h.text}»$sim · ${h.reason}", if (h.accepted) c.success else c.warning)
+            val sim = h.similarity?.let { stringResource(R.string.voice_similarity, (it * 100).toInt()) }.orEmpty()
+            StatusText(stringResource(R.string.voice_last_heard, h.text, sim, h.reason), if (h.accepted) c.success else c.warning)
         }
         when (val t = voice.training) {
-            VoiceEnroller.State.Loading -> StatusText("Preparando el micrófono…", c.warning)
+            VoiceEnroller.State.Loading -> StatusText(stringResource(R.string.voice_preparing), c.warning)
             is VoiceEnroller.State.Listening, is VoiceEnroller.State.Retry -> {
                 val collected = if (t is VoiceEnroller.State.Listening) t.collected else (t as VoiceEnroller.State.Retry).collected
-                Text("Di «Oye Lumi» y haz una pausa (${collected + 1} de ${VoiceEnroller.SAMPLES})",
+                Text(stringResource(R.string.voice_say_it, collected + 1, VoiceEnroller.SAMPLES),
                     style = MaterialTheme.typography.titleMedium, color = c.textPrimary)
                 Progress(collected / VoiceEnroller.SAMPLES.toFloat())
-                if (t is VoiceEnroller.State.Retry) StatusText("He oído «${t.heard}». Repítelo: «Oye Lumi».", c.warning)
-                PillButton("Cancelar", style = PillStyle.GHOST, onClick = actions::cancelVoiceTraining)
+                if (t is VoiceEnroller.State.Retry) StatusText(stringResource(R.string.voice_heard_repeat, t.heard), c.warning)
+                PillButton(stringResource(R.string.cancel), style = PillStyle.GHOST, onClick = actions::cancelVoiceTraining)
             }
             is VoiceEnroller.State.Failed -> {
                 StatusText(t.reason, c.danger)
-                PillButton("Reintentar", style = PillStyle.SECONDARY, onClick = actions::startVoiceTraining)
+                PillButton(stringResource(R.string.retry), style = PillStyle.SECONDARY, onClick = actions::startVoiceTraining)
             }
             else -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PillButton(if (voice.trained) "Volver a entrenar" else "Entrenar mi voz",
+                PillButton(stringResource(if (voice.trained) R.string.voice_retrain else R.string.voice_train),
                     style = if (voice.trained) PillStyle.SECONDARY else PillStyle.PRIMARY, onClick = actions::startVoiceTraining)
-                if (voice.trained) PillButton("Borrar", style = PillStyle.GHOST, onClick = actions::deleteVoiceProfile)
+                if (voice.trained) PillButton(stringResource(R.string.delete), style = PillStyle.GHOST, onClick = actions::deleteVoiceProfile)
             }
         }
         if (voice.trained) {
-            Text("Exigencia con tu voz", style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
+            Text(stringResource(R.string.voice_strictness), style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 WakePhrases.Sensitivity.entries.forEach { level ->
-                    Segment(level.label, voice.sensitivity == level, Modifier.weight(1f)) { actions.setVoiceSensitivity(level) }
+                    Segment(stringResource(when (level) {
+                        WakePhrases.Sensitivity.STRICT -> R.string.sens_strict
+                        WakePhrases.Sensitivity.NORMAL -> R.string.sens_normal
+                        else -> R.string.sens_relaxed
+                    }), voice.sensitivity == level, Modifier.weight(1f)) { actions.setVoiceSensitivity(level) }
                 }
             }
-            Text("Si no te reconoce, prueba «Relajada» y vuelve a entrenar: Lumi aprende cómo lo dices tú. Si salta con otras personas, «Estricta».",
+            Text(stringResource(R.string.voice_strictness_tip),
                 style = MaterialTheme.typography.bodySmall, color = c.textTertiary)
         }
     }
 }
 
-/** «Añadir buscando la dirección»: nombre + búsqueda (Geocoder) → elegir resultado. */
+/** "Add by searching the address": name + search (Geocoder) → choose a result. */
 @Composable
 private fun AddPlaceBySearch(actions: SettingsActions) {
     val c = Lumi.colors
@@ -461,11 +467,11 @@ private fun AddPlaceBySearch(actions: SettingsActions) {
         results = actions.searchPlaces(query)
     }
     if (!open) {
-        PillButton("Añadir buscando la dirección", style = PillStyle.GHOST) { open = true }
+        PillButton(stringResource(R.string.place_add_by_address), style = PillStyle.GHOST) { open = true }
         return
     }
-    Field(name, { name = it }, "Nombre (p. ej. Gimnasio, Casa de mis padres)")
-    Field(query, { query = it }, "Dirección o sitio")
+    Field(name, { name = it }, stringResource(R.string.place_name_hint))
+    Field(query, { query = it }, stringResource(R.string.place_address_hint))
     results.forEach { res ->
         Row(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.muted)
@@ -475,7 +481,7 @@ private fun AddPlaceBySearch(actions: SettingsActions) {
                 Text(res.name, style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
                 Text(res.address, style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
             }
-            Text("Guardar", style = MaterialTheme.typography.labelLarge, color = c.accentText)
+            Text(stringResource(R.string.save), style = MaterialTheme.typography.labelLarge, color = c.accentText)
         }
     }
 }
@@ -493,15 +499,15 @@ private fun AliasSection(
         aliases.forEachIndexed { i, a ->
             if (i > 0) ListDivider()
             ListRow("«${a.alias}»", "${a.name} · ${a.number}", trailing = {
-                Text("Borrar", style = MaterialTheme.typography.labelLarge, color = c.danger,
+                Text(stringResource(R.string.delete), style = MaterialTheme.typography.labelLarge, color = c.danger,
                     modifier = Modifier.clip(RoundedCornerShape(50)).clickable { onRemove(a.alias) }.padding(8.dp))
             })
         }
         if (aliases.isNotEmpty()) ListDivider()
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Field(alias, { alias = it }, "Cuando diga… (p. ej. mi madre)")
-            Field(contact, { contact = it }, "…llama a este contacto (p. ej. AA Mamá)", trailing = {
-                if (alias.isNotBlank() && contact.isNotBlank()) Text("Guardar", style = MaterialTheme.typography.labelLarge, color = c.accentText,
+            Field(alias, { alias = it }, stringResource(R.string.alias_when_i_say))
+            Field(contact, { contact = it }, stringResource(R.string.alias_call_contact), trailing = {
+                if (alias.isNotBlank() && contact.isNotBlank()) Text(stringResource(R.string.save), style = MaterialTheme.typography.labelLarge, color = c.accentText,
                     modifier = Modifier.clickable { onAdd(alias, contact); alias = ""; contact = "" }.padding(8.dp))
             })
         }
@@ -516,46 +522,46 @@ private fun MemorySection(memories: List<io.github.salex27.lumi.domain.assistant
         memories.forEachIndexed { i, m ->
             if (i > 0) ListDivider()
             ListRow(m.text, null, trailing = {
-                Text("Olvidar", style = MaterialTheme.typography.labelLarge, color = c.danger,
+                Text(stringResource(R.string.forget), style = MaterialTheme.typography.labelLarge, color = c.danger,
                     modifier = Modifier.clip(RoundedCornerShape(50)).clickable { actions.deleteMemory(m.id) }.padding(8.dp))
             })
         }
         if (memories.isNotEmpty()) ListDivider()
         Column(Modifier.padding(16.dp)) {
-            Field(draft, { draft = it }, "Añadir un recuerdo (p. ej. «Mi dentista es la Dra. López»)", trailing = {
-                if (draft.isNotBlank()) Text("Guardar", style = MaterialTheme.typography.labelLarge, color = c.accentText,
+            Field(draft, { draft = it }, stringResource(R.string.memory_add_hint), trailing = {
+                if (draft.isNotBlank()) Text(stringResource(R.string.save), style = MaterialTheme.typography.labelLarge, color = c.accentText,
                     modifier = Modifier.clickable { actions.addMemory(draft); draft = "" }.padding(8.dp))
             })
         }
     }
 }
 
-/** Explica si Android está mostrando el chip y lleva al permiso si hace falta. */
+/** Explains whether Android is showing the chip and leads to the permission if needed. */
 @Composable
 private fun ChipStatusRow(status: LiveUpdateManager.ChipStatus, onOpenSystemSettings: () -> Unit) {
     val c = Lumi.colors
     when (status) {
         LiveUpdateManager.ChipStatus.BLOCKED -> {
             ListDivider()
-            ListRow("Permitir el chip", "Android tiene desactivadas las actualizaciones en directo de Lumi", onClick = onOpenSystemSettings,
-                trailing = { Text("Permitir", style = MaterialTheme.typography.labelLarge, color = c.accentText) })
+            ListRow(stringResource(R.string.chip_allow), stringResource(R.string.chip_allow_sub), onClick = onOpenSystemSettings,
+                trailing = { Text(stringResource(R.string.allow), style = MaterialTheme.typography.labelLarge, color = c.accentText) })
         }
         LiveUpdateManager.ChipStatus.NOT_PROMOTED -> {
             ListDivider()
-            ListRow("El sistema no muestra el chip", "La notificación funciona, pero tu versión de Android / One UI no la convierte en chip. Revisa el permiso.",
-                onClick = onOpenSystemSettings, trailing = { Text("Revisar", style = MaterialTheme.typography.labelLarge, color = c.accentText) })
+            ListRow(stringResource(R.string.chip_not_shown), stringResource(R.string.chip_not_shown_sub),
+                onClick = onOpenSystemSettings, trailing = { Text(stringResource(R.string.review), style = MaterialTheme.typography.labelLarge, color = c.accentText) })
         }
-        LiveUpdateManager.ChipStatus.ACTIVE -> Box(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) { StatusText("Chip activo en la barra de estado", c.success) }
+        LiveUpdateManager.ChipStatus.ACTIVE -> Box(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) { StatusText(stringResource(R.string.chip_active), c.success) }
         LiveUpdateManager.ChipStatus.IDLE -> Box(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-            StatusText("Aparecerá 2 h antes de tu próxima tarea con hora o reunión", c.textTertiary)
+            StatusText(stringResource(R.string.chip_waiting), c.textTertiary)
         }
         LiveUpdateManager.ChipStatus.UNSUPPORTED -> Box(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-            StatusText("El chip necesita Android 16; mientras, verás la notificación con cuenta atrás", c.textTertiary)
+            StatusText(stringResource(R.string.chip_needs_16), c.textTertiary)
         }
     }
 }
 
-/** App de mapas para «Cómo llegar» y «llévame a…». */
+/** Maps app for "Directions" and "take me to…". */
 @Composable
 private fun MapsAppPicker(current: String, onSelect: (String) -> Unit) {
     val c = Lumi.colors
@@ -564,14 +570,14 @@ private fun MapsAppPicker(current: String, onSelect: (String) -> Unit) {
     Spacer(Modifier.height(6.dp))
     ListGroup {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("App para «Cómo llegar»", style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
-            Text("Se usa al decir «llévame a casa» o al tocar una reunión con dirección.",
+            Text(stringResource(R.string.maps_app), style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
+            Text(stringResource(R.string.maps_app_sub),
                 style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Segment("Preguntar", current.isBlank()) { onSelect("") }
+                Segment(stringResource(R.string.ask), current.isBlank()) { onSelect("") }
                 apps.forEach { app -> Segment(app.label, current == app.packageName) { onSelect(app.packageName) } }
             }
-            if (apps.isEmpty()) Text("No hay apps de mapas instaladas.", style = MaterialTheme.typography.bodySmall, color = c.warning)
+            if (apps.isEmpty()) Text(stringResource(R.string.no_maps_apps), style = MaterialTheme.typography.bodySmall, color = c.warning)
         }
     }
 }
@@ -589,31 +595,31 @@ private fun PlacesSection(
     ListGroup {
         places.saved.forEachIndexed { i, place ->
             if (i > 0) ListDivider()
-            ListRow(place.label, place.address.ifBlank { "Guardado aquí" } + " · radio de ${place.radiusMeters.toInt()} m", trailing = {
-                Text("Borrar", style = MaterialTheme.typography.labelLarge, color = c.danger,
+            ListRow(place.label, place.address.ifBlank { stringResource(R.string.place_saved_here) } + stringResource(R.string.place_radius, place.radiusMeters.toInt()), trailing = {
+                Text(stringResource(R.string.delete), style = MaterialTheme.typography.labelLarge, color = c.danger,
                     modifier = Modifier.clip(RoundedCornerShape(50)).clickable { actions.removePlace(place.key) }.padding(8.dp))
             })
         }
-        // Lugares que ya usan tus tareas pero aún no están guardados
+        // Places your tasks already use but that aren't saved yet
         places.missing.forEach { key ->
             if (places.saved.isNotEmpty() || key != places.missing.first()) ListDivider()
             val label = key.replaceFirstChar { it.uppercase() }
-            ListRow("«$label» sin guardar", "Lo usa alguna tarea. Pulsa cuando estés allí.", trailing = {
-                PillButton("Guardar aquí", style = PillStyle.SECONDARY) { onSavePlaceHere(key, label) }
+            ListRow(stringResource(R.string.place_unsaved, label), stringResource(R.string.place_unsaved_sub), trailing = {
+                PillButton(stringResource(R.string.save_here), style = PillStyle.SECONDARY) { onSavePlaceHere(key, label) }
             })
         }
         if (places.saved.isNotEmpty() || places.missing.isNotEmpty()) ListDivider()
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Guardar mi ubicación actual como…", style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
+            Text(stringResource(R.string.save_location_as), style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("casa" to "Casa", "trabajo" to "Trabajo").filter { (k, _) -> places.saved.none { it.key == k } }.forEach { (key, label) ->
+                listOf("casa" to stringResource(R.string.place_home), "trabajo" to stringResource(R.string.place_work)).filter { (k, _) -> places.saved.none { it.key == k } }.forEach { (key, label) ->
                     PillButton(label, style = PillStyle.SECONDARY) { onSavePlaceHere(key, label) }
                 }
-                PillButton("Otro…", style = PillStyle.GHOST) { addingCustom = !addingCustom }
+                PillButton(stringResource(R.string.other), style = PillStyle.GHOST) { addingCustom = !addingCustom }
             }
             if (addingCustom) {
-                Field(customName, { customName = it }, "Nombre (gimnasio, universidad…)", trailing = {
-                    if (customName.isNotBlank()) Text("Guardar", style = MaterialTheme.typography.labelLarge, color = c.accentText,
+                Field(customName, { customName = it }, stringResource(R.string.place_custom_hint), trailing = {
+                    if (customName.isNotBlank()) Text(stringResource(R.string.save), style = MaterialTheme.typography.labelLarge, color = c.accentText,
                         modifier = Modifier.clickable {
                             val name = customName.trim()
                             onSavePlaceHere(TaskPhraseParser.normalizePlace(name), name.replaceFirstChar { it.uppercase() })
@@ -622,13 +628,13 @@ private fun PlacesSection(
                 })
             }
             AddPlaceBySearch(actions)
-            places.saving?.let { StatusText("Buscando tu ubicación para «$it»…", c.warning) }
+            places.saving?.let { StatusText(stringResource(R.string.place_locating, it), c.warning) }
             places.error?.let { StatusText(it, c.danger) }
         }
         if (places.saved.isNotEmpty() && !places.backgroundGranted) {
             ListDivider()
-            ListRow("Ubicación «Todo el tiempo»", "Sin ella, los avisos por lugar solo funcionan con Lumi abierta", onClick = onRequestBackgroundLocation,
-                trailing = { Text("Permitir", style = MaterialTheme.typography.labelLarge, color = c.accentText) })
+            ListRow(stringResource(R.string.bg_location), stringResource(R.string.bg_location_sub), onClick = onRequestBackgroundLocation,
+                trailing = { Text(stringResource(R.string.allow), style = MaterialTheme.typography.labelLarge, color = c.accentText) })
         }
     }
 }
@@ -686,7 +692,7 @@ internal fun Field(value: String, onChange: (String) -> Unit, label: String, sec
     }
 }
 
-/** Pasos para crear el cliente OAuth (gratis). Paquete y SHA-1 con botón copiar. */
+/** Steps to create the OAuth client (free). Package and SHA-1 with a copy button. */
 @Composable
 private fun GoogleTasksGuide(packageName: String, sha1: String) {
     val c = Lumi.colors
@@ -694,20 +700,16 @@ private fun GoogleTasksGuide(packageName: String, sha1: String) {
     fun copy(label: String, value: String) = clipboard?.setPrimaryClip(android.content.ClipData.newPlainText(label, value))
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         listOf(
-            "1. console.cloud.google.com → crea un proyecto (gratis, sin tarjeta).",
-            "2. APIs y servicios → Biblioteca → activa «Google Tasks API».",
-            "3. Pantalla de consentimiento de OAuth → Externo → añade tu cuenta en «Usuarios de prueba».",
-            "4. Credenciales → Crear → ID de cliente de OAuth → Android → pega paquete y SHA-1.",
-            "5. Vuelve y pulsa «Conectar»."
+            stringResource(R.string.gtasks_step1), stringResource(R.string.gtasks_step2), stringResource(R.string.gtasks_step3), stringResource(R.string.gtasks_step4), stringResource(R.string.gtasks_step5)
         ).forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = c.textSecondary) }
-        listOf("Paquete" to packageName, "SHA-1" to sha1.ifBlank { "No disponible" }).forEach { (label, value) ->
+        listOf(stringResource(R.string.package_name_label) to packageName, "SHA-1" to sha1.ifBlank { stringResource(R.string.not_available) }).forEach { (label, value) ->
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.muted).clickable { copy(label, value) }.padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(label, style = MaterialTheme.typography.labelMedium, color = c.textTertiary)
                     Text(value, style = MaterialTheme.typography.bodySmall, color = c.textPrimary)
                 }
-                Text("Copiar", style = MaterialTheme.typography.labelLarge, color = c.accentText)
+                Text(stringResource(R.string.copy), style = MaterialTheme.typography.labelLarge, color = c.accentText)
             }
         }
     }

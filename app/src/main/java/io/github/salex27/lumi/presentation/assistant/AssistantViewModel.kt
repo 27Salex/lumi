@@ -351,14 +351,14 @@ class AssistantViewModel(
                     followUp = result as? AIProcessingResult.AskFollowUp,
                     replyTarget = (result as? AIProcessingResult.Messages)?.replyTo
                 ).let { st ->
-                    // Rutina sin acciones del móvil pero con ruta → directamente a la ruta
+                    // Routine without phone actions but with a route → straight to the route
                     val r = result as? AIProcessingResult.Routine
                     if (r != null && r.devices.isEmpty() && r.navigate != null) st.copy(navigateTo = r.navigate) else st
                 }
             }
             routineActive = result is AIProcessingResult.Routine
             if (voiceTurn) speak(result.reply)
-            // Conversación seguida: tras contestar por voz, se vuelve a escuchar (salvo si Lumi se va a otra app)
+            // Continuous conversation: after answering by voice, listen again (unless Lumi goes to another app)
             val leaves = result is AIProcessingResult.Navigate || result is AIProcessingResult.OpenTask ||
                 (result is AIProcessingResult.Device && !result.command.staysInLumi) ||
                 (result is AIProcessingResult.Routine && (result.navigate != null || result.devices.any { !it.staysInLumi }))

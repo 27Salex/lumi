@@ -47,7 +47,7 @@ fun TaskActionCard(title: String, placeTrigger: PlaceTrigger?, places: List<Plac
     val app = context.applicationContext as TaskManagerApplication
     var preview by remember { mutableStateOf<ActionPreview.Preview?>(null) }
     LaunchedEffect(title, placeTrigger) {
-        kotlinx.coroutines.delay(300) // mientras escribes el título
+        kotlinx.coroutines.delay(300) // while you type the title
         preview = withContext(Dispatchers.IO) { ActionPreview.resolve(context, app.contactAliases, Task(title = title, placeTrigger = placeTrigger)) }
     }
     val p = preview ?: return

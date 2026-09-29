@@ -338,7 +338,7 @@ class MainActivity : ComponentActivity() {
         agendaViewModel.refresh()
         // New calendar meetings / location permission just granted
         app.appScope.launch { app.liveUpdates.refresh(); app.placeReminders.resyncAll() }
-        app.appScope.launch { app.weather.forecast() } // usa la guardada si tiene < 30 min
+        app.appScope.launch { app.weather.forecast() } // uses the cached one if it is < 30 min old
         // Background microphone can only be started with the app visible (Android 14+)
         val s = app.settings.current
         // v3.5: the "Oye Lumi" detector ships inside the app → listening starts now; Vosk (voice print) downloads separately

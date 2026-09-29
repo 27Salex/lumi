@@ -1,4 +1,7 @@
 package io.github.salex27.lumi.presentation.settings
+import io.github.salex27.lumi.R
+import androidx.compose.ui.res.stringResource
+import io.github.salex27.lumi.domain.assistant.ReplyLanguage
 
 import android.app.NotificationManager
 import android.content.Intent
@@ -50,8 +53,8 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 /**
- * Ajustes del asistente (v3.6): resumen de la mañana, alarma inteligente, accesos (mensajes, No molestar),
- * el tiempo y las rutinas. Vive aparte de SettingsScreen para no hacer aún más largo ese fichero.
+ * Assistant settings (v3.6): morning summary, smart alarm, access (messages, Do Not Disturb), weather and routines.
+ * Lives apart from SettingsScreen so that file doesn't grow even longer.
  */
 @Composable
 fun AssistantSettings(app: TaskManagerApplication) {
@@ -62,7 +65,7 @@ fun AssistantSettings(app: TaskManagerApplication) {
     val weather by app.weather.latest.collectAsStateWithLifecycle()
     fun open(intent: Intent) = runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
 
-    // Los accesos se dan en pantallas del sistema: se vuelven a mirar al volver a Lumi
+    // Access is granted on system screens: checked again when coming back to Lumi
     var resumed by remember { mutableIntStateOf(0) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { resumed++ }
     val messagesOn = remember(resumed) { LumiNotificationListener.isEnabled(context) }
@@ -72,78 +75,77 @@ fun AssistantSettings(app: TaskManagerApplication) {
     LaunchedEffect(s.alarmPrepMinutes, s.alarmTravelMinutes, s.alarmUsesWorkHours, s.workStartHour, resumed) {
         val date = AlarmPlanner.targetDate(LocalDateTime.now())
         alarmPreview = runCatching { app.repository.smartAlarmPlan(date) }.getOrNull()?.reason
-            ?: "Mañana no tienes nada antes de las 13:00: no hace falta alarma."
+            ?: context.getString(R.string.set_no_alarm_needed)
     }
 
-    SectionHeader("Asistente", Modifier.padding(start = 4.dp, top = 12.dp))
+    SectionHeader(stringResource(R.string.set_assistant), Modifier.padding(start = 4.dp, top = 12.dp))
     ListGroup {
-        ListRow("Resumen de la mañana", "El tiempo, lo primero del día y lo pendiente, en una notificación que puedes escuchar",
+        ListRow(stringResource(R.string.set_morning), stringResource(R.string.set_morning_sub),
             trailing = { Toggle(s.morningEnabled) { on -> app.settings.update { it.copy(morningEnabled = on) }; app.morning.schedule() } })
         if (s.morningEnabled) {
             ListDivider()
-            Stepper("Hora del resumen", "%d:%02d".format(s.morningMinutes / 60, s.morningMinutes % 60),
+            Stepper(stringResource(R.string.set_morning_time), "%d:%02d".format(s.morningMinutes / 60, s.morningMinutes % 60),
                 { app.settings.update { it.copy(morningMinutes = it.morningMinutes - 15) }; app.morning.schedule() },
                 { app.settings.update { it.copy(morningMinutes = it.morningMinutes + 15) }; app.morning.schedule() })
         }
         ListDivider()
-        ListRow("El tiempo", weather?.let { w ->
-            "${WeatherAdvisor.deg(w.currentTempC)} en ${w.place}, ${WeatherCodes.describe(w.currentCode)} · " +
-                "actualizado a las ${java.time.Instant.ofEpochMilli(w.fetchedAt).atZone(java.time.ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("H:mm"))}"
-        } ?: "Pregúntale «¿qué tiempo hace?». Usa tu ubicación aproximada o «Casa» · Open-Meteo, gratis",
+        ListRow(stringResource(R.string.set_weather), weather?.let { w ->
+            stringResource(R.string.set_weather_now, WeatherAdvisor.deg(w.currentTempC), w.place, WeatherCodes.describe(w.currentCode, ReplyLanguage.app),
+                java.time.Instant.ofEpochMilli(w.fetchedAt).atZone(java.time.ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("H:mm")))
+        } ?: stringResource(R.string.set_weather_hint),
             onClick = { scope.launch { app.weather.forecast(force = true) } },
-            trailing = { Text("Actualizar", style = MaterialTheme.typography.labelLarge, color = c.accentText) })
+            trailing = { Text(stringResource(R.string.refresh), style = MaterialTheme.typography.labelLarge, color = c.accentText) })
     }
 
-    SectionHeader("Conversación por voz", Modifier.padding(start = 4.dp, top = 12.dp))
+    SectionHeader(stringResource(R.string.set_voice_conversation), Modifier.padding(start = 4.dp, top = 12.dp))
     ListGroup {
         Column(Modifier.padding(16.dp)) {
-            Text("Pausa antes de enviar", style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
-            Text("Cuánto silencio espera Lumi antes de dar por terminada la frase", style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
+            Text(stringResource(R.string.set_pause), style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
+            Text(stringResource(R.string.set_pause_sub), style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf(900 to "Corta", 1_500 to "Normal", 2_500 to "Larga").forEach { (ms, label) ->
+                listOf(900 to stringResource(R.string.set_pause_short), 1_500 to stringResource(R.string.set_pause_normal), 2_500 to stringResource(R.string.set_pause_long)).forEach { (ms, label) ->
                     Segment(label, s.voicePauseMs == ms, Modifier.weight(1f)) { app.settings.update { it.copy(voicePauseMs = ms) } }
                 }
             }
         }
         ListDivider()
-        ListRow("Seguir escuchando", "Tras responderte por voz, Lumi escucha otra vez unos segundos para que sigas hablando",
+        ListRow(stringResource(R.string.set_keep_listening), stringResource(R.string.set_keep_listening_sub),
             trailing = { Toggle(s.continueConversation) { on -> app.settings.update { it.copy(continueConversation = on) } } })
     }
 
-    SectionHeader("Alarma inteligente", Modifier.padding(start = 4.dp, top = 12.dp))
-    Text("Di «buenas noches» o «pon la alarma para mañana» y Lumi la pone según tu primera reunión, tarea con hora o tu hora de entrar a trabajar.",
+    SectionHeader(stringResource(R.string.set_smart_alarm), Modifier.padding(start = 4.dp, top = 12.dp))
+    Text(stringResource(R.string.set_smart_alarm_sub),
         style = MaterialTheme.typography.bodySmall, color = c.textSecondary, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
     ListGroup {
         alarmPreview?.let {
             Text(it, style = MaterialTheme.typography.bodyMedium, color = c.textPrimary, modifier = Modifier.padding(16.dp))
             ListDivider()
         }
-        Stepper("Para arreglarme", "${s.alarmPrepMinutes} min",
+        Stepper(stringResource(R.string.set_get_ready), stringResource(R.string.n_min, s.alarmPrepMinutes),
             { app.settings.update { it.copy(alarmPrepMinutes = it.alarmPrepMinutes - 10) } },
             { app.settings.update { it.copy(alarmPrepMinutes = it.alarmPrepMinutes + 10) } })
         ListDivider()
-        Stepper("Trayecto", "${s.alarmTravelMinutes} min",
+        Stepper(stringResource(R.string.set_travel), stringResource(R.string.n_min, s.alarmTravelMinutes),
             { app.settings.update { it.copy(alarmTravelMinutes = it.alarmTravelMinutes - 5) } },
             { app.settings.update { it.copy(alarmTravelMinutes = it.alarmTravelMinutes + 5) } })
         ListDivider()
-        ListRow("Contar mi horario de trabajo", "De lunes a viernes, entrar a las ${s.workStartHour}:00 cuenta como lo primero",
+        ListRow(stringResource(R.string.set_work_hours), stringResource(R.string.set_work_hours_sub, s.workStartHour),
             trailing = { Toggle(s.alarmUsesWorkHours) { on -> app.settings.update { it.copy(alarmUsesWorkHours = on) } } })
         ListDivider()
-        ListRow("Proponerla en el repaso de la tarde", "Con un botón para ponerla sin abrir Lumi",
+        ListRow(stringResource(R.string.set_alarm_suggest), stringResource(R.string.set_alarm_suggest_sub),
             trailing = { Toggle(s.alarmSuggest) { on -> app.settings.update { it.copy(alarmSuggest = on) } } })
     }
 
-    SectionHeader("Accesos", Modifier.padding(start = 4.dp, top = 12.dp))
+    SectionHeader(stringResource(R.string.set_access), Modifier.padding(start = 4.dp, top = 12.dp))
     ListGroup {
-        ListRow("Leer mis mensajes", if (messagesOn) "Activado · «¿qué me han escrito?», «respóndele que ya voy»"
-        else "Para «¿qué me han escrito?» y responder sin abrir WhatsApp. Todo se queda en el móvil",
+        ListRow(stringResource(R.string.set_read_messages), stringResource(if (messagesOn) R.string.set_read_messages_on else R.string.set_read_messages_off),
             onClick = { open(LumiNotificationListener.settingsIntent(context)) },
-            trailing = { Text(if (messagesOn) "Activado" else "Activar", style = MaterialTheme.typography.labelLarge, color = if (messagesOn) c.textTertiary else c.accentText) })
+            trailing = { Text(stringResource(if (messagesOn) R.string.enabled else R.string.enable), style = MaterialTheme.typography.labelLarge, color = if (messagesOn) c.textTertiary else c.accentText) })
         ListDivider()
-        ListRow("No molestar", if (dndOn) "Activado · las rutinas pueden silenciar el móvil" else "Para que «buenas noches» active No molestar",
+        ListRow(stringResource(R.string.set_dnd), stringResource(if (dndOn) R.string.set_dnd_on else R.string.set_dnd_off),
             onClick = { open(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)) },
-            trailing = { Text(if (dndOn) "Activado" else "Activar", style = MaterialTheme.typography.labelLarge, color = if (dndOn) c.textTertiary else c.accentText) })
+            trailing = { Text(stringResource(if (dndOn) R.string.enabled else R.string.enable), style = MaterialTheme.typography.labelLarge, color = if (dndOn) c.textTertiary else c.accentText) })
     }
 
     RoutinesSection(app)
@@ -151,8 +153,8 @@ fun AssistantSettings(app: TaskManagerApplication) {
 }
 
 /**
- * Copia de seguridad: exportar a un fichero (Drive, Descargas…) e importarla en otro móvil o en otra instalación.
- * Tras importar, la app se reinicia para volver a leer ajustes, lugares y rutinas.
+ * Backup: export to a file (Drive, Downloads…) and import it on another phone or another install.
+ * After importing, the app restarts to read settings, places and routines again.
  */
 @Composable
 private fun BackupSection(app: TaskManagerApplication) {
@@ -166,8 +168,8 @@ private fun BackupSection(app: TaskManagerApplication) {
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
             status = runCatching { app.backup.export(uri) }.fold(
-                { "Copia guardada: ${it.tasks} tareas, ${it.memories} recuerdos, ajustes, lugares y rutinas." },
-                { "No se pudo guardar: ${it.message}" }
+                { context.getString(R.string.backup_saved, it.tasks, it.memories) },
+                { context.getString(R.string.backup_save_failed, it.message ?: "") }
             )
         }
     }
@@ -177,28 +179,28 @@ private fun BackupSection(app: TaskManagerApplication) {
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
             runCatching { app.backup.import(uri) }.fold({ s ->
-                status = "Importado: ${s.tasks} tareas y ${s.memories} recuerdos nuevos. Reiniciando Lumi…"
+                status = context.getString(R.string.backup_imported, s.tasks, s.memories)
                 kotlinx.coroutines.delay(1_500)
-                // Reinicio limpio: ajustes, lugares y rutinas se vuelven a leer del disco
+                // Clean restart: settings, places and routines are read from disk again
                 val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
                     ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
                 context.startActivity(intent)
                 Runtime.getRuntime().exit(0)
-            }, { status = "No se pudo importar: ${it.message}" })
+            }, { status = context.getString(R.string.backup_import_failed, it.message ?: "") })
         }
     }
 
-    SectionHeader("Copia de seguridad", Modifier.padding(start = 4.dp, top = 12.dp))
-    Text("Guarda tus tareas, memoria, lugares, rutinas, contactos rápidos y ajustes en un fichero (por ejemplo en Drive) para cambiar de móvil o reinstalar. La API key de Gemini no se incluye.",
+    SectionHeader(stringResource(R.string.backup), Modifier.padding(start = 4.dp, top = 12.dp))
+    Text(stringResource(R.string.backup_sub),
         style = MaterialTheme.typography.bodySmall, color = c.textSecondary, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
     ListGroup {
-        ListRow("Exportar copia", "Crea un fichero .json con todo", onClick = {
-            exportLauncher.launch("lumi-copia-${java.time.LocalDate.now()}.json")
-        }, trailing = { Text("Exportar", style = MaterialTheme.typography.labelLarge, color = c.accentText) })
+        ListRow(stringResource(R.string.backup_export), stringResource(R.string.backup_export_sub), onClick = {
+            exportLauncher.launch(context.getString(R.string.backup_file_name, java.time.LocalDate.now().toString()))
+        }, trailing = { Text(stringResource(R.string.action_export), style = MaterialTheme.typography.labelLarge, color = c.accentText) })
         ListDivider()
-        ListRow("Importar copia", "Añade lo de una copia a lo que ya tienes (no borra nada)", onClick = {
+        ListRow(stringResource(R.string.backup_import), stringResource(R.string.backup_import_sub), onClick = {
             importLauncher.launch(arrayOf("application/json", "application/octet-stream", "*/*"))
-        }, trailing = { Text("Importar", style = MaterialTheme.typography.labelLarge, color = c.accentText) })
+        }, trailing = { Text(stringResource(R.string.action_import), style = MaterialTheme.typography.labelLarge, color = c.accentText) })
         status?.let {
             ListDivider()
             Text(it, style = MaterialTheme.typography.bodySmall, color = c.textPrimary, modifier = Modifier.padding(16.dp))
@@ -212,8 +214,8 @@ private fun RoutinesSection(app: TaskManagerApplication) {
     val routines by app.routines.routines.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<String?>(null) }
 
-    SectionHeader("Rutinas", Modifier.padding(start = 4.dp, top = 12.dp))
-    Text("Una frase que lanza varias órdenes. Cada paso es algo que le dirías a Lumi: «alarma inteligente», «activa no molestar», «llévame a casa», «pon música relajante», «qué tengo mañana»…",
+    SectionHeader(stringResource(R.string.routines), Modifier.padding(start = 4.dp, top = 12.dp))
+    Text(stringResource(R.string.routines_sub),
         style = MaterialTheme.typography.bodySmall, color = c.textSecondary, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
     ListGroup {
         routines.forEachIndexed { i, r ->
@@ -229,8 +231,8 @@ private fun RoutinesSection(app: TaskManagerApplication) {
             app.routines.save(it.copy(id = "custom-${System.currentTimeMillis()}")); editing = null
         }, onDelete = null, onCancel = { editing = null })
         else Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text("Nueva rutina", style = MaterialTheme.typography.labelLarge, color = c.accentText, modifier = Modifier.clickable { editing = newId })
-            Text("Restaurar predefinidas", style = MaterialTheme.typography.labelLarge, color = c.textTertiary, modifier = Modifier.clickable { app.routines.restoreDefaults() })
+            Text(stringResource(R.string.routine_new), style = MaterialTheme.typography.labelLarge, color = c.accentText, modifier = Modifier.clickable { editing = newId })
+            Text(stringResource(R.string.routine_restore), style = MaterialTheme.typography.labelLarge, color = c.textTertiary, modifier = Modifier.clickable { app.routines.restoreDefaults() })
         }
     }
 }
@@ -242,10 +244,10 @@ private fun RoutineEditor(routine: Routine, onSave: (Routine) -> Unit, onDelete:
     var triggers by remember { mutableStateOf(routine.triggers.joinToString(", ")) }
     var steps by remember { mutableStateOf(routine.steps.joinToString("\n")) }
     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Field(name, { name = it }, "Nombre")
-        Field(triggers, { triggers = it }, "Cuando diga… (separa varias frases con comas)")
+        Field(name, { name = it }, stringResource(R.string.routine_name))
+        Field(triggers, { triggers = it }, stringResource(R.string.routine_triggers))
         Column {
-            Text("Lumi hará… (un paso por línea)", style = MaterialTheme.typography.labelMedium, color = c.textTertiary)
+            Text(stringResource(R.string.routine_steps), style = MaterialTheme.typography.labelMedium, color = c.textTertiary)
             Spacer(Modifier.height(4.dp))
             BasicTextField(
                 value = steps, onValueChange = { steps = it },
@@ -257,10 +259,10 @@ private fun RoutineEditor(routine: Routine, onSave: (Routine) -> Unit, onDelete:
             val t = triggers.split(',').map { it.trim() }.filter { it.isNotBlank() }
             val st = steps.lines().map { it.trim() }.filter { it.isNotBlank() }
             val valid = name.isNotBlank() && t.isNotEmpty() && st.isNotEmpty()
-            Text("Guardar", style = MaterialTheme.typography.labelLarge, color = if (valid) c.accentText else c.textTertiary,
+            Text(stringResource(R.string.save), style = MaterialTheme.typography.labelLarge, color = if (valid) c.accentText else c.textTertiary,
                 modifier = Modifier.clickable(enabled = valid) { onSave(routine.copy(name = name.trim(), triggers = t, steps = st)) })
-            Text("Cancelar", style = MaterialTheme.typography.labelLarge, color = c.textSecondary, modifier = Modifier.clickable(onClick = onCancel))
-            onDelete?.let { Text("Borrar", style = MaterialTheme.typography.labelLarge, color = c.danger, modifier = Modifier.clickable(onClick = it)) }
+            Text(stringResource(R.string.cancel), style = MaterialTheme.typography.labelLarge, color = c.textSecondary, modifier = Modifier.clickable(onClick = onCancel))
+            onDelete?.let { Text(stringResource(R.string.delete), style = MaterialTheme.typography.labelLarge, color = c.danger, modifier = Modifier.clickable(onClick = it)) }
         }
     }
 }
