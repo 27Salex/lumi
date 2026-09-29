@@ -1,4 +1,8 @@
 package io.github.salex27.lumi.presentation.main
+import io.github.salex27.lumi.R
+import androidx.compose.ui.res.stringResource
+import io.github.salex27.lumi.domain.assistant.Lang
+import io.github.salex27.lumi.presentation.components.uiLocale
 
 import io.github.salex27.lumi.domain.assistant.ReplyLanguage
 import androidx.compose.animation.AnimatedVisibility
@@ -66,7 +70,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** Inicio: saludo, cifra del día, resumen de Lumi y lo de hoy. Todo lo demás vive en otras pestañas. */
+/** Home: greeting, the day's number, Lumi's summary and today's items. Everything else lives in other tabs. */
 @Composable
 fun HomeScreen(
     uiState: MainUiState,
@@ -95,9 +99,11 @@ fun HomeScreen(
                 .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 100.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            Header(onOpenSettings, weather) { onOpenAssistant(false, "¿Qué tiempo hace hoy?") }
+            val weatherPrompt = stringResource(R.string.prompt_weather_today)
+            val whatNowPrompt = stringResource(R.string.prompt_what_now)
+            Header(onOpenSettings, weather) { onOpenAssistant(false, weatherPrompt) }
             HeroNumber(remaining = dueToday.size + overdue.size, overdue = overdue.size, done = doneToday, onClick = onOpenAgenda)
-            LumiBriefCard(uiState.briefing, onRefreshBriefing) { onOpenAssistant(false, "¿Qué hago ahora?") }
+            LumiBriefCard(uiState.briefing, onRefreshBriefing) { onOpenAssistant(false, whatNowPrompt) }
             FreeTimeCard(uiState.allTasks, todayEvents, onStartTask, onCompleteTask)
             if (uiState.gemmaState != GemmaModelManager.State.Ready) GemmaRow(uiState.gemmaState, onDownloadGemma)
             TodaySection(overdue + dueToday, todayEvents, onOpenAgenda, onTaskClick)
@@ -112,8 +118,8 @@ fun HomeScreen(
 }
 
 /**
- * «Tienes 40 min libres hasta las 16:00 · ¿adelantas «Informe»?» — Lumi mira el calendario y tus tareas con hora
- * y propone qué hacer en el hueco. Se recalcula cada minuto; «Otra» cambia de sugerencia.
+ * "You have 40 min free until 16:00 · get ahead on «Report»?" — Lumi looks at the calendar and your timed tasks and
+ * suggests what to do in the gap. Recomputed every minute; "Another" switches the suggestion.
  */
 @Composable
 private fun FreeTimeCard(tasks: List<Task>, events: List<AgendaEvent>, onStartTask: (Task) -> Unit, onCompleteTask: (Task) -> Unit) {
@@ -125,16 +131,17 @@ private fun FreeTimeCard(tasks: List<Task>, events: List<AgendaEvent>, onStartTa
         val plan = io.github.salex27.lumi.data.ai.DayPlanner.plan(tasks, now, maxSuggestions = 6)
         FreeTimeFinder.find(now, events, tasks, plan.overdue + plan.dueToday + plan.suggestions)
     } ?: return
-    // «Ahora no» oculta la tarjeta hasta que cambie el hueco (sobrevive a girar la pantalla)
+    // "Not now" hides the card until the slot changes (survives rotating the screen)
     var hiddenSlot by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableLongStateOf(0L) }
     if (hiddenSlot == slot.end) return
     val options = listOfNotNull(slot.suggestion) + slot.alternatives
     if (options.isEmpty()) return
-    // Se sigue la tarea por id: al empezarla cambia su estado pero no se pierde de vista
+    // The task is followed by id: starting it changes its status but it doesn't get lost
     var chosenId by remember(slot.end) { androidx.compose.runtime.mutableLongStateOf(options.first().id) }
     val task = tasks.firstOrNull { it.id == chosenId && it.isActive } ?: options.first()
     val started = task.status == TaskStatus.IN_PROGRESS
-    val until = DueDateFormatter.format(slot.end, true, lang = ReplyLanguage.app).removePrefix("hoy ").removePrefix("a las ")
+    val until = DueDateFormatter.format(slot.end, true, lang = ReplyLanguage.app)
+        .removePrefix("hoy ").removePrefix("a las ").removePrefix("today ").removePrefix("at ")
 
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(c.accentContainer).padding(18.dp)
@@ -142,26 +149,26 @@ private fun FreeTimeCard(tasks: List<Task>, events: List<AgendaEvent>, onStartTa
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text(
-            (if (started) "En marcha · libre hasta las $until" else "Tienes ${humanDuration(slot.minutes)} libres · hasta las $until").uppercase(),
+            (if (started) stringResource(R.string.free_started, until) else stringResource(R.string.free_slot, humanDuration(slot.minutes), until)).uppercase(),
             style = MaterialTheme.typography.labelSmall, color = c.accentText
         )
-        Text(if (started) "A por «${task.title}»" else "¿Adelantas «${task.title}»?", style = MaterialTheme.typography.titleMedium, color = c.textPrimary)
+        Text(stringResource(if (started) R.string.free_go_for else R.string.free_get_ahead, task.title), style = MaterialTheme.typography.titleMedium, color = c.textPrimary)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (started) {
-                PillButton("Hecho") { onCompleteTask(task) }
-                PillButton("Ahora no", style = PillStyle.GHOST) { hiddenSlot = slot.end }
+                PillButton(stringResource(R.string.action_done)) { onCompleteTask(task) }
+                PillButton(stringResource(R.string.not_now), style = PillStyle.GHOST) { hiddenSlot = slot.end }
             } else {
-                PillButton("Empezar") { chosenId = task.id; onStartTask(task) }
-                if (options.size > 1) PillButton("Otra", style = PillStyle.GHOST) {
+                PillButton(stringResource(R.string.start)) { chosenId = task.id; onStartTask(task) }
+                if (options.size > 1) PillButton(stringResource(R.string.another), style = PillStyle.GHOST) {
                     chosenId = options[(options.indexOfFirst { it.id == task.id } + 1) % options.size].id
                 }
-                PillButton("Ahora no", style = PillStyle.GHOST) { hiddenSlot = slot.end }
+                PillButton(stringResource(R.string.not_now), style = PillStyle.GHOST) { hiddenSlot = slot.end }
             }
         }
     }
 }
 
-/** 296 → «4 h 56 min», 40 → «40 min». */
+/** 296 → "4 h 56 min", 40 → "40 min". */
 private fun humanDuration(minutes: Int): String = when {
     minutes < 60 -> "$minutes min"
     minutes % 60 == 0 -> "${minutes / 60} h"
@@ -175,18 +182,18 @@ private fun Header(
     onWeatherClick: () -> Unit = {}
 ) {
     val now = remember { LocalDateTime.now() }
-    val date = remember { now.format(DateTimeFormatter.ofPattern("EEEE d 'de' MMMM", Locale.forLanguageTag("es-ES"))) }
+    val date = remember { now.format(DateTimeFormatter.ofPattern(if (ReplyLanguage.app == Lang.EN) "EEEE, MMMM d" else "EEEE d 'de' MMMM", uiLocale)) }
     Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.Top) {
         Column(Modifier.weight(1f)) {
             Text(date.uppercase(), style = MaterialTheme.typography.labelSmall, color = Lumi.colors.textTertiary)
             Spacer(Modifier.height(4.dp))
             Text(DueDateFormatter.greeting(now, ReplyLanguage.app), style = MaterialTheme.typography.displaySmall, color = Lumi.colors.textPrimary)
-            // El tiempo de un vistazo (toca para preguntarle a Lumi); solo si la previsión es de hoy
+            // Weather at a glance (tap to ask Lumi); only if the forecast is from today
             weather?.takeIf { System.currentTimeMillis() - it.fetchedAt < 6 * 3_600_000L }?.let { w ->
-                val line = io.github.salex27.lumi.domain.weather.WeatherAdvisor.dayLine(w, now.toLocalDate(), LocalDateTime.now())
+                val line = io.github.salex27.lumi.domain.weather.WeatherAdvisor.dayLine(w, now.toLocalDate(), LocalDateTime.now(), ReplyLanguage.app)
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "${io.github.salex27.lumi.domain.weather.WeatherAdvisor.deg(w.currentTempC)} · ${line ?: io.github.salex27.lumi.domain.weather.WeatherCodes.describe(w.currentCode)}",
+                    "${io.github.salex27.lumi.domain.weather.WeatherAdvisor.deg(w.currentTempC)} · ${line ?: io.github.salex27.lumi.domain.weather.WeatherCodes.describe(w.currentCode, ReplyLanguage.app)}",
                     style = MaterialTheme.typography.bodyMedium, color = Lumi.colors.textSecondary,
                     maxLines = 2, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onWeatherClick)
@@ -194,12 +201,12 @@ private fun Header(
             }
         }
         IconButton(onClick = onOpenSettings, modifier = Modifier.clip(CircleShape).background(Lumi.colors.muted).size(40.dp)) {
-            Icon(Icons.Outlined.Settings, "Ajustes", tint = Lumi.colors.textPrimary, modifier = Modifier.size(20.dp))
+            Icon(Icons.Outlined.Settings, stringResource(R.string.settings), tint = Lumi.colors.textPrimary, modifier = Modifier.size(20.dp))
         }
     }
 }
 
-/** Cifra protagonista estilo Revolut: lo que queda por hacer hoy. */
+/** Revolut-style hero number: what is left to do today. */
 @Composable
 private fun HeroNumber(remaining: Int, overdue: Int, done: Int, onClick: () -> Unit) {
     val c = Lumi.colors
@@ -207,12 +214,12 @@ private fun HeroNumber(remaining: Int, overdue: Int, done: Int, onClick: () -> U
         Row(verticalAlignment = Alignment.Bottom) {
             Text("$remaining", style = MaterialTheme.typography.displaySmall.copy(fontSize = MaterialTheme.typography.displaySmall.fontSize * 1.6f), color = c.textPrimary)
             Spacer(Modifier.width(10.dp))
-            Text(if (remaining == 1) "tarea para hoy" else "tareas para hoy", style = MaterialTheme.typography.titleMedium, color = c.textSecondary,
+            Text(stringResource(if (remaining == 1) R.string.hero_tasks_today_one else R.string.hero_tasks_today_other), style = MaterialTheme.typography.titleMedium, color = c.textSecondary,
                 modifier = Modifier.padding(bottom = 10.dp))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (overdue > 0) Chip("$overdue ${if (overdue == 1) "vencida" else "vencidas"}", c.danger)
-            Chip("$done ${if (done == 1) "hecha" else "hechas"} hoy", c.success)
+            if (overdue > 0) Chip(stringResource(if (overdue == 1) R.string.hero_overdue_one else R.string.hero_overdue_other, overdue), c.danger)
+            Chip(stringResource(if (done == 1) R.string.hero_done_one else R.string.hero_done_other, done), c.success)
         }
     }
 }
@@ -229,7 +236,7 @@ private fun Chip(text: String, dot: Color) {
     }
 }
 
-/** Resumen de Lumi: guardado; solo se anima cuando es nuevo. */
+/** Lumi's summary: cached; only animated when it is new. */
 @Composable
 private fun LumiBriefCard(briefing: BriefingState, onRefresh: () -> Unit, onPlanDay: () -> Unit) {
     val c = Lumi.colors
@@ -247,18 +254,18 @@ private fun LumiBriefCard(briefing: BriefingState, onRefresh: () -> Unit, onPlan
             Text("Lumi", style = MaterialTheme.typography.titleMedium, color = c.textPrimary, modifier = Modifier.weight(1f))
             EngineBadge(briefing.engine)
             IconButton(onClick = onRefresh, enabled = !briefing.isLoading, modifier = Modifier.size(36.dp)) {
-                Icon(Icons.Outlined.Refresh, "Nuevo resumen", tint = c.textTertiary, modifier = Modifier.size(18.dp))
+                Icon(Icons.Outlined.Refresh, stringResource(R.string.brief_new), tint = c.textTertiary, modifier = Modifier.size(18.dp))
             }
         }
         Spacer(Modifier.height(10.dp))
         val text = briefing.text
         if (text == null) {
-            Text("Preparando tu resumen…", style = MaterialTheme.typography.bodyLarge, color = c.textTertiary)
+            Text(stringResource(R.string.brief_preparing), style = MaterialTheme.typography.bodyLarge, color = c.textTertiary)
         } else {
             TypewriterText(text, style = MaterialTheme.typography.bodyLarge, color = c.textPrimary, animate = animate, onFinished = { typing = false })
         }
         AnimatedVisibility(!typing || text == null) {
-            Row(Modifier.padding(top = 14.dp)) { PillButton("¿Qué hago ahora?", onClick = onPlanDay) }
+            Row(Modifier.padding(top = 14.dp)) { PillButton(stringResource(R.string.prompt_what_now), onClick = onPlanDay) }
         }
     }
 }
@@ -267,52 +274,55 @@ private fun LumiBriefCard(briefing: BriefingState, onRefresh: () -> Unit, onPlan
 private fun GemmaRow(state: GemmaModelManager.State, onDownload: () -> Unit) {
     val c = Lumi.colors
     LumiCard {
-        Text("IA local", style = MaterialTheme.typography.titleMedium, color = c.textPrimary)
+        Text(stringResource(R.string.local_ai), style = MaterialTheme.typography.titleMedium, color = c.textPrimary)
         Spacer(Modifier.height(4.dp))
         when (state) {
             is GemmaModelManager.State.Downloading -> {
-                Text("Descargando Gemma… ${(state.progress * 100).toInt()} %", style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
+                Text(stringResource(R.string.gemma_downloading, (state.progress * 100).toInt()), style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
                 Spacer(Modifier.height(10.dp))
                 LinearProgressIndicator(progress = { state.progress }, modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
                     color = c.accent, trackColor = c.muted)
             }
             else -> {
                 Text(
-                    if (state is GemmaModelManager.State.Failed) "La descarga falló: ${state.reason}"
-                    else "Descarga Gemma (2,6 GB, Wi-Fi) para que Lumi piense sin internet y en privado.",
+                    if (state is GemmaModelManager.State.Failed) stringResource(R.string.gemma_download_failed, state.reason)
+                    else stringResource(R.string.gemma_download_pitch),
                     style = MaterialTheme.typography.bodySmall, color = c.textSecondary
                 )
                 Spacer(Modifier.height(12.dp))
-                PillButton("Descargar", style = PillStyle.SECONDARY, onClick = onDownload)
+                PillButton(stringResource(R.string.download), style = PillStyle.SECONDARY, onClick = onDownload)
             }
         }
     }
 }
 
-/** Hoy: tareas (y vencidas) + eventos del calendario, en orden de hora. */
+/** Today: tasks (and overdue ones) + calendar events, in time order. */
 @Composable
 private fun TodaySection(tasks: List<Task>, events: List<AgendaEvent>, onOpenAgenda: () -> Unit, onTaskClick: (Task) -> Unit) {
     val c = Lumi.colors
     val zone = remember { ZoneId.systemDefault() }
     val hm = remember { DateTimeFormatter.ofPattern("HH:mm") }
-
+    val overdueLabel = stringResource(R.string.overdue)
+    val todayLabel = stringResource(R.string.today)
+    val allDayLabel = stringResource(R.string.all_day)
+    val forMeeting = stringResource(R.string.notif_for_meeting)
     data class Item(val sort: Long, val time: String, val title: String, val color: Color, val task: Task?, val sub: String?)
     val items = (tasks.map { t ->
         val overdue = t.dueAt?.let { DueDateFormatter.isOverdue(it, t.dueHasTime) } == true
         Item(
-            t.dueAt ?: 0, if (overdue) "Vencida" else if (t.dueHasTime) Instant.ofEpochMilli(t.dueAt!!).atZone(zone).format(hm) else "Hoy",
-            t.title, if (overdue) c.danger else t.category.color(c.isDark), t, t.meeting?.let { "Para «${it.title}»" }
+            t.dueAt ?: 0, if (overdue) overdueLabel else if (t.dueHasTime) Instant.ofEpochMilli(t.dueAt!!).atZone(zone).format(hm) else todayLabel,
+            t.title, if (overdue) c.danger else t.category.color(c.isDark), t, t.meeting?.let { forMeeting.format(it.title) }
         )
     } + events.map { e ->
-        Item(e.begin, if (e.allDay) "Todo el día" else Instant.ofEpochMilli(e.begin).atZone(zone).format(hm), e.title, Color(e.color), null, e.calendarName)
+        Item(e.begin, if (e.allDay) allDayLabel else Instant.ofEpochMilli(e.begin).atZone(zone).format(hm), e.title, Color(e.color), null, e.calendarName)
     }).sortedBy { it.sort }
 
     Column {
-        SectionHeader("Hoy") {
-            Text("Agenda", style = MaterialTheme.typography.labelLarge, color = c.accentText, modifier = Modifier.clickable(onClick = onOpenAgenda).padding(4.dp))
+        SectionHeader(stringResource(R.string.today)) {
+            Text(stringResource(R.string.agenda), style = MaterialTheme.typography.labelLarge, color = c.accentText, modifier = Modifier.clickable(onClick = onOpenAgenda).padding(4.dp))
         }
         if (items.isEmpty()) {
-            Text("Nada programado. Buen momento para adelantar algo.", style = MaterialTheme.typography.bodyMedium, color = c.textTertiary,
+            Text(stringResource(R.string.today_empty), style = MaterialTheme.typography.bodyMedium, color = c.textTertiary,
                 modifier = Modifier.padding(vertical = 8.dp))
         }
         items.take(8).forEach { item ->
@@ -322,7 +332,7 @@ private fun TodaySection(tasks: List<Task>, events: List<AgendaEvent>, onOpenAge
                     .padding(vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(item.time, style = MaterialTheme.typography.labelMedium, color = if (item.time == "Vencida") c.danger else c.textSecondary,
+                Text(item.time, style = MaterialTheme.typography.labelMedium, color = if (item.time == overdueLabel) c.danger else c.textSecondary,
                     modifier = Modifier.width(72.dp))
                 Box(Modifier.size(width = 3.dp, height = 32.dp).clip(RoundedCornerShape(2.dp)).background(item.color))
                 Spacer(Modifier.width(12.dp))

@@ -47,15 +47,15 @@ data class SystemStatus(
     val googleTasksError: String? = null,
     val wakeWordError: String? = null,
     val wakeWordRunning: Boolean = false,
-    /** «Mostrar sobre otras apps»: necesario para que «Oye Lumi» abra el asistente encima de cualquier app. */
+    /** "Display over other apps": needed so "Oye Lumi" opens the assistant on top of any app. */
     val overlayGranted: Boolean = false,
-    /** Chip de la barra de estado (Android 16) para la próxima tarea. */
+    /** Status bar chip (Android 16) for the next task. */
     val chipStatus: LiveUpdateManager.ChipStatus = LiveUpdateManager.ChipStatus.IDLE,
-    /** SHA-1 del certificado de firma, necesario para el cliente OAuth Android de Google Cloud. */
+    /** SHA-1 of the signing certificate, needed for the Google Cloud Android OAuth client. */
     val signingSha1: String = ""
 )
 
-/** Agrupa estados secundarios para no pasar de 5 flujos en `combine` (ver AGENTS.md). */
+/** Groups secondary states so `combine` never takes more than 5 flows (see AGENTS.md). */
 data class SettingsExtras(
     val system: SystemStatus = SystemStatus(),
     val gemmaDiagnostics: GemmaLocalEngine.Diagnostics = GemmaLocalEngine.Diagnostics(),
@@ -65,26 +65,26 @@ data class SettingsExtras(
     val places: PlacesUi = PlacesUi()
 )
 
-/** Ajustes → Lugares (avisos por lugar). */
+/** Settings → Places (place reminders). */
 data class PlacesUi(
     val saved: List<PlacesStore.SavedPlace> = emptyList(),
-    /** Lugares que usan tus tareas y aún no están guardados (p.ej. «gimnasio»). */
+    /** Places your tasks use that aren't saved yet (e.g. "gym"). */
     val missing: List<String> = emptyList(),
     val locationGranted: Boolean = false,
     val backgroundGranted: Boolean = false,
-    /** Clave del lugar que se está guardando (esperando al GPS). */
+    /** Key of the place being saved (waiting for GPS). */
     val saving: String? = null,
     val error: String? = null
 )
 
-/** «Entrenar mi voz»: perfil guardado, sensibilidad y progreso del entrenamiento. */
+/** "Train my voice": saved profile, sensitivity and training progress. */
 data class VoiceUi(
     val trained: Boolean = false,
     val sensitivity: WakePhrases.Sensitivity = WakePhrases.Sensitivity.NORMAL,
     val training: VoiceEnroller.State = VoiceEnroller.State.Idle,
-    /** Última frase corta que oyó «Oye Lumi» y por qué se aceptó o no. */
+    /** The last short phrase "Oye Lumi" heard and why it was accepted or not. */
     val lastHeard: WakeWordService.Heard? = null,
-    /** Cuánto se ha parecido lo último a «Oye Lumi» (0..1, detector openWakeWord). */
+    /** How close the last sound was to "Oye Lumi" (0..1, openWakeWord detector). */
     val lastScore: Float = 0f
 )
 
@@ -98,7 +98,7 @@ data class SettingsUiState(
     val system: SystemStatus get() = extras.system
 }
 
-/** Acciones de la pantalla de ajustes (interfaz para mantener la UI desacoplada del ViewModel). */
+/** Settings screen actions (an interface to keep the UI decoupled from the ViewModel). */
 interface SettingsActions {
     fun setCloudEnabled(enabled: Boolean)
     fun setApiKey(key: String)
@@ -186,7 +186,7 @@ class SettingsViewModel(private val app: TaskManagerApplication) : ViewModel(), 
         checkNano()
     }
 
-    // ── IA ──────────────────────────────────────────────────────────────────
+    // ── AI ──────────────────────────────────────────────────────────────────
     override fun setCloudEnabled(enabled: Boolean) = app.settings.update { it.copy(cloudEnabled = enabled) }
     override fun setApiKey(key: String) {
         app.settings.update { it.copy(cloudApiKey = key) }
@@ -235,7 +235,7 @@ class SettingsViewModel(private val app: TaskManagerApplication) : ViewModel(), 
         }
     }
 
-    // ── Preferencias ────────────────────────────────────────────────────────
+    // ── Preferences ─────────────────────────────────────────────────────────
     override fun setWorkHours(start: Int, end: Int) = app.settings.update { it.copy(workStartHour = start, workEndHour = end) }
 
     override fun setReminderLead(minutes: Int) {
@@ -245,12 +245,12 @@ class SettingsViewModel(private val app: TaskManagerApplication) : ViewModel(), 
 
     override fun setVoiceLanguage(tag: String) = app.settings.update { it.copy(voiceLanguage = tag) }
 
-    // ── Calendario ──────────────────────────────────────────────────────────
+    // ── Calendar ────────────────────────────────────────────────────────────
     override fun setCalendarSync(enabled: Boolean) {
         app.settings.update { it.copy(calendarSyncEnabled = enabled) }
         if (enabled) viewModelScope.launch {
             loadCalendars()
-            // Si no hay calendario elegido, usar el primero (normalmente el principal de Google)
+            // If no calendar is chosen, use the first one (usually the main Google one)
             if (app.settings.current.calendarId < 0) system.value.calendars.firstOrNull()?.let { selectCalendar(it.id) }
             app.calendarSync.syncAll()
         }
@@ -279,11 +279,11 @@ class SettingsViewModel(private val app: TaskManagerApplication) : ViewModel(), 
     }
 
     override fun disconnectGoogleTasks() {
-        // Las tareas locales se conservan; solo se deja de sincronizar
+        // Local tasks are kept; only syncing stops
         app.settings.update { it.copy(googleTasksEnabled = false) }
     }
 
-    // ── Apariencia y voz ────────────────────────────────────────────────────
+    // ── Appearance and voice ────────────────────────────────────────────────
     override fun setThemeMode(mode: String) = app.settings.update { it.copy(themeMode = mode) }
 
     override fun disableWakeWord() {
@@ -295,12 +295,12 @@ class SettingsViewModel(private val app: TaskManagerApplication) : ViewModel(), 
 
     fun onWakeWordError(message: String?) = system.update { it.copy(wakeWordError = message) }
 
-    // ── «Entrenar mi voz» ───────────────────────────────────────────────────
+    // ── "Train my voice" ────────────────────────────────────────────────────
 
-    /** Requiere el modelo descargado y permiso de micrófono. «Oye Lumi» se pausa para liberar el micro. */
+    /** Needs the downloaded model and the microphone permission. "Oye Lumi" is paused to free the microphone. */
     override fun startVoiceTraining() {
         if (!app.wakeWordModel.isReady()) {
-            enrollState.value = VoiceEnroller.State.Failed("Primero activa «Oye Lumi» para descargar el modelo de voz")
+            enrollState.value = VoiceEnroller.State.Failed(io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("Primero activa «Oye Lumi» para descargar el modelo de voz", "First turn on «Oye Lumi» to download the voice model"))
             return
         }
         WakeWordService.pause(app)
@@ -328,7 +328,7 @@ class SettingsViewModel(private val app: TaskManagerApplication) : ViewModel(), 
 
     override fun setVoiceSensitivity(level: WakePhrases.Sensitivity) { app.voiceProfile.sensitivity = level }
 
-    // ── Respuestas habladas y Now Bar ──────────────────────────────────────
+    // ── Spoken replies and Now Bar ─────────────────────────────────────────
     override fun setSpeakReplies(enabled: Boolean) {
         app.settings.update { it.copy(speakReplies = enabled) }
         if (!enabled) app.speaker.stop()
@@ -351,16 +351,16 @@ class SettingsViewModel(private val app: TaskManagerApplication) : ViewModel(), 
         app.checkIn.schedule()
     }
 
-    // ── Lugares ─────────────────────────────────────────────────────────────
+    // ── Places ──────────────────────────────────────────────────────────────
 
-    /** Guarda la ubicación actual como [key]. La Activity pide antes el permiso de ubicación. */
+    /** Saves the current location as [key]. The Activity asks for the location permission first. */
     fun savePlaceHere(key: String, label: String) {
         viewModelScope.launch { app.liveUpdates.refresh() } // también recalcula el estado del chip
         placesStatus.update { it.copy(saving = key, error = null) }
         viewModelScope.launch {
             val location = app.placeReminders.currentLocation()
             if (location == null) {
-                placesStatus.update { it.copy(saving = null, error = "No he podido obtener tu ubicación. Activa la ubicación del móvil y vuelve a intentarlo.") }
+                placesStatus.update { it.copy(saving = null, error = io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("No he podido obtener tu ubicación. Activa la ubicación del móvil y vuelve a intentarlo.", "I couldn't get your location. Turn on the phone's location and try again.")) }
                 return@launch
             }
             app.places.save(PlacesStore.SavedPlace(key, label, location.latitude, location.longitude))
@@ -374,7 +374,7 @@ class SettingsViewModel(private val app: TaskManagerApplication) : ViewModel(), 
 
     override suspend fun searchPlaces(query: String) = app.placeSearch.search(query)
 
-    /** Guarda un lugar buscado por dirección (sin necesidad de estar allí). */
+    /** Saves a place found by address (no need to be there). */
     override fun addPlace(name: String, result: io.github.salex27.lumi.data.places.PlaceSearch.Result) {
         val label = name.trim().ifBlank { result.name }.replaceFirstChar { it.uppercase() }
         app.places.save(
@@ -386,8 +386,8 @@ class SettingsViewModel(private val app: TaskManagerApplication) : ViewModel(), 
         viewModelScope.launch { app.placeReminders.resyncAll() }
     }
 
-    // ── Memoria personal ────────────────────────────────────────────────────
-    /** Recuerdos guardados (Ajustes → Memoria). Solo en el móvil. */
+    // ── Personal memory ─────────────────────────────────────────────────────
+    /** Saved memories (Settings → Memory). Stored only on the phone. */
     val memories = app.memoryStore.observe().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     override fun addMemory(text: String) {
@@ -409,7 +409,7 @@ class SettingsViewModel(private val app: TaskManagerApplication) : ViewModel(), 
         super.onCleared()
     }
 
-    // ── Permisos ────────────────────────────────────────────────────────────
+    // ── Permissions ─────────────────────────────────────────────────────────
     override fun refreshPermissions() {
         val notifications = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(app, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
@@ -428,7 +428,7 @@ class SettingsViewModel(private val app: TaskManagerApplication) : ViewModel(), 
         }
         viewModelScope.launch {
             if (app.deviceCalendar.canRead()) loadCalendars()
-            // Si se acaba de conceder "alarmas exactas", reprogramar para que pasen a ser exactas
+            // If "exact alarms" was just granted, reschedule so they become exact
             app.repository.rescheduleAllReminders()
         }
     }

@@ -1,4 +1,6 @@
 package io.github.salex27.lumi.presentation.assistant
+import io.github.salex27.lumi.R
+import androidx.compose.ui.res.stringResource
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -82,10 +84,10 @@ import io.github.salex27.lumi.presentation.components.TypewriterText
 import io.github.salex27.lumi.presentation.theme.Lumi
 
 /**
- * Asistente de Lumi.
- * - Compacto (fuera de la app: botón lateral, «Oye Lumi», widget, tile): píldora flotante tipo Siri/Gemini, voz primero.
- *   Tocar el logo cambia a escribir. La respuesta aparece en una tarjeta encima; tocarla abre la conversación completa.
- * - Completo (desde la barra de la app): panel de conversación.
+ * Lumi's assistant.
+ * - Compact (outside the app: side button, "Oye Lumi", widget, tile): a floating Siri/Gemini-style pill, voice first.
+ *   Tapping the logo switches to typing. The reply appears in a card above it; tapping it opens the full conversation.
+ * - Full (from the app's bar): a conversation panel.
  */
 @Composable
 fun AssistantScreen(
@@ -146,7 +148,7 @@ fun AssistantScreen(
     }
 }
 
-// ── Modo compacto (Siri/Gemini) ────────────────────────────────────────────
+// ── Compact mode (Siri/Gemini) ────────────────────────────────────────────
 
 @Composable
 private fun CompactAssistant(
@@ -172,14 +174,14 @@ private fun CompactAssistant(
     var input by remember { mutableStateOf("") }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
-    // El saludo inicial (id 0) no se muestra en modo compacto: solo respuestas reales
+    // The initial greeting (id 0) isn't shown in compact mode: only real replies
     val lastReply = state.messages.lastOrNull { it is ChatMessage.Assistant && it.id != 0L } as? ChatMessage.Assistant
 
     LaunchedEffect(typing) { if (typing) { runCatching { focus.requestFocus() }; keyboard?.show() } }
 
-    // Entrada: la píldora cae desde arriba (como una notificación / Dynamic Island)
+    // Entrance: the pill drops from the top (like a notification / Dynamic Island)
     val appear = remember { MutableTransitionState(false).apply { targetState = true } }
-    // Deslizar la píldora hacia arriba la cierra
+    // Swiping the pill up closes it
     var dragY by remember { mutableFloatStateOf(0f) }
     val dismissPx = with(LocalDensity.current) { 64.dp.toPx() }
 
@@ -213,23 +215,23 @@ private fun CompactAssistant(
             }
         }
 
-        // Confirmación: Lumi se abrió sola y lo que oyó no parece una orden
+        // Confirmation: Lumi opened on its own and what it heard doesn't sound like a command
         AnimatedVisibility(state.pendingConfirmation != null, enter = fadeIn() + slideInVertically { -it / 3 }) {
             state.pendingConfirmation?.let { heard ->
                 Column(
                     Modifier.widthIn(max = 560.dp).fillMaxWidth().padding(top = 12.dp)
                         .shadow(24.dp, RoundedCornerShape(26.dp)).clip(RoundedCornerShape(26.dp)).background(c.elevated).padding(18.dp)
                 ) {
-                    Text("He oído «$heard». ¿Quieres que lo apunte?", style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
+                    Text(stringResource(R.string.confirm_heard, heard), style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
                     Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        PillButton("Sí, apúntalo", onClick = onConfirmPending)
-                        PillButton("No", style = PillStyle.SECONDARY, onClick = onDiscardPending)
+                        PillButton(stringResource(R.string.confirm_yes), onClick = onConfirmPending)
+                        PillButton(stringResource(R.string.no), style = PillStyle.SECONDARY, onClick = onDiscardPending)
                     }
                 }
             }
         }
 
-        // La respuesta aparece debajo de la píldora; tocarla abre la conversación completa
+        // The reply appears under the pill; tapping it opens the full conversation
         AnimatedVisibility(lastReply != null && state.pendingConfirmation == null, enter = fadeIn() + slideInVertically { -it / 3 }) {
             lastReply?.let { msg ->
                 Column(
@@ -247,7 +249,7 @@ private fun CompactAssistant(
     }
 }
 
-/** Interior de la píldora compacta: logo (voz ↔ escribir) + texto de estado o campo de texto. */
+/** Inside of the compact pill: logo (voice ↔ typing) + status text or text field. */
 @Composable
 private fun RowScope.CompactPillContent(
     state: AssistantUiState,
@@ -267,7 +269,7 @@ private fun RowScope.CompactPillContent(
     hideKeyboard: () -> Unit
 ) {
     val c = Lumi.colors
-    // El logo: en voz, tocarlo cambia a escribir; escribiendo, tocarlo vuelve a la voz
+    // The logo: in voice mode, tapping it switches to typing; while typing, tapping it goes back to voice
     Box(
         Modifier.size(52.dp).clip(CircleShape).clickable {
             if (typing && micAvailable) { onTypingChange(false); hideKeyboard(); onStartVoice() }
@@ -278,7 +280,7 @@ private fun RowScope.CompactPillContent(
     Spacer(Modifier.width(8.dp))
     if (typing) {
         Box(Modifier.weight(1f)) {
-            if (input.isEmpty()) Text("Escribe a Lumi…", style = MaterialTheme.typography.bodyLarge, color = c.textTertiary)
+            if (input.isEmpty()) Text(stringResource(R.string.compact_type_hint), style = MaterialTheme.typography.bodyLarge, color = c.textTertiary)
             BasicTextField(
                 value = input, onValueChange = onInputChange, singleLine = true,
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = c.textPrimary),
@@ -293,10 +295,10 @@ private fun RowScope.CompactPillContent(
         Text(
             when {
                 isListening && liveTranscript.isNotBlank() -> liveTranscript
-                isListening -> "Te escucho…"
-                state.isThinking -> "Pensando…"
-                state.voiceError != null -> "${state.voiceError} Toca para reintentar."
-                else -> "Toca aquí para hablar o el logo para escribir"
+                isListening -> stringResource(R.string.voice_listening)
+                state.isThinking -> stringResource(R.string.thinking)
+                state.voiceError != null -> stringResource(R.string.voice_error_retry, state.voiceError)
+                else -> stringResource(R.string.compact_idle_hint)
             },
             style = MaterialTheme.typography.bodyLarge,
             color = when {
@@ -310,7 +312,7 @@ private fun RowScope.CompactPillContent(
     }
 }
 
-/** Opciones de «¿Te refieres a…?» / «¿A cuál?»: se tocan o se contesta «la segunda», «sí», «no». */
+/** Options for "Did you mean…?" / "Which one?": tapped or answered with "the second one", "yes", "no". */
 @Composable
 private fun OptionList(labels: List<String>, onPick: (Int) -> Unit, onNone: () -> Unit) {
     val c = Lumi.colors
@@ -326,12 +328,12 @@ private fun OptionList(labels: List<String>, onPick: (Int) -> Unit, onNone: () -
                 Text(label, style = MaterialTheme.typography.bodyLarge, color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        Text("Ninguna", style = MaterialTheme.typography.labelLarge, color = c.textSecondary,
+        Text(stringResource(R.string.none_of_them), style = MaterialTheme.typography.labelLarge, color = c.textSecondary,
             modifier = Modifier.clip(RoundedCornerShape(50)).clickable(onClick = onNone).padding(horizontal = 14.dp, vertical = 8.dp))
     }
 }
 
-// ── Modo completo (conversación) ──────────────────────────────────────────
+// ── Full mode (conversation) ──────────────────────────────────────────────
 
 @Composable
 private fun FullAssistant(
@@ -376,8 +378,8 @@ private fun FullAssistant(
                     Text("Lumi", style = MaterialTheme.typography.titleMedium, color = c.textPrimary)
                     Text(activeEngine, style = MaterialTheme.typography.labelMedium, color = c.textTertiary, maxLines = 1)
                 }
-                IconButton(onClick = onOpenApp) { Icon(Icons.Outlined.OpenInFull, "Abrir la app", tint = c.textSecondary, modifier = Modifier.size(20.dp)) }
-                IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Cerrar", tint = c.textSecondary) }
+                IconButton(onClick = onOpenApp) { Icon(Icons.Outlined.OpenInFull, stringResource(R.string.open_app), tint = c.textSecondary, modifier = Modifier.size(20.dp)) }
+                IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, stringResource(R.string.close), tint = c.textSecondary) }
             }
 
             LazyColumn(state = listState, modifier = Modifier.weight(1f, fill = false).padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -412,16 +414,17 @@ private fun FullAssistant(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         LumiMark(LumiState.THINKING, size = 22.dp)
                         Spacer(Modifier.width(8.dp))
-                        Text("Pensando…", style = MaterialTheme.typography.bodyMedium, color = c.textSecondary)
+                        Text(stringResource(R.string.thinking), style = MaterialTheme.typography.bodyMedium, color = c.textSecondary)
                     }
                 }
             }
 
             AnimatedVisibility(!state.isThinking && !isListening) {
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Suggestion("¿Qué hago ahora?", onPlanDay)
-                    Suggestion("¿Cómo voy?", onBriefing)
-                    Suggestion("Recuérdame…") { input = "Recuérdame " }
+                    Suggestion(stringResource(R.string.prompt_what_now), onPlanDay)
+                    Suggestion(stringResource(R.string.suggest_how_am_i), onBriefing)
+                    val remindPrefix = stringResource(R.string.suggest_remind_me_prefix)
+                    Suggestion(stringResource(R.string.suggest_remind_me)) { input = remindPrefix }
                 }
             }
 
@@ -438,9 +441,9 @@ private fun FullAssistant(
                 Box(Modifier.weight(1f)) {
                     if (input.isEmpty()) Text(
                         when {
-                            isListening -> "Te escucho…"
+                            isListening -> stringResource(R.string.voice_listening)
                             state.voiceError != null -> state.voiceError
-                            else -> "Escribe o toca el logo para hablar"
+                            else -> stringResource(R.string.full_input_hint)
                         },
                         style = MaterialTheme.typography.bodyLarge,
                         color = if (state.voiceError != null && !isListening) c.danger else c.textTertiary, maxLines = 2
@@ -462,7 +465,7 @@ private fun FullAssistant(
 private fun SendButton(onClick: () -> Unit) {
     val c = Lumi.colors
     Box(Modifier.padding(start = 6.dp).size(40.dp).clip(CircleShape).background(c.accent).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
-        Icon(Icons.AutoMirrored.Filled.ArrowForward, "Enviar", tint = c.onAccent, modifier = Modifier.size(20.dp))
+        Icon(Icons.AutoMirrored.Filled.ArrowForward, stringResource(R.string.cd_send), tint = c.onAccent, modifier = Modifier.size(20.dp))
     }
 }
 

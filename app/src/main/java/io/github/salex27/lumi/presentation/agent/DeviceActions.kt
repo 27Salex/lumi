@@ -1,4 +1,5 @@
 package io.github.salex27.lumi.presentation.agent
+import io.github.salex27.lumi.domain.assistant.ReplyLanguage
 
 import android.Manifest
 import android.app.NotificationManager
@@ -21,9 +22,9 @@ import io.github.salex27.lumi.service.notify.LumiNotificationListener
 import java.text.Normalizer
 
 /**
- * Ejecuta las acciones del móvil que pide el usuario («llama a mamá», «pon una alarma a las 7», «abre Spotify»…)
- * con intents estándar de Android. Llamar y escribir por nombre usan la agenda (READ_CONTACTS); si falta el permiso,
- * se pide y se vuelve a intentar.
+ * Runs the phone actions the user asks for ("call mum", "set an alarm at 7", "open Spotify"…) with standard Android
+ * intents. Calling and texting by name use the address book (READ_CONTACTS); if the permission is missing, it is
+ * requested and retried.
  */
 object DeviceActions {
 
@@ -32,10 +33,10 @@ object DeviceActions {
     sealed interface Outcome {
         data class Done(val note: String? = null) : Outcome
         data class NeedsPermission(val permissions: Array<String>) : Outcome
-        /** Varios contactos (o números) posibles: la UI pregunta cuál. */
+        /** Several possible contacts (or numbers): the UI asks which one. */
         data class ChooseContact(val command: DeviceCommand, val options: List<Contact>) : Outcome
         data class Failed(val message: String) : Outcome
-        /** Falta un acceso especial que se da en una pantalla del sistema (No molestar, notificaciones). */
+        /** A special access granted on a system screen is missing (Do Not Disturb, notifications). */
         data class NeedsAccess(val intent: Intent, val message: String) : Outcome
     }
 
@@ -68,14 +69,14 @@ object DeviceActions {
             is DeviceCommand.DoNotDisturb -> doNotDisturb(context, command.on)
             is DeviceCommand.ReplyMessage ->
                 if (LumiNotificationListener.reply(context, command.key, command.text)) Outcome.Done()
-                // La notificación ya no está (se leyó en el móvil): se abre WhatsApp/SMS con el texto escrito
+                // The notification is gone (read on the phone): WhatsApp/SMS opens with the text written
                 else message(context, DeviceCommand.Message(command.contact, command.text, !command.app.contains("mensaje", true)), null)
         }
     } catch (e: SecurityException) {
-        Outcome.Failed("Android no me deja hacerlo: ${e.message}")
+        Outcome.Failed(ReplyLanguage.t("Android no me deja hacerlo: ", "Android won't let me do it: ") + e.message)
     }
 
-    // ── Llamar y escribir a contactos ──────────────────────────────────────
+    // ── Calling and texting contacts ───────────────────────────────────────
 
     private fun call(context: Context, command: DeviceCommand.Call, chosen: Contact?): Outcome {
         val number = chosen?.number ?: literalNumber(command.contact) ?: run {
@@ -83,12 +84,12 @@ object DeviceActions {
                 return Outcome.NeedsPermission(arrayOf(Manifest.permission.READ_CONTACTS, Manifest.permission.CALL_PHONE))
             }
             when (val found = pick(findContacts(context, command.contact))) {
-                null -> return Outcome.Failed("No encuentro a «${command.contact}» en tus contactos.")
+                null -> return Outcome.Failed(ReplyLanguage.t("No encuentro a «${command.contact}» en tus contactos.", "I can't find «${command.contact}» in your contacts."))
                 is Pick.One -> found.contact.number
                 is Pick.Many -> return Outcome.ChooseContact(command, found.options)
             }
         }
-        // Con permiso de llamadas, llama directamente. Si falta, se pide UNA vez; si se deniega, se abre el marcador
+        // With the call permission, it calls directly. If missing, it is asked ONCE; if denied, the dialer opens
         if (!granted(context, Manifest.permission.CALL_PHONE) && !askedCallPermission(context)) {
             markCallPermissionAsked(context)
             return Outcome.NeedsPermission(arrayOf(Manifest.permission.CALL_PHONE))
@@ -101,13 +102,13 @@ object DeviceActions {
         val number = chosen?.number ?: literalNumber(command.contact) ?: run {
             if (!granted(context, Manifest.permission.READ_CONTACTS)) return Outcome.NeedsPermission(arrayOf(Manifest.permission.READ_CONTACTS))
             when (val found = pick(findContacts(context, command.contact))) {
-                null -> return Outcome.Failed("No encuentro a «${command.contact}» en tus contactos.")
+                null -> return Outcome.Failed(ReplyLanguage.t("No encuentro a «${command.contact}» en tus contactos.", "I can't find «${command.contact}» in your contacts."))
                 is Pick.One -> found.contact.number
                 is Pick.Many -> return Outcome.ChooseContact(command, found.options)
             }
         }
         return if (command.whatsapp) {
-            // wa.me abre el chat con el texto escrito; el usuario solo pulsa enviar
+            // wa.me opens the chat with the text written; the user just taps send
             start(context, Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/${internationalDigits(context, number)}?text=${Uri.encode(command.text)}")))
         } else {
             start(context, Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:${Uri.encode(number)}")).putExtra("sms_body", command.text))
@@ -132,11 +133,11 @@ object DeviceActions {
     }
 
     /**
-     * Contactos cuyo nombre (o apodo) encaja, sin tildes ni mayúsculas y sin los prefijos de acceso rápido
-     * («AA Mamá», «AAA Víctor», «★ Ana»): exacto > empieza por > contiene.
+     * Contacts whose name (or nickname) matches, ignoring accents and case and the quick-access prefixes
+     * ("AA Mamá", "AAA Víctor", "★ Ana"): exact > starts with > contains.
      */
     fun findContacts(context: Context, name: String): List<Contact> {
-        val q = cleanName(plain(name).removePrefix("a ").removePrefix("al ").removePrefix("mi ").trim())
+        val q = cleanName(plain(name).removePrefix("a ").removePrefix("al ").removePrefix("mi ").removePrefix("to ").removePrefix("my ").trim())
         if (q.isBlank()) return emptyList()
         val nicknames = nicknames(context)
         val out = mutableListOf<Pair<Int, Contact>>()
@@ -170,11 +171,11 @@ object DeviceActions {
             .distinctBy { it.number.filter(Char::isDigit).takeLast(9) }
     }
 
-    /** Prefijos para que un contacto salga el primero en la agenda: «aa», «aaa», «a.», «00», símbolos. */
-    // Solo con espacio detrás: «aa mama» → «mama», pero «aaron» se queda como está
+    /** Prefixes that put a contact first in the address book: "aa", "aaa", "a.", "00", symbols. */
+    // Only with a space after: "aa mama" → "mama", but "aaron" stays as it is
     private fun cleanName(n: String): String = n.replace(Regex("^(?:a{2,}|0{2,}|z{2,}|x{2,})\\s+"), "").trim()
 
-    /** Apodos (campo «Apodo» del contacto) por id de contacto. */
+    /** Nicknames (the contact's "Nickname" field) by contact id. */
     private fun nicknames(context: Context): Map<Long, List<String>> {
         val out = HashMap<Long, MutableList<String>>()
         runCatching {
@@ -189,10 +190,10 @@ object DeviceActions {
         return out
     }
 
-    /** «llama al 600 123 456» → número tal cual. */
+    /** "call 600 123 456" → the number as is. */
     private fun literalNumber(text: String): String? = text.filter { it.isDigit() || it == '+' }.takeIf { it.count(Char::isDigit) >= 6 }
 
-    /** Número en formato internacional sin «+» (lo que pide wa.me). Sin prefijo → el del país de la SIM. */
+    /** Number in international format without "+" (what wa.me wants). No prefix → the SIM country's. */
     private fun internationalDigits(context: Context, number: String): String {
         val raw = number.filter { it.isDigit() || it == '+' }
         return when {
@@ -207,7 +208,7 @@ object DeviceActions {
         return mapOf("ES" to "34", "MX" to "52", "AR" to "54", "CO" to "57", "CL" to "56", "PE" to "51", "US" to "1", "GB" to "44", "FR" to "33", "DE" to "49", "IT" to "39", "PT" to "351")[iso]
     }
 
-    // ── Apps, música, linterna ─────────────────────────────────────────────
+    // ── Apps, music, flashlight ────────────────────────────────────────────
 
     private fun openApp(context: Context, name: String): Outcome {
         val pm = context.packageManager
@@ -218,8 +219,8 @@ object DeviceActions {
             ?: apps.firstOrNull { it.second.startsWith(q) }
             ?: apps.firstOrNull { it.second.contains(q) }
             ?: apps.firstOrNull { editDistance(it.second, q) <= 2 }
-            ?: return Outcome.Failed("No encuentro ninguna app llamada «$name».")
-        val intent = pm.getLaunchIntentForPackage(match.first) ?: return Outcome.Failed("No puedo abrir «$name».")
+            ?: return Outcome.Failed(ReplyLanguage.t("No encuentro ninguna app llamada «$name».", "I can't find any app called «$name»."))
+        val intent = pm.getLaunchIntentForPackage(match.first) ?: return Outcome.Failed(ReplyLanguage.t("No puedo abrir «$name».", "I can't open «$name»."))
         return start(context, intent)
     }
 
@@ -238,15 +239,15 @@ object DeviceActions {
     }
 
     /**
-     * No molestar con el acceso «No molestar» (se concede una vez). En Android 15+ esto activa el modo propio de
-     * Lumi, que el sistema muestra como «No molestar (Lumi)».
+     * Do Not Disturb through the "Do Not Disturb access" (granted once). On Android 15+ this turns on Lumi's own mode,
+     * which the system shows as "Do Not Disturb (Lumi)".
      */
     private fun doNotDisturb(context: Context, on: Boolean): Outcome {
         val nm = context.getSystemService(NotificationManager::class.java)
         if (!nm.isNotificationPolicyAccessGranted) {
             return Outcome.NeedsAccess(
                 Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS),
-                "Para activar No molestar necesito permiso: activa Lumi en la lista y vuelve a pedírmelo."
+                ReplyLanguage.t("Para activar No molestar necesito permiso: activa Lumi en la lista y vuelve a pedírmelo.", "To turn on Do Not Disturb I need permission: enable Lumi in the list and ask me again.")
             )
         }
         nm.setInterruptionFilter(if (on) NotificationManager.INTERRUPTION_FILTER_PRIORITY else NotificationManager.INTERRUPTION_FILTER_ALL)
@@ -256,18 +257,18 @@ object DeviceActions {
     private fun flashlight(context: Context, on: Boolean): Outcome {
         val cm = context.getSystemService(CameraManager::class.java)
         val id = cm.cameraIdList.firstOrNull { cm.getCameraCharacteristics(it).get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true }
-            ?: return Outcome.Failed("Este móvil no tiene linterna.")
+            ?: return Outcome.Failed(ReplyLanguage.t("Este móvil no tiene linterna.", "This phone has no flashlight."))
         cm.setTorchMode(id, on)
         return Outcome.Done()
     }
 
-    // ── Utilidades ──────────────────────────────────────────────────────────
+    // ── Utilities ───────────────────────────────────────────────────────────
 
     private fun start(context: Context, intent: Intent): Outcome = try {
         context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         Outcome.Done()
     } catch (e: ActivityNotFoundException) {
-        Outcome.Failed("No hay ninguna app instalada que pueda hacerlo.")
+        Outcome.Failed(ReplyLanguage.t("No hay ninguna app instalada que pueda hacerlo.", "There's no installed app that can do that."))
     }
 
     private fun granted(context: Context, permission: String) =

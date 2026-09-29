@@ -1,4 +1,5 @@
 package io.github.salex27.lumi.presentation.ai
+import io.github.salex27.lumi.domain.assistant.ReplyLanguage
 
 import android.content.Context
 import android.content.Intent
@@ -15,14 +16,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.util.Locale
 
 /**
- * Reconocimiento de voz del sistema (SpeechRecognizer) + nivel de audio para la animación.
+ * System speech recognition (SpeechRecognizer) + audio level for the animation.
  *
- * v3.7 — **no corta al hacer una pausa**: el reconocedor de Google da el resultado en cuanto hay ~1 s de silencio
- * (e ignora los extras para alargarlo). Así que al llegar un resultado se guarda y se vuelve a escuchar; solo se
- * envía cuando pasan [pauseMillis] sin que vuelvas a hablar. Lo que dices en varios trozos llega como una frase.
+ * v3.7 — **doesn't cut off on a pause**: Google's recognizer returns the result after ~1 s of silence (and ignores the
+ * extras that should lengthen it). So when a result arrives it is kept and listening starts again; it is only sent
+ * once [pauseMillis] pass without you talking again. What you say in several chunks arrives as one sentence.
  *
- * @param languageTag idioma BCP-47 del reconocimiento ("es-ES", "en-US"...). Se lee en cada escucha.
- * @param pauseMillis silencio que da por terminada la frase (Ajustes → Voz).
+ * @param languageTag BCP-47 recognition language ("es-ES", "en-US"...). Read on every listening.
+ * @param pauseMillis silence that ends the sentence (Settings → Voice).
  */
 class VoiceSpeechManager(
     private val context: Context,
@@ -46,9 +47,9 @@ class VoiceSpeechManager(
     private val _liveTranscript = MutableStateFlow("")
     val liveTranscript: StateFlow<String> = _liveTranscript.asStateFlow()
 
-    /** Lo reconocido hasta ahora en esta escucha (varios trozos). */
+    /** What has been recognized so far in this listening (several chunks). */
     private var buffer = ""
-    /** Tras un trozo, esperando a ver si sigues hablando. */
+    /** After a chunk, waiting to see if you keep talking. */
     private var awaitingMore = false
     private var session = 0
     private var finalCallback: ((String) -> Unit)? = null
@@ -56,8 +57,8 @@ class VoiceSpeechManager(
     fun isAvailable(): Boolean = SpeechRecognizer.isRecognitionAvailable(context)
 
     /**
-     * @param quiet escucha de continuación de la conversación: si no dices nada se cierra en silencio
-     *        (llama a [onSilence]) en vez de mostrar «No te he oído».
+     * @param quiet follow-up listening in a conversation: if you say nothing it closes silently (calls [onSilence])
+     *        instead of showing "I didn't hear you".
      */
     fun startListening(
         onFinalResult: (String) -> Unit,
@@ -66,7 +67,7 @@ class VoiceSpeechManager(
         onSilence: () -> Unit = {}
     ) {
         if (!isAvailable()) {
-            onError("El reconocimiento de voz no está habilitado en este dispositivo.")
+            onError(ReplyLanguage.ui("El reconocimiento de voz no está habilitado en este dispositivo.", "Speech recognition isn't enabled on this device."))
             return
         }
         stopListening()
@@ -80,7 +81,7 @@ class VoiceSpeechManager(
             handler.removeCallbacksAndMessages(null)
             val text = buffer.trim()
             stopListening()
-            if (text.isNotBlank()) onFinalResult(text) else if (quiet) onSilence() else onError("No se detectó texto en la orden.")
+            if (text.isNotBlank()) onFinalResult(text) else if (quiet) onSilence() else onError(ReplyLanguage.ui("No se detectó texto en la orden.", "No text was detected."))
         }
 
         try {
@@ -91,7 +92,7 @@ class VoiceSpeechManager(
                     }
 
                     override fun onBeginningOfSpeech() {
-                        // Sigues hablando: no se envía todavía
+                        // Still talking: not sent yet
                         handler.removeCallbacksAndMessages(null)
                         awaitingMore = false
                     }
@@ -109,25 +110,28 @@ class VoiceSpeechManager(
                     override fun onError(error: Int) {
                         if (mySession != session) return
                         _rmsAmplitude.value = 0f
-                        // Esperando más y no dijo nada (o no se entendió) → se envía lo que ya había
+                        // Waiting for more and nothing was said (or understood) → send what was already there
                         val silence = error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
                         if (buffer.isNotBlank() && (awaitingMore || silence || error == SpeechRecognizer.ERROR_CLIENT)) { finish(); return }
                         if (quiet && silence) { stopListening(); onSilence(); return }
                         stopListening()
                         val msg = when (error) {
-                            SpeechRecognizer.ERROR_AUDIO -> "Error de grabación de audio."
-                            SpeechRecognizer.ERROR_NO_MATCH -> "No te he entendido."
-                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No te he oído."
-                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "El micrófono está ocupado por otra app."
-                            SpeechRecognizer.ERROR_CLIENT -> "El reconocimiento de voz se interrumpió."
+                            SpeechRecognizer.ERROR_AUDIO -> ReplyLanguage.ui("Error de grabación de audio.", "Audio recording error.")
+                            SpeechRecognizer.ERROR_NO_MATCH -> ReplyLanguage.ui("No te he entendido.", "I didn't catch that.")
+                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> ReplyLanguage.ui("No te he oído.", "I didn't hear you.")
+                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> ReplyLanguage.ui("El micrófono está ocupado por otra app.", "Another app is using the microphone.")
+                            SpeechRecognizer.ERROR_CLIENT -> ReplyLanguage.ui("El reconocimiento de voz se interrumpió.", "Speech recognition was interrupted.")
                             SpeechRecognizer.ERROR_SERVER, SpeechRecognizer.ERROR_SERVER_DISCONNECTED ->
-                                "El servicio de voz de Google no responde; prueba con conexión o instala el idioma sin conexión."
+                                ReplyLanguage.ui("El servicio de voz de Google no responde; prueba con conexión o instala el idioma sin conexión.",
+                                    "Google's speech service isn't responding; try with a connection or install the offline language.")
                             SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT ->
-                                "Sin conexión suficiente para la voz. Descarga «Español» sin conexión en Ajustes → Idioma → Reconocimiento de voz."
-                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Falta el permiso de micrófono (RECORD_AUDIO)."
+                                ReplyLanguage.ui("Sin conexión suficiente para la voz. Descarga el idioma sin conexión en Ajustes → Idioma → Reconocimiento de voz.",
+                                    "Not enough connection for voice. Download the offline language in Settings → Language → Speech recognition.")
+                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> ReplyLanguage.ui("Falta el permiso de micrófono (RECORD_AUDIO).", "The microphone permission (RECORD_AUDIO) is missing.")
                             SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED, SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE ->
-                                "El idioma de voz no está disponible. Descarga el paquete de voz en Ajustes del sistema → Idioma → Reconocimiento de voz."
-                            else -> "No se pudo capturar audio (código $error)."
+                                ReplyLanguage.ui("El idioma de voz no está disponible. Descarga el paquete de voz en Ajustes del sistema → Idioma → Reconocimiento de voz.",
+                                    "The voice language isn't available. Download the voice pack in system Settings → Language → Speech recognition.")
+                            else -> ReplyLanguage.ui("No se pudo capturar audio (código $error).", "Couldn't capture audio (code $error).")
                         }
                         Log.w(TAG, "SpeechRecognizer error: $msg")
                         onError(msg)
@@ -140,7 +144,7 @@ class VoiceSpeechManager(
                         if (text.isNotBlank()) buffer = (buffer + " " + text).trim()
                         _liveTranscript.value = buffer
                         if (buffer.isBlank()) { finish(); return }
-                        // Trozo recibido: se vuelve a escuchar un momento por si sigues hablando
+                        // Chunk received: listen again for a moment in case you keep talking
                         awaitingMore = true
                         runCatching { startListening(intent()) }.onFailure { finish(); return }
                         handler.postDelayed({ if (awaitingMore) finish() }, pauseMillis())
@@ -164,7 +168,7 @@ class VoiceSpeechManager(
         } catch (e: Exception) {
             _isListening.value = false
             _rmsAmplitude.value = 0f
-            onError("Error al iniciar el micrófono: ${e.localizedMessage}")
+            onError(ReplyLanguage.ui("Error al iniciar el micrófono: ", "Could not start the microphone: ") + e.localizedMessage)
         }
     }
 
@@ -172,17 +176,17 @@ class VoiceSpeechManager(
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
         val lang = languageTag()
         putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
-        // Algunos reconocedores (Google/Samsung) ignoran EXTRA_LANGUAGE sin la preferencia
+        // Some recognizers (Google/Samsung) ignore EXTRA_LANGUAGE without the preference
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, lang)
         putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, lang)
         putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
         putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-        // Pistas de silencio (muchos reconocedores las ignoran; por eso existe la escucha encadenada)
+        // Silence hints (many recognizers ignore them; that is why chained listening exists)
         putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, pauseMillis())
         putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, pauseMillis())
     }
 
-    /** Terminar ya (botón de parar): si ya había texto, se envía. */
+    /** Finish now (stop button): if there was text already, it is sent. */
     fun finishNow() {
         val text = buffer.trim()
         val cb = finalCallback
@@ -198,7 +202,7 @@ class VoiceSpeechManager(
             speechRecognizer?.stopListening()
             speechRecognizer?.destroy()
         } catch (e: Exception) {
-            Log.w(TAG, "Error al detener SpeechRecognizer: ${e.message}")
+            Log.w(TAG, "Error stopping SpeechRecognizer: ${e.message}")
         } finally {
             speechRecognizer = null
             _isListening.value = false
