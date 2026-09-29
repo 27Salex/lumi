@@ -31,8 +31,8 @@ import java.time.LocalTime
 import java.time.ZoneId
 
 /**
- * Resumen de la mañana (por defecto 8:00): el tiempo, lo primero del día, lo pendiente y avisos del tiempo para tus
- * tareas. Lo redactan reglas (no la IA): llega aunque Gemma no esté cargada y no gasta peticiones.
+ * Morning summary (8:00 by default): the weather, the first thing of the day, what's pending and weather warnings for
+ * your tasks. Written by rules (not the AI): it arrives even if Gemma isn't loaded and uses no requests.
  */
 class MorningScheduler(private val context: Context, private val settings: SettingsRepository) {
 
@@ -54,8 +54,8 @@ class MorningScheduler(private val context: Context, private val settings: Setti
         )
 
         /**
-         * Botón de notificación que pone la alarma directamente (el reloj la guarda sin abrirse). Tiene que ser un
-         * PendingIntent de Activity: desde un receptor Android no deja abrir el reloj.
+         * Notification button that sets the alarm directly (the clock saves it without opening). It has to be an
+         * Activity PendingIntent: from a receiver Android won't let the clock open.
          */
         fun alarmAction(context: Context, plan: AlarmPlanner.Plan): NotificationCompat.Action {
             val intent = Intent(AlarmClock.ACTION_SET_ALARM)
@@ -63,7 +63,7 @@ class MorningScheduler(private val context: Context, private val settings: Setti
                 .putExtra(AlarmClock.EXTRA_MESSAGE, "Lumi · ${plan.anchorTitle}")
                 .putExtra(AlarmClock.EXTRA_SKIP_UI, true)
             val pi = PendingIntent.getActivity(context, 41, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-            return NotificationCompat.Action(0, "Alarma %d:%02d".format(plan.wake.hour, plan.wake.minute), pi)
+            return NotificationCompat.Action(0, context.getString(R.string.action_alarm_at, plan.wake.hour, plan.wake.minute), pi)
         }
     }
 }
@@ -76,13 +76,13 @@ class MorningReceiver : BroadcastReceiver() {
         val pending = goAsync()
         scope.launch {
             try {
-                app.morning.schedule() // el de mañana
+                app.morning.schedule() // tomorrow's one
                 val now = LocalDateTime.now()
                 val tasks = app.repository.getAllTasks().first()
-                // Sin los eventos que creó Lumi para sus propias tareas (saldrían duplicados)
+                // Without the events Lumi created for its own tasks (they'd be duplicated)
                 val linked = app.database.taskDao().linkedCalendarEventIds().toSet()
                 val events = app.deviceCalendar.eventsOn(now.toLocalDate()).filter { it.id !in linked }
-                // goAsync da ~10 s: si la red tarda, el resumen sale sin el tiempo
+                // goAsync gives ~10 s: if the network is slow, the summary goes out without the weather
                 val weather = withTimeoutOrNull(6_000) { (app.weather.forecast() as? WeatherService.Result.Ok)?.report }
                 val brief = DayBriefComposer.compose(now.toLocalDate(), now, tasks, events, weather, DueDateFormatter.greeting(now))
                 show(context, brief)
@@ -98,7 +98,7 @@ class MorningReceiver : BroadcastReceiver() {
         if (!canNotify) return
         val listen = PendingIntent.getActivity(
             context, 42,
-            AssistantActivity.intent(context, prompt = "resumen de hoy", compact = true).putExtra(AssistantActivity.EXTRA_SPEAK, true),
+            AssistantActivity.intent(context, prompt = context.getString(R.string.prompt_today_summary), compact = true).putExtra(AssistantActivity.EXTRA_SPEAK, true),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val n = NotificationCompat.Builder(context, TaskManagerApplication.REMINDER_CHANNEL_ID)
@@ -110,8 +110,8 @@ class MorningReceiver : BroadcastReceiver() {
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .setContentIntent(listen)
-            .addAction(0, "Escuchar", listen)
-            .addAction(0, "Hablar con Lumi", AssistantActivity.talkPendingIntent(context))
+            .addAction(0, context.getString(R.string.action_listen), listen)
+            .addAction(0, context.getString(R.string.action_talk_to_lumi), AssistantActivity.talkPendingIntent(context))
             .build()
         NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, n)
     }

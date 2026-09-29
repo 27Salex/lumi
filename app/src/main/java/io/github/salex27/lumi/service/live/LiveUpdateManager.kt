@@ -34,9 +34,9 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
- * «Actualización en directo»: la próxima tarea con hora o reunión, con cuenta atrás, en la pantalla de
- * bloqueo y — en Android 16 / One UI 8 — en la Now Bar del S25 (notificación continua «promocionada»).
- * Se recalcula al cambiar una tarea, al abrir la app y con una alarma en el siguiente momento relevante.
+ * "Live update": the next timed task or meeting, with a countdown, on the lock screen and — on Android 16 — as a
+ * status bar chip (a "promoted" ongoing notification; Samsung shows it in the Now Bar).
+ * Recomputed when a task changes, when the app opens and with an alarm at the next relevant moment.
  */
 class LiveUpdateManager(
     private val context: Context,
@@ -45,7 +45,7 @@ class LiveUpdateManager(
     private val settings: SettingsRepository
 ) : TaskChangeListener {
 
-    /** Estado del chip de la barra de estado (Android 16), para explicarlo en Ajustes. */
+    /** State of the status bar chip (Android 16), to explain it in Settings. */
     enum class ChipStatus { UNSUPPORTED, BLOCKED, IDLE, ACTIVE, NOT_PROMOTED }
 
     private val _chip = kotlinx.coroutines.flow.MutableStateFlow(ChipStatus.IDLE)
@@ -76,7 +76,7 @@ class LiveUpdateManager(
         _chip.value = chipStatusFor(item != null)
     }
 
-    /** ¿El sistema convirtió la notificación en chip? (FLAG_PROMOTED_ONGOING lo pone Android si la acepta). */
+    /** Did the system turn the notification into a chip? (Android sets FLAG_PROMOTED_ONGOING when it accepts it). */
     private fun chipStatusFor(showing: Boolean): ChipStatus {
         if (Build.VERSION.SDK_INT < 36) return ChipStatus.UNSUPPORTED
         val nm = context.getSystemService(NotificationManager::class.java)
@@ -86,7 +86,7 @@ class LiveUpdateManager(
         return if (posted.notification.flags and android.app.Notification.FLAG_PROMOTED_ONGOING != 0) ChipStatus.ACTIVE else ChipStatus.NOT_PROMOTED
     }
 
-    /** Abre la pantalla del sistema donde se permite el chip («Actualizaciones en directo») para Lumi. */
+    /** Opens the system screen where the chip ("Live updates") is allowed for Lumi. */
     fun promotionSettingsIntent(): Intent =
         if (Build.VERSION.SDK_INT >= 36) {
             Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_PROMOTION_SETTINGS)
@@ -102,8 +102,8 @@ class LiveUpdateManager(
         val time = Instant.ofEpochMilli(item.start).atZone(ZoneId.systemDefault()).format(hm)
         val ongoing = item.isOngoing(now)
         val text = when (item.kind) {
-            LiveUpdatePlanner.Item.Kind.MEETING -> if (ongoing) "Reunión en curso · desde las $time" else "Reunión a las $time"
-            LiveUpdatePlanner.Item.Kind.TASK -> if (ongoing) "Era a las $time" else "Tarea a las $time"
+            LiveUpdatePlanner.Item.Kind.MEETING -> context.getString(if (ongoing) R.string.live_meeting_ongoing else R.string.live_meeting_at, time)
+            LiveUpdatePlanner.Item.Kind.TASK -> context.getString(if (ongoing) R.string.live_task_was_at else R.string.live_task_at, time)
         }
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_assistant)
@@ -114,7 +114,7 @@ class LiveUpdateManager(
             .setSilent(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setCategory(if (item.kind == LiveUpdatePlanner.Item.Kind.MEETING) NotificationCompat.CATEGORY_EVENT else NotificationCompat.CATEGORY_REMINDER)
-            // Cuenta atrás nativa hasta la hora (el sistema la actualiza sin despertar la app)
+            // Native countdown to the time (the system updates it without waking the app)
             .setWhen(item.start)
             .setShowWhen(true)
             .setUsesChronometer(!ongoing)
@@ -126,21 +126,21 @@ class LiveUpdateManager(
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 )
             )
-            // Texto corto del chip de la barra de estado / Now Bar
-            .setShortCriticalText(if (ongoing) "Ahora" else time)
+            // Short text of the status bar chip / Now Bar
+            .setShortCriticalText(if (ongoing) context.getString(R.string.live_now) else time)
             .setRequestPromotedOngoing(true)
         if (item.kind == LiveUpdatePlanner.Item.Kind.TASK) {
-            builder.addAction(0, "Hecho", action(ACTION_DONE, item.id))
+            builder.addAction(0, context.getString(R.string.action_done), action(ACTION_DONE, item.id))
         }
-        directionsIntent(item)?.let { builder.addAction(0, "Cómo llegar", it) }
-        builder.addAction(0, "Hablar", io.github.salex27.lumi.presentation.assistant.AssistantActivity.talkPendingIntent(context))
+        directionsIntent(item)?.let { builder.addAction(0, context.getString(R.string.action_directions), it) }
+        builder.addAction(0, context.getString(R.string.action_talk), io.github.salex27.lumi.presentation.assistant.AssistantActivity.talkPendingIntent(context))
         return builder.build()
     }
 
     /**
-     * Android 16: notificación «promocionada» como la de Maps. Requisitos que pide el sistema para el chip:
-     * continua, con título, sin colorear ni vistas propias, estilo ProgressStyle y petición de promoción.
-     * El chip muestra la cuenta atrás (cronómetro) o «Ahora».
+     * Android 16: a "promoted" notification like Maps'. What the system requires for the chip: ongoing, with a title,
+     * not colorized, no custom views, ProgressStyle and a promotion request.
+     * The chip shows the countdown (chronometer) or "Now".
      */
     @android.annotation.TargetApi(36)
     private fun buildChip(item: LiveUpdatePlanner.Item, now: Long): android.app.Notification {
@@ -148,10 +148,10 @@ class LiveUpdateManager(
         val ongoing = item.isOngoing(now)
         val meeting = item.kind == LiveUpdatePlanner.Item.Kind.MEETING
         val text = when {
-            meeting && ongoing -> "Reunión en curso · desde las $time"
-            meeting -> "Reunión a las $time" + if (item.location.isNotBlank()) " · ${item.location}" else ""
-            ongoing -> "Era a las $time"
-            else -> "Tarea a las $time"
+            meeting && ongoing -> context.getString(R.string.live_meeting_ongoing, time)
+            meeting -> context.getString(R.string.live_meeting_at, time) + if (item.location.isNotBlank()) " · ${item.location}" else ""
+            ongoing -> context.getString(R.string.live_task_was_at, time)
+            else -> context.getString(R.string.live_task_at, time)
         }
         val accent = android.graphics.Color.parseColor("#38A8F5")
         val style = android.app.Notification.ProgressStyle()
@@ -173,10 +173,10 @@ class LiveUpdateManager(
             .setUsesChronometer(!ongoing)
             .setChronometerCountDown(!ongoing)
             .setContentIntent(openApp())
-        // En curso → «Ahora» en el chip; si no, el chip enseña la cuenta atrás del cronómetro
+        // Ongoing → "Now" on the chip; otherwise the chip shows the chronometer countdown
         if (ongoing) builder.setShortCriticalText("Ahora")
         platformActions(item).forEach { builder.addAction(it) }
-        // Petición de promoción (EXTRA_REQUEST_PROMOTED_ONGOING)
+        // Promotion request (EXTRA_REQUEST_PROMOTED_ONGOING)
         builder.extras.putBoolean("android.requestPromotedOngoing", true)
         return builder.build()
     }
@@ -185,14 +185,14 @@ class LiveUpdateManager(
         val icon = android.graphics.drawable.Icon.createWithResource(context, R.drawable.ic_stat_assistant)
         fun act(label: String, pi: PendingIntent) = android.app.Notification.Action.Builder(icon, label, pi).build()
         return buildList {
-            if (item.kind == LiveUpdatePlanner.Item.Kind.TASK) add(act("Hecho", action(ACTION_DONE, item.id)))
-            directionsIntent(item)?.let { add(act("Cómo llegar", it)) }
-            add(act("Hablar", io.github.salex27.lumi.presentation.assistant.AssistantActivity.talkPendingIntent(context)))
-            if (size < 3) add(act("Ocultar", action(ACTION_HIDE, item.id, item.key)))
+            if (item.kind == LiveUpdatePlanner.Item.Kind.TASK) add(act(context.getString(R.string.action_done), action(ACTION_DONE, item.id)))
+            directionsIntent(item)?.let { add(act(context.getString(R.string.action_directions), it)) }
+            add(act(context.getString(R.string.action_talk), io.github.salex27.lumi.presentation.assistant.AssistantActivity.talkPendingIntent(context)))
+            if (size < 3) add(act(context.getString(R.string.action_hide), action(ACTION_HIDE, item.id, item.key)))
         }
     }
 
-    /** «Cómo llegar» con la app de mapas elegida, si la reunión tiene dirección. */
+    /** "Directions" in the chosen maps app, when the meeting has an address. */
     private fun directionsIntent(item: LiveUpdatePlanner.Item): PendingIntent? {
         if (item.kind != LiveUpdatePlanner.Item.Kind.MEETING || item.location.isBlank()) return null
         val intent = io.github.salex27.lumi.presentation.nav.MapsLauncher.intent(
@@ -213,7 +213,7 @@ class LiveUpdateManager(
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
-    /** «Ocultar»: no vuelve a salir este elemento hasta que cambie. */
+    /** "Hide": this item won't show again until it changes. */
     fun hide(key: String) {
         hiddenPrefs().edit().putString(K_HIDDEN, key).apply()
     }
@@ -243,10 +243,10 @@ class LiveUpdateManager(
     private fun ensureChannel() {
         val nm = context.getSystemService(NotificationManager::class.java)
         if (nm.getNotificationChannel(CHANNEL_ID) != null) return
-        // Importancia por defecto (no MIN): requisito para que Android la promocione a la Now Bar
+        // Default importance (not MIN): required for Android to promote it to the chip / Now Bar
         nm.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "Próxima tarea (en directo)", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "La próxima tarea o reunión con cuenta atrás en la pantalla de bloqueo y la Now Bar"
+            NotificationChannel(CHANNEL_ID, context.getString(R.string.live_channel_name), NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = context.getString(R.string.live_channel_description)
                 setSound(null, null)
                 enableVibration(false)
             }
@@ -275,7 +275,7 @@ class LiveUpdateReceiver : BroadcastReceiver() {
                 val id = intent.getLongExtra(LiveUpdateManager.EXTRA_ID, -1L)
                 when (intent.action) {
                     LiveUpdateManager.ACTION_DONE ->
-                        // updateTask notifica a los listeners → la actualización en directo pasa a lo siguiente
+                        // updateTask notifies the listeners → the live update moves on to the next thing
                         app.repository.getTask(id)?.let { app.repository.updateTask(it.copy(status = TaskStatus.COMPLETED)) }
                     LiveUpdateManager.ACTION_HIDE -> {
                         intent.getStringExtra(LiveUpdateManager.EXTRA_KEY)?.let { app.liveUpdates.hide(it) }

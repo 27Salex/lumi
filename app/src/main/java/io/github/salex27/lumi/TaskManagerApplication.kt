@@ -29,7 +29,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
-/** Service Locator de la app (sin framework de DI). */
+/** The app's service locator (no DI framework). */
 class TaskManagerApplication : Application() {
 
     companion object {
@@ -42,7 +42,7 @@ class TaskManagerApplication : Application() {
     val settings: SettingsRepository by lazy { SettingsRepository(this) }
     val briefStore: BriefStore by lazy { BriefStore(this) }
 
-    // ── Motores de IA (orden = prioridad) ────────────────────────────────────
+    // ── AI engines (order = priority) ────────────────────────────────────────
     val nanoEngine: GeminiNanoEngine by lazy { GeminiNanoEngine() }
     val gemmaModel: GemmaModelManager by lazy { GemmaModelManager(this, appScope) }
     val gemmaEngine: GemmaLocalEngine by lazy { GemmaLocalEngine(this, gemmaModel, settings) }
@@ -52,8 +52,8 @@ class TaskManagerApplication : Application() {
         AssistantOrchestrator(
             llmEngines = listOf(
                 nanoEngine to 20_000L,
-                // Sin timeout (decisión del usuario): Gemma tiene el tiempo que necesite; solo se cae a la nube
-                // si falla o no devuelve nada. Si resulta lento, se desactiva a mano en Ajustes.
+                // No timeout (user decision): Gemma gets all the time it needs; the cloud is only used if it fails
+                // or returns nothing. If it is too slow, turn it off in Settings.
                 gemmaEngine to null,
                 cloudEngine to 25_000L
             ),
@@ -68,19 +68,19 @@ class TaskManagerApplication : Application() {
         io.github.salex27.lumi.service.wakeword.VoskModelManager(this, appScope)
     }
 
-    /** Perfil de voz para «Oye Lumi» (Voice Match local). */
+    /** Voice profile for "Oye Lumi" (local Voice Match). */
     val voiceProfile: io.github.salex27.lumi.service.wakeword.VoiceProfileStore by lazy {
         io.github.salex27.lumi.service.wakeword.VoiceProfileStore(this)
     }
 
-    /** Memoria personal (tabla `memories`). */
+    /** Personal memory (`memories` table). */
     val memoryStore: io.github.salex27.lumi.domain.repository.MemoryStore by lazy {
         io.github.salex27.lumi.data.local.RoomMemoryStore(database.memoryDao())
     }
 
     val reminderScheduler: AlarmReminderScheduler by lazy { AlarmReminderScheduler(this, settings, database.reminderDao()) }
 
-    // ── Lugares, Now Bar y voz ───────────────────────────────────────────────
+    // ── Places, live chip and voice ─────────────────────────────────────────
     val places: io.github.salex27.lumi.data.places.PlacesStore by lazy {
         io.github.salex27.lumi.data.places.PlacesStore(this)
     }
@@ -99,7 +99,7 @@ class TaskManagerApplication : Application() {
     val morning: io.github.salex27.lumi.service.checkin.MorningScheduler by lazy {
         io.github.salex27.lumi.service.checkin.MorningScheduler(this, settings)
     }
-    /** El tiempo (Open-Meteo, sin API key). */
+    /** Weather (Open-Meteo, no API key). */
     val weather: io.github.salex27.lumi.data.weather.WeatherService by lazy {
         io.github.salex27.lumi.data.weather.WeatherService(this, places)
     }
@@ -116,7 +116,7 @@ class TaskManagerApplication : Application() {
         io.github.salex27.lumi.presentation.ai.LumiSpeaker(this, settings)
     }
 
-    // ── Sincronización ───────────────────────────────────────────────────────
+    // ── Sync ─────────────────────────────────────────────────────────────────
     val deviceCalendar: DeviceCalendar by lazy { DeviceCalendar(this) }
     val calendarSync: CalendarTaskSync by lazy { CalendarTaskSync(deviceCalendar, database.taskDao(), settings) }
     val googleTasksAuth: GoogleTasksAuth by lazy { GoogleTasksAuth(this) }
@@ -128,7 +128,7 @@ class TaskManagerApplication : Application() {
             settings = settings,
             scope = appScope,
             onRemoteChange = { id ->
-                // Una tarea que llega de Google Tasks también necesita aviso, evento y widget
+                // A task coming from Google Tasks also needs a reminder, an event and the widget
                 database.taskDao().getTaskById(id)?.let { reminderScheduler.schedule(it.toDomain()) }
                 calendarSync.onTaskSaved(id)
                 widgetUpdater.onTaskSaved(id)
@@ -174,6 +174,7 @@ class TaskManagerApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        updateAppLanguage()
         createNotificationChannels()
 
         appScope.launch {
@@ -182,7 +183,7 @@ class TaskManagerApplication : Application() {
             assistant.refreshActiveEngine()
         }
         appScope.launch { googleTasksSync.syncNow() } // no hace nada si no está activado
-        // Cuando termina la descarga de Gemma → cargarlo y actualizar el motor activo
+        // When the Gemma download finishes → load it and update the active engine
         gemmaModel.state.onEach {
             if (it == GemmaModelManager.State.Ready) gemmaEngine.warmUp()
             assistant.refreshActiveEngine()
@@ -193,13 +194,25 @@ class TaskManagerApplication : Application() {
         morning.schedule()
     }
 
+    /** Keeps [ReplyLanguage.app] in sync with the language the app is shown in (system or per-app setting). */
+    fun updateAppLanguage() {
+        io.github.salex27.lumi.domain.assistant.ReplyLanguage.app =
+            io.github.salex27.lumi.domain.assistant.Lang.of(resources.configuration.locales[0].language)
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        updateAppLanguage()
+        createNotificationChannels() // channel names follow the language
+    }
+
     private fun createNotificationChannels() {
         val channel = NotificationChannel(
             REMINDER_CHANNEL_ID,
-            "Recordatorios de tareas",
+            getString(R.string.reminder_channel_name),
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
-            description = "Avisos de Lumi antes de citas y fechas límite"
+            description = getString(R.string.reminder_channel_description)
             enableVibration(true)
         }
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)

@@ -17,8 +17,8 @@ import io.github.salex27.lumi.domain.reminder.ReminderScheduler
 import java.time.Instant
 
 /**
- * Avisos múltiples con AlarmManager: una alarma por fila de `reminders` (requestCode = id del aviso).
- * Si el usuario concedió «Alarmas y recordatorios» se usan alarmas exactas; si no, inexactas.
+ * Multiple reminders with AlarmManager: one alarm per `reminders` row (requestCode = reminder id).
+ * Exact alarms if the user granted "Alarms & reminders"; otherwise inexact ones.
  */
 class AlarmReminderScheduler(
     private val context: Context,
@@ -39,16 +39,16 @@ class AlarmReminderScheduler(
         val now = System.currentTimeMillis()
         val s = settings.current
 
-        // 1) Automáticos de Lumi
+        // 1) Lumi's automatic ones
         ReminderPlanner.plan(task, now, s.reminderLeadMinutes, s.dateOnlyReminderHour).forEach { p ->
             dao.insert(ReminderEntity(taskId = task.id, triggerAt = p.triggerAt, kind = TaskReminder.Kind.AUTO.name, label = p.label))
         }
-        // 2) Personalizados: los relativos siguen al vencimiento si éste cambia
+        // 2) Custom ones: relative ones follow the due date if it changes
         existing.filter { it.kind == TaskReminder.Kind.CUSTOM.name }.forEach { r ->
             val trigger = r.offsetMinutes?.let { off -> task.dueAt?.minus(off * 60_000L) } ?: r.triggerAt
             if (trigger != r.triggerAt) { dao.delete(r.id); dao.insert(r.copy(id = 0, triggerAt = trigger)) }
         }
-        // 3) Programar todos los futuros
+        // 3) Schedule every future one
         dao.forTask(task.id).filter { it.triggerAt > now }.forEach { setAlarm(it) }
     }
 
@@ -75,14 +75,14 @@ class AlarmReminderScheduler(
         dao.delete(reminderId)
     }
 
-    /** «+1 h» desde la notificación: aviso puntual que no cambia la fecha de la tarea. */
+    /** "+1 h" from the notification: a one-off reminder that doesn't change the task's date. */
     override suspend fun snooze(taskId: Long, minutes: Int) {
         val at = System.currentTimeMillis() + minutes * 60_000L
         val id = dao.insert(ReminderEntity(taskId = taskId, triggerAt = at, kind = TaskReminder.Kind.CUSTOM.name, label = "Pospuesto"))
         dao.byId(id)?.let { setAlarm(it) }
     }
 
-    /** Tras reiniciar el móvil o cambiar ajustes: reprogramar las alarmas pendientes. */
+    /** After a reboot or a settings change: reschedule pending alarms. */
     suspend fun rescheduleAllAlarms() {
         dao.upcoming(System.currentTimeMillis()).forEach { setAlarm(it) }
     }

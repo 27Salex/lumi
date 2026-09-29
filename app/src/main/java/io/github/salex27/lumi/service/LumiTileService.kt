@@ -6,7 +6,7 @@ import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import io.github.salex27.lumi.presentation.assistant.AssistantActivity
 
-/** Tile de Ajustes rápidos: abre Lumi escuchando desde cualquier pantalla (desliza hacia abajo → Lumi). */
+/** Quick Settings tile: opens Lumi listening from any screen (swipe down → Lumi). */
 class LumiTileService : TileService() {
 
     override fun onStartListening() {
@@ -21,7 +21,7 @@ class LumiTileService : TileService() {
     override fun onClick() {
         val intent = AssistantActivity.intent(this, startListening = true, compact = true)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            // Android 14+: solo se admite con PendingIntent
+            // Android 14+: only a PendingIntent is accepted
             startActivityAndCollapse(PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
         } else {
             @Suppress("DEPRECATION", "StartActivityAndCollapseDeprecated")

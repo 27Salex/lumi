@@ -22,8 +22,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
- * Un único receptor para los avisos:
- * mostrar el aviso, acciones (Hecho / +1 h / responder a Lumi) y reprogramar tras reinicio o cambio de hora.
+ * A single receiver for reminders: shows the reminder, handles its actions (Done / +1 h / reply to Lumi) and
+ * reschedules after a reboot or a time change.
  */
 class ReminderReceiver : BroadcastReceiver() {
 
@@ -48,16 +48,16 @@ class ReminderReceiver : BroadcastReceiver() {
                         NotificationManagerCompat.from(context).cancel(taskId.toInt())
                     }
                     ACTION_REPLY -> {
-                        // Respuesta escrita/dictada desde la notificación: «hecho», «pospón una hora», «mañana a las 10»…
+                        // Typed/dictated reply from the notification: "done", "postpone an hour", "tomorrow at 10"…
                         val text = RemoteInput.getResultsFromIntent(intent)?.getCharSequence(KEY_REPLY)?.toString().orEmpty()
                         val answer = if (text.isBlank()) null else app.repository.applyQuickReply(taskId, text)
-                        app.repository.getTask(taskId)?.let { notifyAnswer(context, it, answer ?: "No he entendido la respuesta") }
+                        app.repository.getTask(taskId)?.let { notifyAnswer(context, it, answer ?: context.getString(R.string.reply_not_understood)) }
                     }
-                    // Las alarmas se pierden al reiniciar: se vuelven a programar todas
+                    // Alarms are lost on reboot: reschedule them all
                     Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED,
                     Intent.ACTION_TIMEZONE_CHANGED, Intent.ACTION_TIME_CHANGED -> {
                         app.repository.rescheduleAllReminders()
-                        // Android también borra las geovallas al reiniciar
+                        // Android also clears geofences on reboot
                         app.placeReminders.resyncAll()
                         app.liveUpdates.refresh()
                         app.checkIn.schedule()
@@ -73,17 +73,16 @@ class ReminderReceiver : BroadcastReceiver() {
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
     internal fun notify(context: Context, task: Task, label: String?) {
-        if (!canNotify(context)) return
-        val whenText = task.dueAt?.let { DueDateFormatter.format(it, task.dueHasTime) }
-        // p.ej. "En 1 hora · hoy a las 17:00 · Para «Reunión del sprint»"
-        val body = listOfNotNull(label, whenText, task.meeting?.let { "Para «${it.title}»" })
+        val whenText = task.dueAt?.let { DueDateFormatter.format(it, task.dueHasTime, lang = io.github.salex27.lumi.domain.assistant.ReplyLanguage.app) }
+        // e.g. "In 1 hour · today at 17:00 · For «Sprint meeting»"
+        val body = listOfNotNull(label, whenText, task.meeting?.let { context.getString(R.string.notif_for_meeting, it.title) })
             .distinct().joinToString(" · ").replaceFirstChar { it.uppercase() }
 
         val builder = base(context, task)
             .setContentTitle(task.title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(listOf(body, task.description).filter { it.isNotBlank() }.joinToString("\n")))
-        // v3.7: si la tarea es «llamar a…» / «escribir a…» / «avisar a…», el primer botón lo hace (y la da por hecha)
+        // If the task is "call…" / "text…" / "let … know", the first button does it (and marks the task done)
         val taskAction = io.github.salex27.lumi.domain.assistant.TaskActions.detect(task)
         if (taskAction != null) {
             val pi = PendingIntent.getActivity(
@@ -94,17 +93,17 @@ class ReminderReceiver : BroadcastReceiver() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             builder.addAction(0, taskAction.label, pi)
-                .addAction(0, "Hecho", action(context, task.id, ACTION_DONE))
+                .addAction(0, context.getString(R.string.action_done), action(context, task.id, ACTION_DONE))
                 .addAction(0, "+1 h", action(context, task.id, ACTION_SNOOZE))
         } else {
-            builder.addAction(0, "Hecho", action(context, task.id, ACTION_DONE))
+            builder.addAction(0, context.getString(R.string.action_done), action(context, task.id, ACTION_DONE))
                 .addAction(0, "+1 h", action(context, task.id, ACTION_SNOOZE))
                 .addAction(replyAction(context, task.id))
         }
         NotificationManagerCompat.from(context).notify(task.id.toInt(), builder.build())
     }
 
-    /** Tras responder: se actualiza la misma notificación con lo que ha hecho Lumi. */
+    /** After replying: the same notification is updated with what Lumi did. */
     private fun notifyAnswer(context: Context, task: Task, answer: String) {
         if (!canNotify(context)) return
         NotificationManagerCompat.from(context).notify(
@@ -133,14 +132,14 @@ class ReminderReceiver : BroadcastReceiver() {
     )
 
     private fun replyAction(context: Context, taskId: Long): NotificationCompat.Action {
-        // RemoteInput necesita un PendingIntent MUTABLE para recibir el texto
+        // RemoteInput needs a MUTABLE PendingIntent to receive the text
         val pi = PendingIntent.getBroadcast(
             context, (taskId * 10 + 7).toInt(),
             Intent(context, ReminderReceiver::class.java).setAction(ACTION_REPLY).putExtra(EXTRA_TASK_ID, taskId),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
         )
-        val input = RemoteInput.Builder(KEY_REPLY).setLabel("Hecho, pospón 1 hora, mañana a las 10…").build()
-        return NotificationCompat.Action.Builder(0, "Responder", pi).addRemoteInput(input).setAllowGeneratedReplies(false).build()
+        val input = RemoteInput.Builder(KEY_REPLY).setLabel(context.getString(R.string.reminder_reply_hint)).build()
+        return NotificationCompat.Action.Builder(0, context.getString(R.string.action_reply), pi).addRemoteInput(input).setAllowGeneratedReplies(false).build()
     }
 
     companion object {
@@ -154,7 +153,7 @@ class ReminderReceiver : BroadcastReceiver() {
         private const val SNOOZE_MINUTES = 60
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-        /** Muestra el aviso de una tarea (también lo usan los avisos por lugar). */
+        /** Shows a task reminder (also used by place reminders). */
         fun show(context: Context, task: Task, label: String?) = ReminderReceiver().notify(context, task, label)
     }
 }

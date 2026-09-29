@@ -35,15 +35,14 @@ import android.media.MediaRecorder
 import kotlin.concurrent.thread
 
 /**
- * «Oye Lumi»: escucha continua OFFLINE con un detector de palabra de activación (openWakeWord, [OyeLumiDetector]):
- * reconoce el SONIDO de la frase, no transcribe nada ni envía audio a ningún sitio. v3.5: sustituye a Vosk, cuyo
- * modelo español no tiene «lumi» en su vocabulario y nunca podía escribirlo. Vosk queda solo para la huella de voz.
+ * "Oye Lumi": continuous OFFLINE listening with a wake word detector (openWakeWord, [OyeLumiDetector]): it recognizes
+ * the SOUND of the phrase, transcribes nothing and sends audio nowhere. It replaced Vosk, whose Spanish model has no
+ * "lumi" in its vocabulary and could never write it. Vosk is only kept for the voice print.
  *
- * - Servicio en primer plano de tipo micrófono (Android lo exige y muestra el indicador de micro).
- * - Se pausa mientras el asistente usa el micrófono y, si el usuario lo elige, con la pantalla apagada.
- * - Solo se puede arrancar con la app en primer plano (restricción de Android 14 para el micrófono).
- * - Para abrir el asistente sobre otras apps hace falta el permiso «Mostrar sobre otras apps»;
- *   sin él se muestra una notificación para tocar.
+ * - A microphone-type foreground service (Android requires it and shows the mic indicator).
+ * - Paused while the assistant uses the microphone and, if the user chooses, with the screen off.
+ * - Can only be started with the app in the foreground (Android 14 microphone restriction).
+ * - Opening the assistant over other apps needs "Display over other apps"; without it, a tappable notification is shown.
  */
 class WakeWordService : Service() {
 
@@ -52,10 +51,10 @@ class WakeWordService : Service() {
     @Volatile private var listening = false
     @Volatile private var alive = true
     private var worker: Thread? = null
-    /** Últimos 2 s de audio para comprobar la voz del usuario al detectar la frase. */
+    /** The last 2 s of audio, to check the user's voice when the phrase is detected. */
     private val history = ShortArray(HISTORY)
     private var historyPos = 0
-    // Huella de voz (Vosk), solo si el usuario entrenó su voz
+    // Voice print (Vosk), only if the user trained their voice
     private var voskModel: Model? = null
     private var speakerModel: SpeakerModel? = null
     private var lastTrigger = 0L
@@ -85,8 +84,8 @@ class WakeWordService : Service() {
     }
 
     /**
-     * Bucle de escucha: graba 80 ms, puntúa y, si «Oye Lumi» supera el umbral varias veces seguidas (según la
-     * sensibilidad), comprueba la voz (si está entrenada) y abre el asistente. Se pausa soltando el micrófono.
+     * Listening loop: records 80 ms, scores it and, if "Oye Lumi" is above the threshold enough times in a row (depending
+     * on the sensitivity), checks the voice (if trained) and opens the assistant. Pauses by releasing the microphone.
      */
     @SuppressLint("MissingPermission") // el servicio solo se arranca con el permiso concedido
     private fun loop() {
@@ -94,7 +93,7 @@ class WakeWordService : Service() {
         try {
             detector = OyeLumiDetector(this)
         } catch (e: Exception) {
-            Log.e(TAG, "No se pudo cargar el detector", e)
+            Log.e(TAG, "Could not load the detector", e)
             stopSelf(); return
         }
         val chunk = ShortArray(OyeLumiDetector.CHUNK)
@@ -109,7 +108,7 @@ class WakeWordService : Service() {
             if (record.state != AudioRecord.STATE_INITIALIZED) { record.release(); Thread.sleep(1000); continue }
             record.startRecording()
             detector?.reset(); trigger.reset()
-            Log.i(TAG, "Escuchando «Oye Lumi»")
+            Log.i(TAG, "Listening for «Oye Lumi»")
             while (alive && listening) {
                 var read = 0
                 while (read < chunk.size && alive && listening) {
@@ -142,13 +141,13 @@ class WakeWordService : Service() {
         val voice = app.voiceProfile
         val profile = voice.profile.value
         val label = "«Oye Lumi» (${(score * 100).toInt()} %)"
-        // Si el usuario entrenó su voz, tiene que ser su voz (huella de Vosk sobre los últimos 2 s)
+        // If the user trained their voice, it has to be their voice (Vosk print over the last 2 s)
         var similarity: Float? = null
         if (profile != null) {
             val vec = speakerVector(lastAudio())
             if (vec != null) {
                 similarity = WakePhrases.cosine(vec, profile.embedding)
-                if (similarity < voice.sensitivity.threshold) { report(label, similarity, false, "La voz no se parece lo bastante"); return }
+                if (similarity < voice.sensitivity.threshold) { report(label, similarity, false, getString(io.github.salex27.lumi.R.string.wake_voice_mismatch)); return }
             }
         }
         val now = SystemClock.elapsedRealtime()
@@ -159,7 +158,7 @@ class WakeWordService : Service() {
         openAssistant()
     }
 
-    /** Huella de voz (x-vector) de un fragmento, con el modelo de Vosk. null si no hay modelo o no sale huella. */
+    /** Voice print (x-vector) of a clip, with the Vosk model. Null without a model or if no print comes out. */
     private fun speakerVector(audio: ShortArray): FloatArray? {
         val app = application as TaskManagerApplication
         if (!app.wakeWordModel.isReady()) return null
@@ -173,10 +172,10 @@ class WakeWordService : Service() {
                 val arr = JSONObject(rec.finalResult).optJSONArray("spk") ?: return@use null
                 FloatArray(arr.length()) { arr.getDouble(it).toFloat() }
             }
-        }.onFailure { Log.w(TAG, "Sin huella de voz", it) }.getOrNull()
+        }.onFailure { Log.w(TAG, "No voice print", it) }.getOrNull()
     }
 
-    /** Soltar el micrófono (para que el asistente o el entrenamiento de voz puedan usarlo). */
+    /** Releases the microphone (so the assistant or voice training can use it). */
     private fun releaseMic() { listening = false }
 
     private fun resumeMic() { listening = true }
@@ -188,14 +187,14 @@ class WakeWordService : Service() {
     private fun openAssistant() {
         val intent = AssistantActivity.intent(this, startListening = true, compact = true, fromWakeWord = true)
         if (Settings.canDrawOverlays(this)) {
-            // Exento de la restricción de abrir actividades en segundo plano gracias a SYSTEM_ALERT_WINDOW
+            // Exempt from the background activity start restriction thanks to SYSTEM_ALERT_WINDOW
             startActivity(intent)
         } else {
             val pi = PendingIntent.getActivity(this, 1, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             getSystemService(NotificationManager::class.java).notify(
                 NOTIF_ID + 1,
                 NotificationCompat.Builder(this, CHANNEL_ID).setSmallIcon(R.drawable.ic_stat_assistant)
-                    .setContentTitle("Lumi").setContentText("Toca para hablar").setContentIntent(pi).setAutoCancel(true)
+                    .setContentTitle("Lumi").setContentText(getString(io.github.salex27.lumi.R.string.wake_tap_to_talk)).setContentIntent(pi).setAutoCancel(true)
                     .setPriority(NotificationCompat.PRIORITY_HIGH).build()
             )
             resumeMic()
@@ -235,7 +234,7 @@ class WakeWordService : Service() {
     private fun createChannel() {
         getSystemService(NotificationManager::class.java).createNotificationChannel(
             NotificationChannel(CHANNEL_ID, "Oye Lumi", NotificationManager.IMPORTANCE_LOW).apply {
-                description = "Aviso permanente mientras Lumi escucha la palabra de activación"
+                description = getString(io.github.salex27.lumi.R.string.wake_channel_description)
                 setShowBadge(false)
             }
         )
@@ -248,20 +247,20 @@ class WakeWordService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_assistant)
-            .setContentTitle("Di «Oye Lumi»")
-            .setContentText("Escucha local, sin internet. Solo reacciona a «Oye Lumi».")
+            .setContentTitle(getString(io.github.salex27.lumi.R.string.wake_notif_title))
+            .setContentText(getString(io.github.salex27.lumi.R.string.wake_notif_text))
             .setOngoing(true)
             .setSilent(true)
             .setContentIntent(PendingIntent.getActivity(this, 3, AssistantActivity.intent(this, startListening = true, compact = true), PendingIntent.FLAG_IMMUTABLE))
             .build()
     }
 
-    /** Última frase corta oída y si activó a Lumi (diagnóstico visible en Ajustes → Mi voz). */
+    /** The last short phrase heard and whether it triggered Lumi (diagnostics shown in Settings → My voice). */
     data class Heard(val text: String, val similarity: Float?, val accepted: Boolean, val reason: String, val at: Long)
 
     companion object {
         val lastHeard = kotlinx.coroutines.flow.MutableStateFlow<Heard?>(null)
-        /** Puntuación más reciente del detector ≥ 0,2 (diagnóstico: cuánto se ha parecido lo último a «Oye Lumi»). */
+        /** Most recent detector score ≥ 0.2 (diagnostics: how close the last sound was to "Oye Lumi"). */
         val lastScore = MutableStateFlow(0f)
         private const val HISTORY = 2 * 16_000
         private const val TAG = "WakeWordService"
@@ -276,7 +275,7 @@ class WakeWordService : Service() {
         private val _running = MutableStateFlow(false)
         val running: StateFlow<Boolean> = _running.asStateFlow()
 
-        /** Solo con la app en primer plano (Android 14+ no deja arrancar el micrófono desde segundo plano). */
+        /** Only with the app in the foreground (Android 14+ won't start the microphone from the background). */
         fun start(context: Context) = ContextCompat.startForegroundService(context, Intent(context, WakeWordService::class.java))
         fun stop(context: Context) = context.stopService(Intent(context, WakeWordService::class.java))
         fun pause(context: Context) { if (running.value) context.startService(Intent(context, WakeWordService::class.java).setAction(ACTION_PAUSE)) }

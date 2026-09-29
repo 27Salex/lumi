@@ -14,10 +14,10 @@ import io.github.salex27.lumi.domain.assistant.IncomingMessage
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * «¿Qué me han escrito?»: Lumi lee las notificaciones de mensajes SIN LEER (WhatsApp, Telegram, SMS, correo…)
- * y puede responder con la acción «Responder» de la propia notificación, como Android Auto.
- * Nada se guarda en disco: solo se miran las notificaciones activas, y desaparecen de Lumi al leerlas en su app.
- * El usuario lo activa una vez en Ajustes → Acceso a notificaciones.
+ * "What did they write to me?": Lumi reads UNREAD message notifications (WhatsApp, Telegram, SMS, email…) and can
+ * answer with the notification's own "Reply" action, like Android Auto.
+ * Nothing is stored on disk: only active notifications are looked at, and they disappear from Lumi once read in their app.
+ * The user turns it on once in Settings → Notification access.
  */
 class LumiNotificationListener : NotificationListenerService() {
 
@@ -80,25 +80,25 @@ class LumiNotificationListener : NotificationListenerService() {
             "com.google.android.gm", "com.microsoft.office.outlook", "com.discord", "com.slack", "com.microsoft.teams"
         )
 
-        /** ¿El usuario le dio a Lumi acceso a las notificaciones? */
+        /** Did the user give Lumi notification access? */
         fun isEnabled(context: Context): Boolean {
             val flat = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners").orEmpty()
             val me = ComponentName(context, LumiNotificationListener::class.java)
             return flat.split(':').any { ComponentName.unflattenFromString(it) == me }
         }
 
-        /** Pantalla del sistema para concederlo (directa a Lumi en Android 11+). */
+        /** The system screen to grant it (straight to Lumi on Android 11+). */
         fun settingsIntent(context: Context): Intent =
             Intent("android.settings.NOTIFICATION_LISTENER_DETAIL_SETTINGS")
                 .putExtra("android.provider.extra.NOTIFICATION_LISTENER_COMPONENT_NAME", ComponentName(context, LumiNotificationListener::class.java).flattenToString())
                 .takeIf { it.resolveActivity(context.packageManager) != null }
                 ?: Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
 
-        /** Mensajes sin leer ahora mismo (de las notificaciones activas), del más antiguo al más reciente. */
+        /** Unread messages right now (from active notifications), oldest first. */
         fun unread(): List<IncomingMessage> = messages.values.flatten()
             .distinctBy { Triple(it.conversation, it.sender, it.text) }.sortedBy { it.time }
 
-        /** Responde con la acción «Responder» de la notificación. false si ya no existe (se leyó o se borró). */
+        /** Replies with the notification's "Reply" action. False if it no longer exists (read or dismissed). */
         fun reply(context: Context, key: String, text: String): Boolean {
             val action = replies[key] ?: return false
             val inputs = action.remoteInputs ?: return false

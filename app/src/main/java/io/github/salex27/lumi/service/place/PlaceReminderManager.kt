@@ -24,9 +24,9 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
 /**
- * Avisos por lugar («cuando llegue a casa…») con geovallas de Google Play Services: una por tarea activa
- * cuyo lugar esté guardado. Cada aviso salta UNA vez (como Recordatorios de Apple); si se cambia el lugar
- * o la tarea se repite, vuelve a armarse. Android borra las geovallas al reiniciar → [resyncAll] en el arranque.
+ * Place reminders ("when I get home…") with Google Play Services geofences: one per active task whose place is saved.
+ * Each reminder fires ONCE (like Apple Reminders); it re-arms if the place changes or the task repeats.
+ * Android clears geofences on reboot → [resyncAll] at startup.
  */
 class PlaceReminderManager(
     private val context: Context,
@@ -35,17 +35,17 @@ class PlaceReminderManager(
 ) : TaskChangeListener {
 
     private val client by lazy { LocationServices.getGeofencingClient(context) }
-    /** Avisos ya disparados: "id|lugar|ARRIVE". Al cambiar el lugar cambia la clave y se rearma. */
+    /** Reminders already fired: "id|place|ARRIVE". Changing the place changes the key and re-arms it. */
     private val fired = context.getSharedPreferences("place_reminders", Context.MODE_PRIVATE)
 
     private val _error = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
-    /** Último fallo al registrar geovallas, explicado (se muestra en Ajustes → Lugares). */
+    /** Last failure registering geofences, explained (shown in Settings → Places). */
     val error: kotlinx.coroutines.flow.StateFlow<String?> = _error
 
     fun hasLocation(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
-    /** Sin «Permitir todo el tiempo» las geovallas no saltan con la app cerrada. */
+    /** Without "Allow all the time" geofences don't fire with the app closed. */
     fun hasBackgroundLocation(): Boolean = hasLocation() && (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED)
 
@@ -56,7 +56,7 @@ class PlaceReminderManager(
 
     override suspend fun onTaskDeleted(taskId: Long, googleTaskId: String?, calendarEventId: Long?) = remove(taskId)
 
-    /** Vuelve a registrar todas (arranque del móvil, lugar nuevo, permiso recién concedido). */
+    /** Registers them all again (phone boot, new place, permission just granted). */
     suspend fun resyncAll() {
         if (!hasLocation()) return
         dao.getActiveTasksSnapshot().forEach { arm(it.toDomain()) }
@@ -65,7 +65,7 @@ class PlaceReminderManager(
     @SuppressLint("MissingPermission") // comprobado en hasLocation()
     private fun arm(task: Task) {
         val trigger = task.placeTrigger
-        // Coordenadas: las de la dirección suelta de la tarea o las del lugar guardado
+        // Coordinates: the task's one-off address or the saved place
         val coords = when {
             trigger == null -> null
             trigger.isAdHoc -> Triple(trigger.lat!!, trigger.lng!!, PlacesStore.DEFAULT_RADIUS)
@@ -81,24 +81,20 @@ class PlaceReminderManager(
             .setExpirationDuration(Geofence.NEVER_EXPIRE)
             .setTransitionTypes(if (trigger.onArrive) Geofence.GEOFENCE_TRANSITION_ENTER else Geofence.GEOFENCE_TRANSITION_EXIT)
             .build()
-        // Sin disparo inicial: si ya estás en casa al crear «cuando llegue a casa», no salta hasta la próxima llegada
+        // No initial trigger: if you are already home when creating "when I get home", it waits for the next arrival
         val request = GeofencingRequest.Builder().setInitialTrigger(0).addGeofence(geofence).build()
         client.addGeofences(request, pendingIntent())
             .addOnSuccessListener { _error.value = null }
             .addOnFailureListener {
-                Log.w(TAG, "No se pudo registrar la geovalla de ${task.id}: ${it.message}")
+                Log.w(TAG, "Could not register the geofence of ${task.id}: ${it.message}")
                 _error.value = explain((it as? com.google.android.gms.common.api.ApiException)?.statusCode)
             }
     }
-
     private fun explain(code: Int?): String = when (code) {
-        com.google.android.gms.location.GeofenceStatusCodes.GEOFENCE_NOT_AVAILABLE ->
-            "Los avisos por lugar necesitan «Precisión de la ubicación de Google» activada (Ajustes del móvil → Ubicación)."
-        com.google.android.gms.location.GeofenceStatusCodes.GEOFENCE_INSUFFICIENT_LOCATION_PERMISSION ->
-            "Falta el permiso de ubicación «Todo el tiempo»."
-        com.google.android.gms.location.GeofenceStatusCodes.GEOFENCE_TOO_MANY_GEOFENCES ->
-            "Demasiados avisos por lugar activos (máximo 100)."
-        else -> "No se pudo activar el aviso por lugar (código ${code ?: "?"})."
+        com.google.android.gms.location.GeofenceStatusCodes.GEOFENCE_NOT_AVAILABLE -> context.getString(io.github.salex27.lumi.R.string.geofence_not_available)
+        com.google.android.gms.location.GeofenceStatusCodes.GEOFENCE_INSUFFICIENT_LOCATION_PERMISSION -> context.getString(io.github.salex27.lumi.R.string.geofence_no_background)
+        com.google.android.gms.location.GeofenceStatusCodes.GEOFENCE_TOO_MANY_GEOFENCES -> context.getString(io.github.salex27.lumi.R.string.geofence_too_many)
+        else -> context.getString(io.github.salex27.lumi.R.string.geofence_failed, code?.toString() ?: "?")
     }
 
     private fun remove(taskId: Long) {
@@ -113,7 +109,7 @@ class PlaceReminderManager(
     private fun isFired(task: Task) = fired.getBoolean(firedKey(task), false)
     private fun firedKey(task: Task) = "${task.id}|${task.placeTrigger?.serialize()}"
 
-    /** Ubicación actual precisa (para «Guardar aquí»). null si no hay permiso o no se pudo obtener. */
+    /** Precise current location (for "Save here"). Null without permission or if it couldn't be obtained. */
     @SuppressLint("MissingPermission")
     suspend fun currentLocation(): Location? {
         if (!hasLocation()) return null
@@ -127,7 +123,7 @@ class PlaceReminderManager(
         }
     }
 
-    // Geofencing exige un PendingIntent MUTABLE (el sistema rellena los datos del evento)
+    // Geofencing needs a MUTABLE PendingIntent (the system fills in the event data)
     private fun pendingIntent(): PendingIntent = PendingIntent.getBroadcast(
         context, 0, Intent(context, PlaceReceiver::class.java),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE

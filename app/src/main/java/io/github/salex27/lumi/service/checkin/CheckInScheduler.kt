@@ -30,12 +30,12 @@ import java.time.LocalTime
 import java.time.ZoneId
 
 /**
- * Repaso de la tarde (por defecto a las 20:00): «Hoy: 3 hechas. Quedan 2 para hoy…» con
- * «Pasar a mañana», «Hablar con Lumi» y respuesta escrita/dictada desde la propia notificación.
+ * Evening check-in (20:00 by default): "Today: 3 done. 2 left for today…" with "Move to tomorrow", "Talk to Lumi" and a
+ * typed/dictated reply from the notification itself.
  */
 class CheckInScheduler(private val context: Context, private val settings: SettingsRepository) {
 
-    /** Programa (o cancela) el próximo repaso según los ajustes. Llamar al arrancar, al cambiar ajustes y tras cada repaso. */
+    /** Schedules (or cancels) the next check-in from the settings. Call on start, on settings changes and after each one. */
     fun schedule() {
         val am = context.getSystemService(AlarmManager::class.java)
         val pi = pending()
@@ -45,7 +45,7 @@ class CheckInScheduler(private val context: Context, private val settings: Setti
         var next = now.toLocalDate().atTime(LocalTime.of(s.checkInHour, 0))
         if (!next.isAfter(now)) next = next.plusDays(1)
         val at = next.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        // Ventana de 10 min: no necesita alarma exacta (ahorra batería)
+        // 10 min window: no exact alarm needed (saves battery)
         am.setWindow(AlarmManager.RTC_WAKEUP, at, 10 * 60_000L, pi)
     }
 
@@ -64,26 +64,26 @@ class CheckInReceiver : BroadcastReceiver() {
             try {
                 when (intent.action) {
                     ACTION_FIRE -> {
-                        app.checkIn.schedule() // el de mañana
+                        app.checkIn.schedule() // tomorrow's one
                         val tasks = app.repository.getAllTasks().first()
                         val now = LocalDateTime.now()
-                        // v3.6: y la alarma de mañana según la agenda («Mañana: Dentista a las 9:00 → alarma 7:30»)
+                        // …and tomorrow's alarm from the schedule ("Tomorrow: Dentist at 9:00 → alarm 7:30")
                         val alarm = if (app.settings.current.alarmSuggest) app.repository.smartAlarmPlan(io.github.salex27.lumi.domain.assistant.AlarmPlanner.targetDate(now)) else null
                         val checkIn = CheckInComposer.compose(tasks, now)
                         when {
                             checkIn != null -> show(context, checkIn, alarm)
-                            alarm != null -> show(context, CheckInComposer.CheckIn("Mañana", "", emptyList()), alarm)
+                            alarm != null -> show(context, CheckInComposer.CheckIn(context.getString(R.string.checkin_tomorrow_title), "", emptyList()), alarm)
                         }
                     }
                     ACTION_TOMORROW -> {
                         val tasks = app.repository.getAllTasks().first()
                         val open = CheckInComposer.compose(tasks, LocalDateTime.now())?.openToday.orEmpty()
                         open.forEach { app.repository.updateTask(toTomorrow(it)) }
-                        update(context, "Hecho: ${open.size} ${if (open.size == 1) "tarea pasa" else "tareas pasan"} a mañana. Descansa.")
+                        update(context, context.getString(R.string.checkin_moved, open.size))
                     }
                     ACTION_REPLY -> {
                         val text = RemoteInput.getResultsFromIntent(intent)?.getCharSequence(KEY_REPLY)?.toString().orEmpty()
-                        val answer = if (text.isBlank()) "No he entendido la respuesta" else app.repository.processNaturalLanguageCommand(text).reply
+                        val answer = if (text.isBlank()) context.getString(R.string.reply_not_understood) else app.repository.processNaturalLanguageCommand(text).reply
                         update(context, answer)
                     }
                 }
@@ -93,7 +93,7 @@ class CheckInReceiver : BroadcastReceiver() {
         }
     }
 
-    /** Misma hora mañana; si no tenía hora, mañana sin hora. */
+    /** Same time tomorrow; without a time, tomorrow without a time. */
     private fun toTomorrow(task: Task): Task {
         val zone = ZoneId.systemDefault()
         val tomorrow = LocalDate.now().plusDays(1)
@@ -106,22 +106,22 @@ class CheckInReceiver : BroadcastReceiver() {
 
     private fun show(context: Context, checkIn: CheckInComposer.CheckIn, alarm: io.github.salex27.lumi.domain.assistant.AlarmPlanner.Plan? = null) {
         if (!canNotify(context)) return
-        val body = listOfNotNull(checkIn.body.ifBlank { null }, alarm?.reason?.let { "Mañana: $it" }).joinToString("\n")
+        val body = listOfNotNull(checkIn.body.ifBlank { null }, alarm?.reason?.let { context.getString(R.string.checkin_tomorrow_prefix, it) }).joinToString("\n")
         val builder = base(context)
             .setContentTitle(checkIn.title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
         alarm?.let { builder.addAction(MorningScheduler.alarmAction(context, it)) }
         if (checkIn.openToday.isNotEmpty()) {
-            builder.addAction(0, "Pasar a mañana", broadcast(context, ACTION_TOMORROW, 1))
-            val input = RemoteInput.Builder(KEY_REPLY).setLabel("«Ya hice el informe», «el gimnasio el jueves»…").build()
+            builder.addAction(0, context.getString(R.string.action_move_to_tomorrow), broadcast(context, ACTION_TOMORROW, 1))
+            val input = RemoteInput.Builder(KEY_REPLY).setLabel(context.getString(R.string.checkin_reply_hint)).build()
             val replyPi = PendingIntent.getBroadcast(
                 context, 2, Intent(context, CheckInReceiver::class.java).setAction(ACTION_REPLY),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
             )
-            builder.addAction(NotificationCompat.Action.Builder(0, "Responder", replyPi).addRemoteInput(input).build())
+            builder.addAction(NotificationCompat.Action.Builder(0, context.getString(R.string.action_reply), replyPi).addRemoteInput(input).build())
         }
-        builder.addAction(0, "Hablar con Lumi", AssistantActivity.talkPendingIntent(context))
+        builder.addAction(0, context.getString(R.string.action_talk_to_lumi), AssistantActivity.talkPendingIntent(context))
         NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, builder.build())
     }
 
@@ -153,9 +153,9 @@ class CheckInReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        /** Tocar el repaso abre a Lumi con el resumen del día. */
+        /** Tapping the check-in opens Lumi with the day summary. */
         private fun summaryIntent(context: Context): PendingIntent = PendingIntent.getActivity(
-            context, 32, AssistantActivity.intent(context, compact = true, prompt = "¿Cómo voy hoy?"),
+            context, 32, AssistantActivity.intent(context, compact = true, prompt = context.getString(R.string.prompt_how_am_i_doing)),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
     }

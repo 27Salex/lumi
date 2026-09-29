@@ -21,11 +21,11 @@ import java.net.UnknownHostException
 import java.util.zip.ZipInputStream
 
 /**
- * Modelo pequeño de Vosk en español (~40 MB, Apache 2.0) para detectar «Oye Lumi» sin internet.
+ * Small Spanish Vosk model (~40 MB, Apache 2.0), now only used for the voice print of "Train my voice".
  *
- * La descarga vive en el scope de la aplicación (no en el de una pantalla): si Android cierra la Activity
- * — p.ej. al abrir el permiso «Mostrar sobre otras apps» — la descarga sigue. Es reanudable (HTTP Range sobre
- * un fichero .part) y reintenta con espera creciente, pensado para datos móviles inestables (v3.0.1).
+ * The download lives in the application scope (not a screen's): if Android closes the Activity — e.g. when opening the
+ * "Display over other apps" permission — it keeps going. It is resumable (HTTP Range over a .part file) and retries
+ * with growing waits, designed for unstable mobile data.
  */
 class VoskModelManager(private val context: Context, private val scope: CoroutineScope) {
 
@@ -37,7 +37,7 @@ class VoskModelManager(private val context: Context, private val scope: Coroutin
         data class Failed(val reason: String) : State
     }
 
-    /** Modelo que se descarga: reconocimiento (40 MB) + huella de voz para «Entrenar mi voz» (13 MB). */
+    /** What gets downloaded: recognition (40 MB) + voice print for "Train my voice" (13 MB). */
     private data class Artifact(val url: String, val dirName: String, val expectedBytes: Long, val marker: String)
 
     private val artifacts = listOf(
@@ -59,7 +59,7 @@ class VoskModelManager(private val context: Context, private val scope: Coroutin
 
     fun isReady() = artifacts.all(::isInstalled)
 
-    /** Inicia (o se une a) la descarga. Devuelve true cuando el modelo está listo. */
+    /** Starts (or joins) the download. Returns true once the model is ready. */
     suspend fun download(): Boolean {
         if (isReady()) { _state.value = State.Ready; return true }
         val running = job?.takeIf { it.isActive } ?: scope.async(Dispatchers.IO) { downloadWithRetries() }.also { job = it }
@@ -75,7 +75,7 @@ class VoskModelManager(private val context: Context, private val scope: Coroutin
             doneBefore += a.expectedBytes
         }
         return if (isReady()) { _state.value = State.Ready; true }
-        else { _state.value = State.Failed("El modelo descargado no es válido"); false }
+        else { _state.value = State.Failed(context.getString(io.github.salex27.lumi.R.string.vosk_invalid_model)); false }
     }
 
     private suspend fun downloadArtifact(a: Artifact, doneBefore: Long, totalBytes: Long): Boolean {
@@ -91,7 +91,7 @@ class VoskModelManager(private val context: Context, private val scope: Coroutin
                 throw e // no es un fallo de red: no se convierte en error
             } catch (e: Exception) {
                 lastError = e
-                Log.w(TAG, "Intento $attempt de descarga falló: ${e.message}")
+                Log.w(TAG, "Download attempt $attempt failed: ${e.message}")
                 if (e is BadZip) part(a).delete() // corrupto → empezar de cero
                 if (attempt < MAX_ATTEMPTS) delay(2_000L * attempt)
             }
@@ -100,7 +100,7 @@ class VoskModelManager(private val context: Context, private val scope: Coroutin
         return false
     }
 
-    /** Descarga reanudando desde lo que ya haya en el .part. El progreso cuenta todos los ficheros. */
+    /** Downloads resuming from whatever is already in the .part. Progress counts every file. */
     private fun fetch(a: Artifact, attempt: Int, doneBefore: Long, totalBytes: Long) {
         val partFile = part(a)
         val already = partFile.takeIf { it.exists() }?.length() ?: 0L
@@ -113,7 +113,7 @@ class VoskModelManager(private val context: Context, private val scope: Coroutin
         try {
             val code = conn.responseCode
             val resumed = code == HttpURLConnection.HTTP_PARTIAL
-            if (code != HttpURLConnection.HTTP_OK && !resumed) throw IOException("El servidor respondió $code")
+            if (code != HttpURLConnection.HTTP_OK && !resumed) throw IOException("The server answered $code")
             val start = if (resumed) already else 0L
             val total = start + (conn.contentLengthLong.takeIf { it > 0 } ?: (a.expectedBytes - start))
 
@@ -134,7 +134,7 @@ class VoskModelManager(private val context: Context, private val scope: Coroutin
                             lastEmit = done
                         }
                     }
-                    if (done < total) throw IOException("Descarga incompleta ($done de $total bytes)")
+                    if (done < total) throw IOException("Incomplete download ($done of $total bytes)")
                 }
             }
         } finally {
@@ -142,7 +142,7 @@ class VoskModelManager(private val context: Context, private val scope: Coroutin
         }
     }
 
-    /** El zip trae una carpeta raíz (vosk-model-small-es-0.42/…): se aplana en [target]. */
+    /** The zip has a root folder (vosk-model-small-es-0.42/…): it is flattened into [target]. */
     private fun unzip(zip: File, target: File) {
         val tmp = File(context.filesDir, "${target.name}.tmp").apply { deleteRecursively(); mkdirs() }
         try {
@@ -152,8 +152,8 @@ class VoskModelManager(private val context: Context, private val scope: Coroutin
                     val relative = entry.name.substringAfter('/', "")
                     if (relative.isBlank()) continue
                     val out = File(tmp, relative)
-                    // Protección contra "zip slip"
-                    require(out.canonicalPath.startsWith(tmp.canonicalPath)) { "Entrada de zip no válida" }
+                    // Protection against "zip slip"
+                    require(out.canonicalPath.startsWith(tmp.canonicalPath)) { "Invalid zip entry" }
                     if (entry.isDirectory) out.mkdirs() else {
                         out.parentFile?.mkdirs()
                         out.outputStream().use { zis.copyTo(it) }
@@ -165,18 +165,18 @@ class VoskModelManager(private val context: Context, private val scope: Coroutin
             throw BadZip(e)
         }
         target.deleteRecursively()
-        if (!tmp.renameTo(target)) throw IOException("No se pudo instalar el modelo")
+        if (!tmp.renameTo(target)) throw IOException(context.getString(io.github.salex27.lumi.R.string.vosk_install_failed))
     }
 
     private fun explain(e: Exception?): String = when (e) {
-        is UnknownHostException -> "Sin conexión a internet"
-        is SocketTimeoutException -> "La conexión es muy lenta; inténtalo con Wi-Fi"
-        is BadZip -> "El archivo llegó dañado; vuelve a intentarlo"
-        null -> "Error desconocido"
+        is UnknownHostException -> context.getString(io.github.salex27.lumi.R.string.net_no_internet)
+        is SocketTimeoutException -> context.getString(io.github.salex27.lumi.R.string.net_too_slow)
+        is BadZip -> context.getString(io.github.salex27.lumi.R.string.net_bad_zip)
+        null -> context.getString(io.github.salex27.lumi.R.string.error_unknown)
         else -> e.message ?: e.javaClass.simpleName
     }
 
-    private class BadZip(cause: Exception) : IOException("Zip dañado: ${cause.message}", cause)
+    private class BadZip(cause: Exception) : IOException("Damaged zip: ${cause.message}", cause)
 
     companion object {
         private const val TAG = "VoskModelManager"

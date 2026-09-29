@@ -9,13 +9,13 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 /**
- * Detector de «Oye Lumi» con openWakeWord (v3.5). A diferencia de Vosk no transcribe: reconoce el SONIDO de la frase.
+ * "Oye Lumi" detector with openWakeWord. Unlike Vosk it doesn't transcribe: it recognizes the SOUND of the phrase.
  *
- * Tubería (idéntica a la de openWakeWord en Python, con la que se entrenó):
- *  1. Audio 16 kHz PCM16 en trozos de 1280 muestras (80 ms).
- *  2. melspectrogram.tflite sobre los últimos 1280+480 → 8 frames de 32 bandas; se transforman con x/10 + 2.
- *  3. embedding_model.tflite sobre los últimos 76 frames → 1 embedding de 96 por trozo.
- *  4. Clasificador propio (MLP entrenado para «Oye Lumi», [WakeClassifier]) sobre los últimos 16 embeddings.
+ * Pipeline (identical to openWakeWord in Python, which it was trained with):
+ *  1. 16 kHz PCM16 audio in chunks of 1280 samples (80 ms).
+ *  2. melspectrogram.tflite over the last 1280+480 → 8 frames of 32 bands, transformed with x/10 + 2.
+ *  3. embedding_model.tflite over the last 76 frames → one 96-value embedding per chunk.
+ *  4. Our own classifier (an MLP trained for "Oye Lumi", [WakeClassifier]) over the last 16 embeddings.
  */
 class OyeLumiDetector(context: Context) : Closeable {
 
@@ -25,14 +25,14 @@ class OyeLumiDetector(context: Context) : Closeable {
 
     private val raw = ShortArray(RAW_CONTEXT)
     private var rawFilled = 0
-    // El búfer mel empieza lleno de «1» (como openWakeWord)
+    // The mel buffer starts full of 1s (like openWakeWord)
     private val melFrames = ArrayDeque<FloatArray>().apply { repeat(76) { addLast(FloatArray(32) { 1f }) } }
     private val features = ArrayDeque<FloatArray>()
 
-    /** Procesa 1280 muestras (80 ms). Devuelve la puntuación 0..1, o null mientras se llena el búfer (~1,3 s). */
+    /** Processes 1280 samples (80 ms). Returns the 0..1 score, or null while the buffer fills up (~1.3 s). */
     fun process(chunk: ShortArray): Float? {
-        require(chunk.size == CHUNK) { "Se esperan $CHUNK muestras" }
-        // Últimas 1280+480 muestras (al principio, las que haya)
+        require(chunk.size == CHUNK) { "Expected $CHUNK samples" }
+        // The last 1280+480 samples (at the start, whatever there is)
         System.arraycopy(raw, CHUNK, raw, 0, RAW_CONTEXT - CHUNK)
         System.arraycopy(chunk, 0, raw, RAW_CONTEXT - CHUNK, CHUNK)
         rawFilled = minOf(RAW_CONTEXT, rawFilled + CHUNK)
@@ -46,7 +46,7 @@ class OyeLumiDetector(context: Context) : Closeable {
         out[0][0].forEach { f -> melFrames.addLast(FloatArray(32) { f[it] / 10f + 2f }) }
         while (melFrames.size > MEL_MAX) melFrames.removeFirst()
 
-        // Embedding de los últimos 76 frames
+        // Embedding of the last 76 frames
         val window = Array(1) { Array(76) { r -> Array(32) { c -> FloatArray(1) { melFrames[melFrames.size - 76 + r][c] } } } }
         val emb = Array(1) { Array(1) { Array(1) { FloatArray(96) } } }
         embedding.run(window, emb)
@@ -83,8 +83,8 @@ class OyeLumiDetector(context: Context) : Closeable {
 }
 
 /**
- * Clasificador «Oye Lumi»: MLP (Linear → ReLU → … → Linear) en Kotlin puro, sin runtime. Pesos exportados por
- * train.py: [n_capas] y por capa [entrada, salida, W (salida×entrada), b], little-endian. Testeado en JVM.
+ * "Oye Lumi" classifier: an MLP (Linear → ReLU → … → Linear) in pure Kotlin, no runtime. Weights exported by train.py:
+ * [n_layers] and per layer [in, out, W (out×in), b], little-endian. Tested on the JVM.
  */
 class WakeClassifier(private val layers: List<Layer>) {
 
@@ -121,7 +121,7 @@ class WakeClassifier(private val layers: List<Layer>) {
     }
 }
 
-/** Evita activaciones por un único pico: hacen falta [patience] trozos seguidos por encima del umbral. */
+/** Avoids triggering on a single spike: [patience] consecutive chunks above the threshold are required. */
 class WakeTrigger(var threshold: Float, var patience: Int) {
     private var streak = 0
     fun update(score: Float?): Boolean {

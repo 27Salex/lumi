@@ -9,9 +9,9 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 /**
- * Diagnóstico del detector «Oye Lumi»: pasa un WAV (16 kHz, mono, PCM16) por la misma tubería que el micrófono y
- * escribe las puntuaciones en el log. Sirve para comprobar que el móvil calcula lo mismo que el entrenamiento.
- *   adb shell am broadcast -n <paquete>/.service.wakeword.WakeSelfTestReceiver --es wav /sdcard/Download/prueba.wav
+ * "Oye Lumi" detector diagnostics: runs a WAV (16 kHz, mono, PCM16) through the same pipeline as the microphone and
+ * logs the scores. Used to check that the phone computes the same as the training.
+ *   adb shell am broadcast -n <package>/.service.wakeword.WakeSelfTestReceiver --es wav /sdcard/Download/test.wav
  */
 class WakeSelfTestReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {

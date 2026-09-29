@@ -13,9 +13,9 @@ import org.vosk.android.RecognitionListener
 import org.vosk.android.SpeechService
 
 /**
- * Perfil de voz del usuario («Voice Match» de Lumi). Se guarda SOLO en el móvil:
- * - huella: media de los x-vectors (128 números) de 3 muestras de «Oye Lumi»;
- * - nombres: cómo transcribió el modelo el «Lumi» del usuario (p.ej. «lomi»), para reconocerlo mejor.
+ * The user's voice profile (Lumi's "Voice Match"). Stored ONLY on the phone:
+ * - print: the average of the x-vectors (128 numbers) of 3 "Oye Lumi" samples;
+ * - names: how the model transcribed the user's "Lumi" (e.g. "lomi"), to recognize it better.
  */
 class VoiceProfileStore(context: Context) {
 
@@ -55,8 +55,8 @@ class VoiceProfileStore(context: Context) {
 }
 
 /**
- * Entrenamiento: escucha hasta tener [SAMPLES] muestras válidas de «Oye Lumi» (frase corta que empieza por
- * «oye/hola» y trae huella de voz). La escucha de «Oye Lumi» debe estar en pausa mientras tanto (micrófono).
+ * Training: listens until it has [SAMPLES] valid "Oye Lumi" samples (a short phrase starting with "oye/hola" that
+ * carries a voice print). "Oye Lumi" listening must be paused meanwhile (microphone).
  */
 class VoiceEnroller(private val modelPath: String, private val speakerPath: String) {
 
@@ -64,7 +64,7 @@ class VoiceEnroller(private val modelPath: String, private val speakerPath: Stri
         data object Idle : State
         data object Loading : State
         data class Listening(val collected: Int) : State
-        /** Última muestra no válida (ruido, otra frase): se pide repetir. */
+        /** The last sample wasn't valid (noise, another phrase): ask to repeat it. */
         data class Retry(val collected: Int, val heard: String) : State
         data object Done : State
         data class Failed(val reason: String) : State
@@ -79,7 +79,7 @@ class VoiceEnroller(private val modelPath: String, private val speakerPath: Stri
     private val vectors = mutableListOf<FloatArray>()
     private val names = mutableSetOf<String>()
 
-    /** Debe llamarse fuera del hilo principal (cargar el modelo tarda 1-2 s). */
+    /** Must be called off the main thread (loading the model takes 1-2 s). */
     fun start(onComplete: (FloatArray, Set<String>) -> Unit) {
         stop()
         vectors.clear(); names.clear()
@@ -91,8 +91,8 @@ class VoiceEnroller(private val modelPath: String, private val speakerPath: Stri
             service = SpeechService(rec, SAMPLE_RATE).also { it.startListening(listener(onComplete)) }
             _state.value = State.Listening(0)
         } catch (e: Exception) {
-            Log.e(TAG, "No se pudo iniciar el entrenamiento", e)
-            _state.value = State.Failed(e.message ?: "Error al abrir el micrófono")
+            Log.e(TAG, "Could not start training", e)
+            _state.value = State.Failed(e.message ?: io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("Error al abrir el micrófono", "Could not open the microphone"))
             stop()
         }
     }
@@ -101,7 +101,7 @@ class VoiceEnroller(private val modelPath: String, private val speakerPath: Stri
         override fun onPartialResult(hypothesis: String?) {}
         override fun onResult(hypothesis: String?) = handle(hypothesis, onComplete)
         override fun onFinalResult(hypothesis: String?) = handle(hypothesis, onComplete)
-        override fun onError(exception: Exception?) { _state.value = State.Failed(exception?.message ?: "Error de micrófono") }
+        override fun onError(exception: Exception?) { _state.value = State.Failed(exception?.message ?: io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("Error de micrófono", "Microphone error")) }
         override fun onTimeout() {}
     }
 
@@ -116,7 +116,7 @@ class VoiceEnroller(private val modelPath: String, private val speakerPath: Stri
             return
         }
         vectors += FloatArray(spk.length()) { spk.getDouble(it).toFloat() }
-        // Se guarda la frase completa (vía B) y, si se puede separar, el nombre (vía A)
+        // The whole phrase is saved (path B) and, if it can be split, the name (path A)
         names += phrase
         WakePhrases.nameFromSample(text)?.let { names += it }
         if (vectors.size >= SAMPLES) {
