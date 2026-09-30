@@ -7,8 +7,8 @@ third-party components and services, each under its own terms.
 
 | Component | Use | License |
 |---|---|---|
-| [openWakeWord](https://github.com/dscripka/openWakeWord) feature models (`assets/oww/melspectrogram.tflite`, `assets/oww/embedding_model.tflite`) | "Oye Lumi" audio features | Apache License 2.0 (the embedding model derives from Google's `speech_embedding`, Apache 2.0) |
-| `assets/oww/oye_lumi.bin` | "Oye Lumi" classifier | Trained for this project; Apache License 2.0 |
+| [openWakeWord](https://github.com/dscripka/openWakeWord) feature models (`assets/oww/melspectrogram.tflite`, `assets/oww/embedding_model.tflite`) | Wake word audio features | Apache License 2.0 (the embedding model derives from Google's `speech_embedding`, Apache 2.0) |
+| `assets/oww/oye_lumi.bin` | "Hey Lumi" / "Oye Lumi" classifier | Trained for this project; Apache License 2.0 |
 | [Inter](https://rsms.me/inter/) font | UI typeface | SIL Open Font License 1.1 |
 | [LiteRT](https://github.com/google-ai-edge/LiteRT) and [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM) | On-device inference | Apache License 2.0 |
 | [Vosk Android](https://github.com/alphacep/vosk-api) | Voice print for "Train my voice" | Apache License 2.0 |

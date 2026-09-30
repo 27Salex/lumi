@@ -35,7 +35,8 @@ import android.media.MediaRecorder
 import kotlin.concurrent.thread
 
 /**
- * "Oye Lumi": continuous OFFLINE listening with a wake word detector (openWakeWord, [OyeLumiDetector]): it recognizes
+ * "Hey Lumi" / "Oye Lumi": continuous OFFLINE listening with a wake word detector (openWakeWord, [OyeLumiDetector]; one
+ * model for both phrases): it recognizes
  * the SOUND of the phrase, transcribes nothing and sends audio nowhere. It replaced Vosk, whose Spanish model has no
  * "lumi" in its vocabulary and could never write it. Vosk is only kept for the voice print.
  *
@@ -87,7 +88,7 @@ class WakeWordService : Service() {
      * Listening loop: records 80 ms, scores it and, if "Oye Lumi" is above the threshold enough times in a row (depending
      * on the sensitivity), checks the voice (if trained) and opens the assistant. Pauses by releasing the microphone.
      */
-    @SuppressLint("MissingPermission") // el servicio solo se arranca con el permiso concedido
+    @SuppressLint("MissingPermission") // the service is only started with the permission granted
     private fun loop() {
         val app = application as TaskManagerApplication
         try {
@@ -108,7 +109,7 @@ class WakeWordService : Service() {
             if (record.state != AudioRecord.STATE_INITIALIZED) { record.release(); Thread.sleep(1000); continue }
             record.startRecording()
             detector?.reset(); trigger.reset()
-            Log.i(TAG, "Listening for «Oye Lumi»")
+            Log.i(TAG, "Listening for the wake phrase")
             while (alive && listening) {
                 var read = 0
                 while (read < chunk.size && alive && listening) {
@@ -140,7 +141,7 @@ class WakeWordService : Service() {
         val app = application as TaskManagerApplication
         val voice = app.voiceProfile
         val profile = voice.profile.value
-        val label = "«Oye Lumi» (${(score * 100).toInt()} %)"
+        val label = "«Lumi» (${(score * 100).toInt()} %)"
         // If the user trained their voice, it has to be their voice (Vosk print over the last 2 s)
         var similarity: Float? = null
         if (profile != null) {
@@ -153,8 +154,8 @@ class WakeWordService : Service() {
         val now = SystemClock.elapsedRealtime()
         if (now - lastTrigger < COOLDOWN_MS) return
         lastTrigger = now
-        report(label, similarity, true, "Activada")
-        releaseMic() // el asistente necesita el micrófono; se reanuda al cerrarlo (onStop del asistente)
+        report(label, similarity, true, getString(io.github.salex27.lumi.R.string.wake_accepted))
+        releaseMic() // the assistant needs the microphone; resumed when it closes (the assistant's onStop)
         openAssistant()
     }
 
@@ -233,7 +234,7 @@ class WakeWordService : Service() {
 
     private fun createChannel() {
         getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "Oye Lumi", NotificationManager.IMPORTANCE_LOW).apply {
+            NotificationChannel(CHANNEL_ID, getString(io.github.salex27.lumi.R.string.wake_channel_name), NotificationManager.IMPORTANCE_LOW).apply {
                 description = getString(io.github.salex27.lumi.R.string.wake_channel_description)
                 setShowBadge(false)
             }

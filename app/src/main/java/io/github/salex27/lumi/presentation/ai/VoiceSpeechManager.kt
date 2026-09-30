@@ -65,7 +65,9 @@ class VoiceSpeechManager(
         onFinalResult: (String) -> Unit,
         onError: (String) -> Unit,
         quiet: Boolean = false,
-        onSilence: () -> Unit = {}
+        onSilence: () -> Unit = {},
+        /** Called once per listening, when the microphone is really open (the moment to start talking). */
+        onReady: () -> Unit = {}
     ) {
         if (!isAvailable()) {
             onError(ReplyLanguage.ui("El reconocimiento de voz no está habilitado en este dispositivo.", "Speech recognition isn't enabled on this device."))
@@ -76,6 +78,8 @@ class VoiceSpeechManager(
         awaitingMore = false
         finalCallback = onFinalResult
         val mySession = ++session
+        Log.i(TAG, "Start listening (session $mySession, ${languageTag()}, quiet=$quiet)")
+        var readyNotified = false
 
         fun finish() {
             if (mySession != session) return
@@ -90,6 +94,7 @@ class VoiceSpeechManager(
                 setRecognitionListener(object : RecognitionListener {
                     override fun onReadyForSpeech(params: Bundle?) {
                         _isListening.value = true
+                        if (!readyNotified && mySession == session) { readyNotified = true; onReady() }
                     }
 
                     override fun onBeginningOfSpeech() {
@@ -114,8 +119,10 @@ class VoiceSpeechManager(
                         // Waiting for more and nothing was said (or understood) → send what was already there
                         val silence = error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
                         if (buffer.isNotBlank() && (awaitingMore || silence || error == SpeechRecognizer.ERROR_CLIENT)) { finish(); return }
-                        if (quiet && silence) { stopListening(); onSilence(); return }
-                        stopListening()
+                        // Explicit receiver: inside SpeechRecognizer.apply {} a bare stopListening() is the RECOGNIZER's, which
+                        // after an error answers with ERROR_CLIENT → onError → stopListening… an endless loop (~30 errors/s)
+                        if (quiet && silence) { this@VoiceSpeechManager.stopListening(); onSilence(); return }
+                        this@VoiceSpeechManager.stopListening()
                         val msg = when (error) {
                             SpeechRecognizer.ERROR_AUDIO -> ReplyLanguage.ui("Error de grabación de audio.", "Audio recording error.")
                             SpeechRecognizer.ERROR_NO_MATCH -> ReplyLanguage.ui("No te he entendido.", "I didn't catch that.")
@@ -145,7 +152,8 @@ class VoiceSpeechManager(
                         if (text.isNotBlank()) buffer = (buffer + " " + text).trim()
                         _liveTranscript.value = buffer
                         if (buffer.isBlank()) { finish(); return }
-                        // Chunk received: listen again for a moment in case you keep talking
+                        // Chunk received: listen again for a moment in case you keep talking (the RECOGNIZER's own
+                        // startListening, on purpose: same session)
                         awaitingMore = true
                         runCatching { startListening(intent()) }.onFailure { finish(); return }
                         handler.postDelayed({ if (awaitingMore) finish() }, pauseMillis())
@@ -185,6 +193,17 @@ class VoiceSpeechManager(
         // Silence hints (many recognizers ignore them; that is why chained listening exists)
         putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, pauseMillis())
         putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, pauseMillis())
+        // Android 14+: Lumi is bilingual, so the recognizer may switch between the chosen voice language and the other
+        // one (Spanish ↔ English). Recognizers that don't support it ignore these extras.
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val other = if (lang.startsWith("es", ignoreCase = true)) "en-US" else "es-ES"
+            val both = arrayListOf(lang, other)
+            putExtra(RecognizerIntent.EXTRA_ENABLE_LANGUAGE_DETECTION, true)
+            putStringArrayListExtra(RecognizerIntent.EXTRA_LANGUAGE_DETECTION_ALLOWED_LANGUAGES, both)
+            putExtra(RecognizerIntent.EXTRA_ENABLE_LANGUAGE_SWITCH, RecognizerIntent.LANGUAGE_SWITCH_BALANCED)
+            putStringArrayListExtra(RecognizerIntent.EXTRA_LANGUAGE_SWITCH_ALLOWED_LANGUAGES, both)
+            removeExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE)
+        }
     }
 
     /** Finish now (stop button): if there was text already, it is sent. */

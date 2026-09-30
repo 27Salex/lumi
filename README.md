@@ -44,7 +44,7 @@ before a meeting…), or you add your own. Place reminders fire when you arrive 
   coming.
 - Morning summary and evening check-in notifications.
 
-**Everywhere on the phone.** "Oye Lumi" wake word (offline), the side button as the system assistant, a Quick
+**Everywhere on the phone.** "Hey Lumi" wake word (offline; "Oye Lumi" in Spanish), the side button as the system assistant, a Quick
 Settings tile, a home-screen widget, "Share → Lumi" from any app, the lock screen, and a live countdown chip for the
 next task (Android 16 / Now Bar).
 
@@ -89,7 +89,7 @@ Read [`AGENTS.md`](AGENTS.md) for the architecture and rules, and [`MEMORY.md`](
 1. Download `Lumi-1.0.0.apk` from [Releases](https://github.com/27Salex/lumi/releases) and install it
    (allow installing from your browser/files app).
 2. Open Lumi and, when asked, download Gemma (Home → Local AI) on Wi-Fi.
-3. Optional: Settings → "Oye Lumi", Digital assistant, Places, Google Calendar,
+3. Optional: Settings → "Hey Lumi", Digital assistant, Places, Google Calendar,
    [Google Tasks](docs/GOOGLE_TASKS_SETUP.md).
 
 Requires Android 10+. Built and tested on a Samsung Galaxy S25 (Android 16) and the Android emulator.

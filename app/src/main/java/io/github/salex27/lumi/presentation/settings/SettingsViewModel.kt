@@ -300,7 +300,7 @@ class SettingsViewModel(private val app: TaskManagerApplication) : ViewModel(), 
     /** Needs the downloaded model and the microphone permission. "Oye Lumi" is paused to free the microphone. */
     override fun startVoiceTraining() {
         if (!app.wakeWordModel.isReady()) {
-            enrollState.value = VoiceEnroller.State.Failed(io.github.salex27.lumi.domain.assistant.ReplyLanguage.ui("Primero activa «Oye Lumi» para descargar el modelo de voz", "First turn on «Oye Lumi» to download the voice model"))
+            enrollState.value = VoiceEnroller.State.Failed(app.getString(io.github.salex27.lumi.R.string.wake_first_turn_on))
             return
         }
         WakeWordService.pause(app)

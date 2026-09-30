@@ -45,7 +45,7 @@ data/
   settings/SettingsRepository  # SharedPreferences → StateFlow<AppSettings>
 service/
   reminder/                    # AlarmManager (one alarm per reminder) + ReminderReceiver (Done / +1 h / Reply / reboot)
-  wakeword/                    # "Oye Lumi": WakeWordService (openWakeWord detector, mic foreground service), Voice Match
+  wakeword/                    # "Hey Lumi" / "Oye Lumi": WakeWordService (openWakeWord detector, mic foreground service), Voice Match
   checkin/ live/ notify/ place/  # Evening check-in + morning summary, Now Bar chip, message reading, geofences
 presentation/
   main/                        # MainActivity (bottom nav), HomeScreen, MainViewModel

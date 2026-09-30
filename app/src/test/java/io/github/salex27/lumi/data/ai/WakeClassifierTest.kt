@@ -8,7 +8,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** The Kotlin "Oye Lumi" detector must match PyTorch (cases exported by train.py). */
+/** The Kotlin wake word detector ("Hey Lumi" / "Oye Lumi") must match PyTorch (cases exported by train.py). */
 class WakeClassifierTest {
 
     private fun resource(path: String) = javaClass.classLoader!!.getResourceAsStream(path)!!
@@ -21,7 +21,7 @@ class WakeClassifierTest {
             val c = cases.getJSONObject(i)
             val xs = c.getJSONArray("x")
             val x = FloatArray(xs.length()) { xs.getDouble(it).toFloat() }
-            assertEquals("caso $i", c.getDouble("y"), classifier.score(x).toDouble(), 1e-4)
+            assertEquals("case $i", c.getDouble("y"), classifier.score(x).toDouble(), 1e-4)
         }
     }
 
@@ -29,7 +29,7 @@ class WakeClassifierTest {
     fun `patience requires several windows in a row`() {
         val t = WakeTrigger(0.5f, 2)
         assertFalse(t.update(0.9f))
-        assertTrue(t.update(0.8f))      // 2 seguidas → activa
+        assertTrue(t.update(0.8f))      // 2 in a row → triggers
         assertFalse(t.update(0.9f))     // resets after triggering
         assertFalse(t.update(0.2f))
         assertFalse(t.update(null))

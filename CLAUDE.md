@@ -57,7 +57,7 @@ pieces live in `presentation/components` (`LumiMark`, `TaskRow`, `SmartBar`, `Li
 
 **Reminders, recurrence, voice.** `ReminderPlanner` (pure) decides Lumi's automatic reminders per task;
 `AlarmReminderScheduler` stores one row per reminder in the `reminders` table and one alarm each. Completing a
-recurring task spawns the next occurrence inside `TaskRepositoryImpl.updateTask`. "Oye Lumi" is `WakeWordService`
+recurring task spawns the next occurrence inside `TaskRepositoryImpl.updateTask`. "Hey Lumi" / "Oye Lumi" (one model for both) is `WakeWordService`
 (openWakeWord TFLite detector in `assets/oww` + optional local Voice Match, mic foreground service, started only while
 the app is visible). Replies to voice requests are read aloud by `LumiSpeaker` (system TTS, voice chosen per reply
 language).

@@ -57,6 +57,13 @@ class AssistantActivity : ComponentActivity() {
         // asks to unlock first (see whenUnlocked)
         setShowWhenLocked(true)
         setTurnScreenOn(true)
+        // Android only lets an OPAQUE activity cover ("occlude") the lock screen. A translucent one is drawn on top but the
+        // keyguard keeps focus, so Lumi wasn't really in front and the recognizer got silence. Over the lock screen the
+        // assistant becomes opaque, on its own dark background.
+        if (keyguardLocked() && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(0xFF07080D.toInt()))
+            setTranslucent(false)
+        }
 
         // Invoked as the system assistant (or with EXTRA_START_LISTENING) → start listening, like Gemini.
         // Only on the first start, not when the Activity is recreated (rotation): avoids resending / listening again
@@ -84,6 +91,8 @@ class AssistantActivity : ComponentActivity() {
                 val transcript by voice.liveTranscript.collectAsStateWithLifecycle()
                 val speaking by app.speaker.speaking.collectAsStateWithLifecycle()
                 var hasMic by remember { mutableStateOf(hasMicPermission()) }
+                // Queried once, not on every frame (the logo animation recomposes ~30 times per second)
+                val micAvailable = remember { voice.isAvailable() }
 
                 fun listen(quiet: Boolean = false) {
                     app.speaker.stop() // if Lumi was speaking, it goes quiet to listen to you
@@ -93,7 +102,9 @@ class AssistantActivity : ComponentActivity() {
                         onError = { viewModel.setVoiceError(it) }, // shown in the pill / bar
                         quiet = quiet,
                         // It kept listening and you said nothing else: the pill (outside the app) goes away on its own
-                        onSilence = { if (compact) lifecycleScope.launch { kotlinx.coroutines.delay(1_200); if (!voice.isListening.value) finish() } }
+                        onSilence = { if (compact) lifecycleScope.launch { kotlinx.coroutines.delay(1_200); if (!voice.isListening.value) finish() } },
+                        // A light tick when the microphone is really open: words said before that are lost
+                        onReady = { window.decorView.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM) }
                     )
                 }
 
@@ -121,6 +132,12 @@ class AssistantActivity : ComponentActivity() {
                     }
                     initialPrompt?.let { if (intent.getBooleanExtra(EXTRA_SPEAK, false)) viewModel.sendSpoken(it) else viewModel.send(it) }
                     if (autoListen && initialPrompt == null) {
+                        // Only once the window is really in front: over the lock screen (and when the screen was off)
+                        // the Activity is created during the keyguard/turn-on transition, and a recognizer started
+                        // then gets SILENT audio from Android (no error: "Listening…" that never hears anything).
+                        // The short wait also lets the "Oye Lumi" detector release the microphone.
+                        kotlinx.coroutines.withTimeoutOrNull(1_500) { windowFocused.first { it } }
+                        kotlinx.coroutines.delay(if (keyguardLocked()) 600 else 250)
                         if (hasMic) listen() else micPermission.launch(Manifest.permission.RECORD_AUDIO)
                     }
                 }
@@ -234,7 +251,7 @@ class AssistantActivity : ComponentActivity() {
                     isSpeaking = speaking,
                     audioLevel = rms,
                     liveTranscript = transcript,
-                    micAvailable = voice.isAvailable(),
+                    micAvailable = micAvailable,
                     onSend = { voice.stopListening(); app.speaker.stop(); viewModel.send(it) },
                     onPlanDay = viewModel::planMyDay,
                     onBriefing = viewModel::briefing,
@@ -273,6 +290,16 @@ class AssistantActivity : ComponentActivity() {
             override fun onDismissError() = onCancelled()
         })
     }
+
+    /** True once the window has focus (the Activity is really in front, also over the lock screen). */
+    private val windowFocused = kotlinx.coroutines.flow.MutableStateFlow(false)
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) windowFocused.value = true
+    }
+
+    private fun keyguardLocked() = getSystemService(android.app.KeyguardManager::class.java).isKeyguardLocked
 
     // "Oye Lumi" releases the microphone while the assistant is open
     override fun onStart() {

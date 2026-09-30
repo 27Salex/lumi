@@ -43,7 +43,7 @@ como «avisa a mamá cuando llegue a casa» trae un botón que abre el mensaje y
   cuenta lo que viene.
 - Resumen de la mañana y repaso de la tarde como notificaciones.
 
-**En todo el móvil.** Palabra de activación «Oye Lumi» (sin internet), el botón lateral como asistente del sistema,
+**En todo el móvil.** Palabra de activación «Oye Lumi» (o «Hey Lumi» en inglés, sin internet), el botón lateral como asistente del sistema,
 un tile de Ajustes rápidos, un widget, «Compartir → Lumi» desde cualquier app, la pantalla de bloqueo y un chip con
 cuenta atrás para la próxima tarea (Android 16 / Now Bar).
 

@@ -88,7 +88,7 @@ class VoskModelManager(private val context: Context, private val scope: Coroutin
                 part(a).delete()
                 return true
             } catch (e: CancellationException) {
-                throw e // no es un fallo de red: no se convierte en error
+                throw e // not a network failure: not turned into a network error
             } catch (e: Exception) {
                 lastError = e
                 Log.w(TAG, "Download attempt $attempt failed: ${e.message}")
@@ -118,7 +118,7 @@ class VoskModelManager(private val context: Context, private val scope: Coroutin
             val total = start + (conn.contentLengthLong.takeIf { it > 0 } ?: (a.expectedBytes - start))
 
             RandomAccessFile(partFile, "rw").use { out ->
-                out.setLength(start) // si el servidor no admite Range, se reescribe desde el principio
+                out.setLength(start) // if the server doesn't support Range, it is rewritten from the start
                 out.seek(start)
                 conn.inputStream.use { input ->
                     val buf = ByteArray(64 * 1024)

@@ -13,12 +13,17 @@ import kotlin.math.sqrt
  *   2. Voice (optional, "Train my voice"): cosine similarity between the voice print (Vosk x-vector) and the average of
  *      3 samples from the user. Same voice 0.69–0.97; another person 0.03.
  */
-// "Oye Lumi" detector thresholds (picked with train.py):
-// With 5 unseen voices and 5.3 h of real audio: Strict 66 % detected / 0 false activations per hour; Normal 75 % / 0.4;
-// Relaxed 81 % / 0.75. A single window is enough (requiring several in a row lost more detections than false ones it removed).
-const val DETECTOR_STRICT = 0.6f
-const val DETECTOR_NORMAL = 0.4f
-const val DETECTOR_RELAXED = 0.3f
+// Wake phrase detector thresholds (model v2, one model for "Hey Lumi" + "Oye Lumi", picked with train_v2.py).
+// Unseen voices, phrase inside 3 s of audio with noise and phone-mic effects, and 5.3 h of real audio for false wakes:
+//   Strict 0.50  → "Oye Lumi" 69 %, "Hey Lumi" 80 %, 0 false wakes/h
+//   Normal 0.35  → ~76 %, ~85 %, ~0.1/h   (the previous model: 75 %, 56 %, 0.37/h)
+//   Relaxed 0.25 → ~81 %, ~88 %, ~0.5/h
+// English sound-alike names ("Hey Lucy", "Hey Louie") are the weak spot (~25–35 % on Normal); Voice Match and the
+// "Should I note it down?" confirmation filter them. A single window is enough (requiring several in a row lost more
+// detections than false ones it removed).
+const val DETECTOR_STRICT = 0.50f
+const val DETECTOR_NORMAL = 0.35f
+const val DETECTOR_RELAXED = 0.25f
 
 object WakePhrases {
 
@@ -39,9 +44,9 @@ object WakePhrases {
         /** openWakeWord: minimum detector score and consecutive 80 ms chunks above it. */
         val detectorThreshold: Float, val patience: Int
     ) {
-        STRICT(0.55f, "Estricta", 0.12, 3, false, DETECTOR_STRICT, 1),
+        STRICT(0.55f, "Strict", 0.12, 3, false, DETECTOR_STRICT, 1),
         NORMAL(0.42f, "Normal", 0.2, 3, true, DETECTOR_NORMAL, 1),
-        RELAXED(0.30f, "Relajada", 0.27, 4, true, DETECTOR_RELAXED, 1)
+        RELAXED(0.30f, "Relaxed", 0.27, 4, true, DETECTOR_RELAXED, 1)
     }
 
     /** Without accents or punctuation: "¡Oye, Lumí!" → "oye lumi". */

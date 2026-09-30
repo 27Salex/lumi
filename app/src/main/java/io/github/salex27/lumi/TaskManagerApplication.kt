@@ -179,10 +179,10 @@ class TaskManagerApplication : Application() {
 
         appScope.launch {
             nanoEngine.refreshStatus()
-            gemmaEngine.warmUp() // carga Gemma en memoria si ya está descargado
+            gemmaEngine.warmUp() // loads Gemma into memory if it is already downloaded
             assistant.refreshActiveEngine()
         }
-        appScope.launch { googleTasksSync.syncNow() } // no hace nada si no está activado
+        appScope.launch { googleTasksSync.syncNow() } // does nothing if it isn't turned on
         // When the Gemma download finishes → load it and update the active engine
         gemmaModel.state.onEach {
             if (it == GemmaModelManager.State.Ready) gemmaEngine.warmUp()

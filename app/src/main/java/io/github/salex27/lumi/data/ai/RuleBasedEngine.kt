@@ -86,7 +86,7 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
 
         if (PLAN_REGEX.containsMatchIn(lower)) return TaskAICommand(action = TaskAICommand.PLAN_DAY)
         if (SUMMARY_REGEX.containsMatchIn(lower)) return TaskAICommand(action = TaskAICommand.SUMMARIZE)
-        // «Dame ideas para cenar», «explícame…», «¿cuánto es el 15 % de 80?»: no son tareas
+        // «Dame ideas para cenar», «explícame…», «¿cuánto es el 15 % de 80?»: these aren't tasks
         if (AssistantIntents.isGeneralAsk(text) || QuickMath.answer(text) != null) return TaskAICommand(action = TaskAICommand.ASK, targetTitle = text)
         // A "hidden" question without "¿?" ("…me la puedo comer", "es malo…"): answered, never saved or added
         if (!AssistantIntents.asksToRemember(text) && AssistantIntents.looksLikeQuestion(text) && !QUESTION_REGEX.containsMatchIn(text)) {

@@ -6,6 +6,35 @@ translated when the project went public; version numbers before 1.0.0 refer to t
 
 ---
 
+## 2026-09-30 — 1.0.0 (same version): "Hey Lumi", better wake word, lock screen and a recognizer loop
+
+User report after trying 1.0.0: English speakers won't say "Oye Lumi", detection still feels weak, and on the lock
+screen Lumi appears when called but doesn't seem to listen. Fixed inside 1.0.0 (no version bump, user's request).
+
+- **Wake word v2: one model for "Hey Lumi" + "Oye Lumi".** New English data with edge-tts (47 English voices from 14
+  accents + multilingual + some Spanish voices saying "Hey Lumi"; 48 English sound-alike traps such as "Hey Lucy",
+  "Hey Louie", "Hey Siri"; normal English speech) and **phone-mic augmentation** (band-pass 80–350 Hz / 3.4–7.6 kHz, soft
+  clipping, far-field levels down to 3 %) on top of the old noise/echo/speed augmentation. Same MLP and file format, so
+  the app code didn't change (parity test updated). Scripts in `tools/wakeword/`.
+- **Results on unseen voices** (phrase inside 3 s with noise; 5.3 h of real audio for false wakes), at similar false
+  wake rates: old model "Oye Lumi" 75 % / "Hey Lumi" 56 % / 0.37 false wakes per hour → v2 on Normal ≈ 76 % / 85 % /
+  0.1 per hour. Weak spot: English sound-alike names (~25–35 % on Normal), filtered by Voice Match and the "Should I
+  note it down?" confirmation. A variant trained harder against English traps (v3) had more false wakes on real audio
+  and was dropped. New thresholds: Strict 0.50 / Normal 0.35 / Relaxed 0.25. On-device self-test (emulator): "Hey Lumi"
+  0.95–0.99, "Oye Lumi" 0.999, English trap 0.10, normal sentence 0.02.
+- **Lock screen:** the assistant Activity is translucent, and Android only lets an OPAQUE activity occlude the keyguard:
+  Lumi was drawn over the lock screen but the keyguard kept focus (`mCurrentFocus=NotificationShade`), so it wasn't
+  really in front and the recognizer got silence. Over the lock screen it now calls `setTranslucent(false)` on a dark
+  background (verified: `mKeyguardOccluded=true`, focus on Lumi, microphone open), and listening starts after the
+  window gets focus (max 1.5 s wait) plus a short delay so the wake word detector releases the mic.
+- **Recognizer error loop (old bug, found on the emulator):** inside `SpeechRecognizer.apply { }` a bare
+  `stopListening()` in the listener called the RECOGNIZER's method; after an error the system answered "stop without
+  start" with ERROR_CLIENT → onError → stopListening… ≈30 errors per second until the pill closed (2,179 in 10 s).
+  Fixed with `this@VoiceSpeechManager.stopListening()`; after a miss there is now exactly one error.
+- **Speech recognition:** on Android 14+ Google's recognizer may auto-detect between the voice language and the other
+  one (Spanish ↔ English); a haptic tick marks the moment the mic is really open (words before it are lost).
+- The English UI says «Hey Lumi»; the Spanish one «Oye Lumi» (both mention the other phrase where it matters).
+
 ## 2026-09-30 — 1.0.0: Gemma batch in both languages (emulator, CPU)
 
 20 phrases (`tools/gemma_phrases.txt`, 10 Spanish + 10 English) through the real Gemma 4 E2B:
@@ -481,7 +510,8 @@ Plan approved by the user ("Lumi — Plan v3.1"). Decisions:
 
 - Not yet verified on the S25: the Now Bar chip on One UI 8, place reminders with "all the time" location, "Oye Lumi"
   with the real microphone, Gemma on GPU after the OpenCL fix, replying from a notification, real Google Calendar meetings.
-- The "Oye Lumi" detector was trained on Spanish voices only; English speakers may need "Relaxed" + voice training.
+- The wake word was trained on synthetic (TTS) voices with simulated phone-mic effects; real voices may score lower.
+  English sound-alike names ("Hey Lucy") can wake it. If it misses you, use "Relaxed" + "Train my voice".
 - Google Tasks only has a date (no time) → the time lives only on the phone.
 - The Agenda view doesn't allow dragging blocks to change the time (edit from the sheet).
 - The APK is debug-signed (no release keystore): an app signed with another key can't update over it.

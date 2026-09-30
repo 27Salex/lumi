@@ -32,7 +32,7 @@ class WakeSelfTestReceiver : BroadcastReceiver() {
                     Log.i("OyeLumiSelfTest", "${File(path).name} max=${"%.4f".format(scores.maxOrNull() ?: 0f)} scores=${scores.joinToString(",") { "%.3f".format(it) }}")
                 }
             } catch (e: Exception) {
-                Log.e("OyeLumiSelfTest", "Fallo", e)
+                Log.e("OyeLumiSelfTest", "Failed", e)
             } finally {
                 pending.finish()
             }

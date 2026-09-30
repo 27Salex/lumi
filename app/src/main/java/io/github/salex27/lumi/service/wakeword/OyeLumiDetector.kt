@@ -9,13 +9,14 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 /**
- * "Oye Lumi" detector with openWakeWord. Unlike Vosk it doesn't transcribe: it recognizes the SOUND of the phrase.
+ * Wake phrase detector with openWakeWord: one model fires on "Hey Lumi" (English) and "Oye Lumi" (Spanish). Unlike Vosk
+ * it doesn't transcribe: it recognizes the SOUND of the phrase.
  *
  * Pipeline (identical to openWakeWord in Python, which it was trained with):
  *  1. 16 kHz PCM16 audio in chunks of 1280 samples (80 ms).
  *  2. melspectrogram.tflite over the last 1280+480 → 8 frames of 32 bands, transformed with x/10 + 2.
  *  3. embedding_model.tflite over the last 76 frames → one 96-value embedding per chunk.
- *  4. Our own classifier (an MLP trained for "Oye Lumi", [WakeClassifier]) over the last 16 embeddings.
+ *  4. Our own classifier (an MLP trained for "Hey Lumi" + "Oye Lumi", [WakeClassifier]) over the last 16 embeddings.
  */
 class OyeLumiDetector(context: Context) : Closeable {
 
