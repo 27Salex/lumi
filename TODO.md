@@ -12,7 +12,7 @@ Pending work. Finished items are removed; their history is in `MEMORY.md` and gi
 - [x] Batch of Spanish + English phrases through the real Gemma (`tools/gemma_batch.sh`) and interpretation timing
 - [x] README (en + es), LICENSE, THIRD_PARTY_NOTICES, screenshots, demo script
 - [x] versionCode 1 / versionName 1.0.0, build, APK to Drive, tag `v1.0.0`
-- [ ] Publish on GitHub (ask the user first)
+- [x] Published: https://github.com/27Salex/lumi (release v1.0.0 with the APK)
 
 ## To test on the Galaxy S25
 - [ ] Now Bar: One UI promoting the notification (Android 16 + One UI 8)
