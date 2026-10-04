@@ -390,6 +390,8 @@
     <string name="vosk_install_failed">Couldn\'t install the model</string>
     <string name="vosk_invalid_model">The downloaded model isn\'t valid</string>
     <string name="wake_accepted">Accepted</string>
+    <string name="wake_accepted_confirm">Accepted, will ask to confirm</string>
+    <string name="wake_ignored_audio">Ignored: other audio was playing</string>
     <string name="wake_channel_description">Ongoing notice while Lumi listens for the wake word</string>
     <string name="wake_channel_name">Hey Lumi</string>
     <string name="wake_first_turn_on">First turn on «Hey Lumi» to download the voice model</string>

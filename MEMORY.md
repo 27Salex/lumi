@@ -6,6 +6,63 @@ translated when the project went public; version numbers before 1.0.0 refer to t
 
 ---
 
+## 2026-10-04 — Wake word retrain with media / car / sound-alike hard negatives: tried, NOT shipped (issue #6)
+
+- **Kept model v2** (`oye_lumi.bin` and the thresholds unchanged). No retrained model beat it clearly at the same
+  true-wake recall: every candidate that cut media false wakes raised false wakes on real everyday audio.
+- **New data (outside the repo, licence-clean):** MUSAN (CC BY 4.0: 16 h music, 10 h speech, 6 h noise);
+  22 public-domain US TV episodes from archive.org (11 of *The Lucy Show*, which says "Lucy" constantly, plus Andy
+  Griffith, Beverly Hillbillies, etc.); 8 LibriVox Spanish audiobooks (public domain); Blender's *Tears of Steel* mix
+  (CC BY, test only). Plus 2,408 edge-tts clips: 48 English and 46 Spanish sound-alikes ("Hey Lucy", "Hey Louie",
+  "Oye Luis", "Oye Lucía"…) and TV-style lines. These were played through simulated channels: the phone's own
+  speaker (small-speaker EQ, clipping, sometimes an echo-canceller residual), car Bluetooth (cabin reverb + synthetic
+  road/engine/wind noise), and a TV in the room. Train and test are split by episode, book, file and TTS voice; the
+  test voices are the same ones v2 was measured on.
+- **New scenario tests:** false wakes/h on held-out media through the phone speaker (2.4 h), car (2.0 h) and room
+  (1.5 h); sound-alikes from held-out voices.
+- **Baseline v2 per threshold.** Strict 0.50: phone 7.0/h, car 1.0/h, room 7.5/h. Normal 0.35: phone 14.8/h,
+  car 5.1/h, room 13.0/h, real audio 0/h; "Hey Lucy"-type 47 %, "Oye Luis"-type 25 %. Relaxed 0.25: phone 25/h,
+  car 11/h, room 22/h. So media on the speaker really does wake v2 about every 4 minutes on Normal.
+- **WakeGate's raised bar is costly.** It does stop media: speaker 0.80 × 2 windows → 0.8/h; Bluetooth 0.85 × 3 →
+  0/h. But only 26 % of held-out "Oye Lumi" and 50 % of "Hey Lumi" pass 0.80 × 2 (Bluetooth 0.85 × 3: 7 % / 24 %),
+  even in clean conditions. Calling Lumi over media mostly won't work.
+- **Retrain results** (`train_v3.py`; compared at the threshold that gives the SAME recall as v2, since retraining
+  shifts the score scale):
+  - Positives mixed with media/car audio made everything worse: their background could hold TV lines or
+    sound-alikes, which contradicts the negatives (real audio 5–22/h at v2's Normal recall).
+  - Fine-tuning v2 and a wider MLP (256/128) were also worse.
+  - Dropping near-homophones ("Hey Lumina", "Hey Lou, me too", "Oye Lumen"…) from the negatives didn't help.
+  - Best runs at Normal-equivalent recall: media false wakes about halved (phone 7–11/h, room 5–8/h, car 3–3.6/h),
+    "Hey Lucy" 47 % → 39–44 %. But real audio went 0 → 0.19–1.1/h, and a control run with no new data
+    landed in the same range, so run-to-run spread is as large as the data effect.
+  - At Strict-equivalent recall, run v3c reached phone 3.3/h and room 1.4/h, but real audio 0.19/h.
+- **Why not shipped:** none is clearly better without losing something, and real-audio false wakes matter most. Next
+  step for training: real phone recordings (accepted/rejected wakes) as hard negatives, not more synthetic media.
+  App-side options being discussed instead: Voice Match as the media gate in place of the 0.80 bump, and a Vosk
+  transcript veto only on names that clearly aren't Lumi. The Spanish small model can't transcribe "lumi" or
+  English, so it can't confirm a wake.
+- Scripts and data stayed in the session scratchpad (`oww3/`: `dl_musan.py`, `dl_media.py`, `gen_v3.py`,
+  `feat_v3.py`, `train_v3.py`, `evalset.py`, `compare.py`), not in the repo.
+
+## 2026-10-04 — Wake word: fewer false wakes from media and car Bluetooth (issue #6)
+
+- **Context-aware gate (`WakeGate`, pure + tested; `AudioEnvironment` reads the system state).** While another app
+  plays media (`isMusicActive`, refreshed by an `AudioPlaybackCallback`, held 2 s after it stops because the detector
+  looks at the last ~1.3 s) the detector needs ≥ 0.80 for 2 windows in a row on the speaker and ≥ 0.85 for 3 windows
+  over Bluetooth (car); a Bluetooth route with nothing playing adds +0.10; headphones keep the bar; calls
+  (`MODE_IN_CALL`/`IN_COMMUNICATION`) pause detection; a ringing phone counts as media. In silence nothing changes,
+  so the measured true-wake rates per sensitivity still hold. Why not a full pause during media: the user may still
+  want to call Lumi over music; a true "Hey Lumi" scored 0.95–0.99 in the self-test.
+- **Confirmation as the gate:** after a wake with media playing or a borderline score (< threshold + 0.15) and no
+  Voice Match, the first voice request is always confirmed ("Should I note it down?"), even if it looks like a
+  command (a series line "remind me…" passes `CommandLikeness`). Voice Match passing skips it.
+- **Echo cancellation:** `AcousticEchoCanceler` + `NoiseSuppressor` on the `AudioRecord` session, enabled only while
+  media plays (the model was trained on unprocessed audio, so quiet-room capture stays identical). Source stays
+  `VOICE_RECOGNITION`.
+- **Diagnostics:** wakes log score/policy/media/route; a score the user's sensitivity would accept but the raised bar
+  rejected shows "Ignored: other audio was playing" in Settings → My voice. Retraining with TV/music/car hard
+  negatives was tried afterwards and not shipped (see the entry above).
+
 ## 2026-09-30 — 1.0.0 (same version): "Hey Lumi", better wake word, lock screen and a recognizer loop
 
 User report after trying 1.0.0: English speakers won't say "Oye Lumi", detection still feels weak, and on the lock

@@ -390,6 +390,8 @@
     <string name="vosk_install_failed">No se pudo instalar el modelo</string>
     <string name="vosk_invalid_model">El modelo descargado no es válido</string>
     <string name="wake_accepted">Activada</string>
+    <string name="wake_accepted_confirm">Activada, pedirá confirmación</string>
+    <string name="wake_ignored_audio">Ignorada: sonaba otro audio</string>
     <string name="wake_channel_description">Aviso permanente mientras Lumi escucha la palabra de activación</string>
     <string name="wake_channel_name">Oye Lumi</string>
     <string name="wake_first_turn_on">Primero activa «Oye Lumi» para descargar el modelo de voz</string>

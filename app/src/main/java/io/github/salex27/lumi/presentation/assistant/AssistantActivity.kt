@@ -76,6 +76,8 @@ class AssistantActivity : ComponentActivity() {
         val compact = intent.getBooleanExtra(EXTRA_COMPACT, intent.action == Intent.ACTION_ASSIST || intent.action == Intent.ACTION_VOICE_COMMAND)
         // Opened on its own by "Oye Lumi": more caution (confirmation and auto-close if there is no clear command)
         val fromWakeWord = intent.getBooleanExtra(EXTRA_FROM_WAKE_WORD, false)
+        // Borderline score or other audio playing when it woke: the first voice request is always confirmed (issue #6)
+        if (firstLaunch && fromWakeWord && intent.getBooleanExtra(EXTRA_WAKE_CONFIRM, false)) viewModel.confirmNextWakeRequest()
 
         setContent {
             val theme by app.settings.settings.collectAsStateWithLifecycle()
@@ -344,6 +346,7 @@ class AssistantActivity : ComponentActivity() {
 
         const val EXTRA_COMPACT = "compact"
         const val EXTRA_FROM_WAKE_WORD = "from_wake_word"
+        const val EXTRA_WAKE_CONFIRM = "wake_confirm"
         /** Read the reply to [EXTRA_PROMPT] aloud (e.g. "Listen" in the morning summary). */
         const val EXTRA_SPEAK = "speak"
         /** Phone action to run right after opening (a reminder's button) and the task to mark done. */
@@ -356,12 +359,16 @@ class AssistantActivity : ComponentActivity() {
             android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
         )
 
-        fun intent(context: Context, startListening: Boolean = false, prompt: String? = null, compact: Boolean = false, fromWakeWord: Boolean = false) =
+        fun intent(
+            context: Context, startListening: Boolean = false, prompt: String? = null, compact: Boolean = false,
+            fromWakeWord: Boolean = false, wakeConfirm: Boolean = false
+        ) =
             Intent(context, AssistantActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 .putExtra(EXTRA_START_LISTENING, startListening)
                 .putExtra(EXTRA_COMPACT, compact)
                 .putExtra(EXTRA_FROM_WAKE_WORD, fromWakeWord)
+                .putExtra(EXTRA_WAKE_CONFIRM, wakeConfirm)
                 .apply { prompt?.let { putExtra(EXTRA_PROMPT, it) } }
     }
 }
