@@ -400,6 +400,7 @@
     <string name="wake_model_note">«Hey Lumi» already works; this is only needed for «Train my voice». You can leave: the download continues.</string>
     <string name="wake_model_retry_n"> · retry %1$d</string>
     <string name="wake_needs_mic">Lumi needs the microphone to hear «Hey Lumi»</string>
+    <string name="wake_no_print">Ignored: I couldn\'t check your voice and the sound wasn\'t clear enough</string>
     <string name="wake_notif_text">Local listening, no internet. Only reacts to «Hey Lumi» or «Oye Lumi».</string>
     <string name="wake_notif_title">Say «Hey Lumi»</string>
     <string name="wake_paused">Paused (open the app to resume)</string>

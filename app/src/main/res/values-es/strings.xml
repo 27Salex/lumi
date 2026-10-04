@@ -400,6 +400,7 @@
     <string name="wake_model_note">«Oye Lumi» ya funciona; esto solo hace falta para «Entrenar mi voz». Puedes salir: la descarga continúa.</string>
     <string name="wake_model_retry_n"> · reintento %1$d</string>
     <string name="wake_needs_mic">Lumi necesita el micrófono para oír «Oye Lumi»</string>
+    <string name="wake_no_print">Ignorada: no pude comprobar tu voz y el sonido no era lo bastante claro</string>
     <string name="wake_notif_text">Escucha local, sin internet. Solo reacciona a «Oye Lumi» o «Hey Lumi».</string>
     <string name="wake_notif_title">Di «Oye Lumi»</string>
     <string name="wake_paused">En pausa (abre la app para reactivar)</string>
