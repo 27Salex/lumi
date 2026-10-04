@@ -252,8 +252,11 @@ private fun LumiBriefCard(briefing: BriefingState, onRefresh: () -> Unit, onPlan
         Row(verticalAlignment = Alignment.CenterVertically) {
             LumiMark(state, size = 30.dp)
             Spacer(Modifier.width(10.dp))
-            Text("Lumi", style = MaterialTheme.typography.titleMedium, color = c.textPrimary, modifier = Modifier.weight(1f))
-            EngineBadge(briefing.engine)
+            Text("Lumi", style = MaterialTheme.typography.titleMedium, color = c.textPrimary, maxLines = 1)
+            Spacer(Modifier.width(8.dp))
+            // The engine badge takes only the leftover width and ellipsizes, so a long model name never squeezes
+            // the title or pushes the refresh button off the card.
+            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) { EngineBadge(briefing.engine) }
             IconButton(onClick = onRefresh, enabled = !briefing.isLoading, modifier = Modifier.size(36.dp)) {
                 Icon(Icons.Outlined.Refresh, stringResource(R.string.brief_new), tint = c.textTertiary, modifier = Modifier.size(18.dp))
             }
