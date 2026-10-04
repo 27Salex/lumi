@@ -106,7 +106,7 @@ class WakeWordService : Service() {
         val chunk = ShortArray(OyeLumiDetector.CHUNK)
         val env = audioEnv ?: return
         // With a trained voice, the voice print model is loaded now (1-2 s, once) instead of on the first wake
-        if (app.voiceProfile.profile.value != null && app.wakeWordModel.isReady()) thread(name = "voice-print-load") { printer.preload() }
+        if (app.voiceProfile.data.value != null && app.wakeWordModel.isReady()) thread(name = "voice-print-load") { printer.preload() }
         listening = !screenOffPaused()
         while (alive) {
             if (!listening) { Thread.sleep(200); continue }
@@ -170,14 +170,19 @@ class WakeWordService : Service() {
         val label = "«Lumi» (${(score * 100).toInt()} %)"
         // If the user trained their voice, it has to be their voice (Vosk print over the last 2 s; ran on every
         // detection with a profile before too, so Voice Match as the media gate adds no work while listening)
-        val profile = voice.profile.value?.takeIf { voiceMatchAvailable() }
+        val profile = voice.data.value?.takeIf { voiceMatchAvailable() }
         val started = SystemClock.elapsedRealtime()
-        val similarity = profile?.let { p -> printer.print(lastAudio())?.print?.let { WakePhrases.cosine(it, p.embedding) } }
+        val heard = profile?.let { printer.print(lastAudio()) }
+        // Matched against the print of the phrase it heard ("hoy…" → "Oye Lumi"), or the best of both
+        val phrase = heard?.let { WakePhrase.fromTranscript(it.text) }
+        val match = profile?.let { p -> heard?.print?.let { VoiceMatch.score(it, p, phrase) } }
+        val similarity = match?.similarity
+        val bar = match?.let { voice.bar(it.phrase) } ?: voice.sensitivity.threshold
         val checkMs = SystemClock.elapsedRealtime() - started
-        val verdict = WakeGate.verdict(score, policy, profile != null, similarity, voice.sensitivity.threshold)
+        val verdict = WakeGate.verdict(score, policy, profile != null, similarity, bar)
         // Debug log to tune thresholds from real false wakes (issue #6)
         Log.i(TAG, "Wake: score=$score policy=${policy.reason} threshold=${policy.threshold} media=${ctx.mediaPlaying} " +
-            "route=${ctx.route} voice=$similarity (${checkMs} ms) → $verdict")
+            "route=${ctx.route} voice=$similarity bar=$bar phrase=${match?.phrase}/${phrase} heard=«${heard?.text}» (${checkMs} ms) → $verdict")
         when (verdict) {
             is WakeVerdict.RejectVoice -> {
                 lastRejected = SystemClock.elapsedRealtime()
@@ -200,7 +205,7 @@ class WakeWordService : Service() {
     /** Voice Match can run: the user trained their voice and the print model is installed (checked every few s). */
     private fun voiceMatchAvailable(): Boolean {
         val app = application as TaskManagerApplication
-        if (app.voiceProfile.profile.value == null) return false
+        if (app.voiceProfile.data.value == null) return false
         val now = SystemClock.elapsedRealtime()
         if (now - modelCheckedAt > MODEL_CHECK_MS) { modelReady = app.wakeWordModel.isReady(); modelCheckedAt = now }
         return modelReady

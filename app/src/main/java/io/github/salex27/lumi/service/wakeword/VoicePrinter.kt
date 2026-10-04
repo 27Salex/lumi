@@ -29,12 +29,19 @@ class VoicePrinter(private val modelPath: String, private val speakerPath: Strin
      * that (no print for ~40 % of wakes). The print is a mean over frames, so when none comes out the clip is decoded
      * once more repeated twice: same voice statistics, twice the frames (only then, so it costs nothing otherwise).
      */
-    fun print(audio: ShortArray): Result? = runCatching {
+    fun print(audio: ShortArray, maxRepeats: Int = 2): Result? = runCatching {
         val first = decode(audio) ?: return null
-        if (first.print != null) return first
-        val again = decode(audio + audio) ?: return first
-        Result(again.print, first.text)
+        var repeated = audio
+        for (k in 2..maxRepeats) {
+            if (first.print != null) return first
+            repeated += audio
+            decode(repeated)?.print?.let { return Result(it, first.text) }
+        }
+        first
     }.onFailure { Log.w(TAG, "No voice print", it) }.getOrNull()
+
+    /** A recognizer on the same model, without the speaker model: splits live audio into utterances (training). */
+    fun streamRecognizer(): Recognizer? = models()?.let { (m, _) -> Recognizer(m, OyeLumiDetector.SAMPLE_RATE.toFloat()) }
 
     private fun decode(audio: ShortArray): Result? {
         val (m, spk) = models() ?: return null
