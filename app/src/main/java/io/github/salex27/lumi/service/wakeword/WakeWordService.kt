@@ -197,7 +197,11 @@ class WakeWordService : Service() {
                 // Borderline score or other audio playing without a voice match → the assistant confirms first
                 report(label, similarity, true, getString(if (verdict.confirm) io.github.salex27.lumi.R.string.wake_accepted_confirm else io.github.salex27.lumi.R.string.wake_accepted))
                 releaseMic() // the assistant needs the microphone; resumed when it closes (the assistant's onStop)
-                openAssistant(verdict.confirm)
+                // Adaptive print: the assistant reports whether the user really called Lumi (prints only, no audio)
+                val wakeId = heard?.print?.let { print ->
+                    match?.let { voice.beginWake(VoiceMatch.WakeSample(print, it.phrase, score, it.similarity, bar, policy.voiceRelax > 0f)) }
+                } ?: 0L
+                openAssistant(verdict.confirm, wakeId)
             }
         }
     }
@@ -229,8 +233,8 @@ class WakeWordService : Service() {
         lastHeard.value = Heard(text, similarity, accepted, reason, System.currentTimeMillis())
     }
 
-    private fun openAssistant(confirm: Boolean) {
-        val intent = AssistantActivity.intent(this, startListening = true, compact = true, fromWakeWord = true, wakeConfirm = confirm)
+    private fun openAssistant(confirm: Boolean, wakeId: Long) {
+        val intent = AssistantActivity.intent(this, startListening = true, compact = true, fromWakeWord = true, wakeConfirm = confirm, wakeId = wakeId)
         if (Settings.canDrawOverlays(this)) {
             // Exempt from the background activity start restriction thanks to SYSTEM_ALERT_WINDOW
             startActivity(intent)

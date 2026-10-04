@@ -31,7 +31,13 @@ class WakeSelfTestReceiver : BroadcastReceiver() {
                 intent.getStringExtra("enrollstream")?.let {
                     enrollStream(app, it.split(","), WakePhrase.valueOf(intent.getStringExtra("phrase") ?: "OYE"))
                 }
-                intent.getStringExtra("wav")?.let { run(app, it, intent.getStringExtra("ctx") ?: "quiet") }
+                intent.getStringExtra("wav")?.let { run(app, it, intent.getStringExtra("ctx") ?: "quiet", intent.getBooleanExtra("beginwake", false)) }
+                // Adaptive Voice Match: report what the user did after a wake begun with "beginwake"
+                if (intent.hasExtra("wakeid")) {
+                    app.voiceProfile.wakeOutcome(intent.getLongExtra("wakeid", 0L), intent.getBooleanExtra("confirmed", false))
+                    val d = app.voiceProfile.data.value
+                    Log.i(TAG, "outcome: learned ${d?.phrases?.values?.sumOf { it.learned.size }}, dismissed ${d?.negatives?.size}")
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed", e)
             } finally {
@@ -87,7 +93,7 @@ class WakeSelfTestReceiver : BroadcastReceiver() {
         enroller.stop()
     }
 
-    private fun run(app: TaskManagerApplication, path: String, ctxName: String) {
+    private fun run(app: TaskManagerApplication, path: String, ctxName: String, beginWake: Boolean) {
         val samples = readWav(path)
         val ctx = when (ctxName) {
             "speaker" -> AudioContext(true, OutputRoute.SPEAKER, false)
@@ -129,6 +135,11 @@ class WakeSelfTestReceiver : BroadcastReceiver() {
                         "threshold=${policy.threshold} voice=${match?.similarity} bar=$bar phrase=${match?.phrase}/$phrase " +
                         "heard=«${result?.text}» print=${ms} ms → $verdict")
                     holdUntil = i + (if (verdict is WakeVerdict.Accept) 4 else 1) * OyeLumiDetector.SAMPLE_RATE
+                    // Like the service: the accepted wake waits for the assistant's outcome (id for --el wakeid / the Activity)
+                    if (beginWake && verdict is WakeVerdict.Accept && match != null && result?.print != null) {
+                        val id = voice.beginWake(VoiceMatch.WakeSample(result.print, match.phrase, score ?: 0f, match.similarity, bar, policy.voiceRelax > 0f))
+                        Log.i(TAG, "wakeId=$id")
+                    }
                 }
                 Log.i(TAG, "${File(path).name} max=${"%.4f".format(scores.maxOrNull() ?: 0f)} scores=${scores.joinToString(",") { "%.3f".format(it) }}")
             }

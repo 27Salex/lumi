@@ -469,7 +469,17 @@ private fun VoiceTraining(voice: VoiceUi, actions: SettingsActions) {
                             onClick = { lastPhrase = phrase; actions.startVoiceTraining(phrase) })
                     }
                 }
-                if (voice.trained) PillButton(stringResource(R.string.voice_delete_all), style = PillStyle.GHOST, onClick = actions::deleteVoiceProfile)
+                if (voice.trained) {
+                    // Adaptive Voice Match: what it learned from your confirmed wakes (prints only, no audio)
+                    Text(stringResource(R.string.voice_learned, voice.learned, voice.dismissed),
+                        style = MaterialTheme.typography.bodySmall, color = c.textTertiary)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (voice.learned + voice.dismissed > 0) {
+                            PillButton(stringResource(R.string.voice_reset_learned), style = PillStyle.SECONDARY, onClick = actions::resetLearnedVoice)
+                        }
+                        PillButton(stringResource(R.string.voice_delete_all), style = PillStyle.GHOST, onClick = actions::deleteVoiceProfile)
+                    }
+                }
             }
         }
         if (voice.trained) {

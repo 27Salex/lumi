@@ -43,8 +43,37 @@ class VoiceProfileStore(context: Context) {
         write(current.withPhrase(phrase, prints, names))
     }
 
+    private val feedback = WakeFeedback()
+
+    /** A wake with a voice print opened the assistant: returns the id the assistant reports the outcome with. */
+    fun beginWake(sample: VoiceMatch.WakeSample): Long = feedback.begin(sample, android.os.SystemClock.elapsedRealtime())
+
+    /**
+     * What the user did after wake [id]: [confirmed] = went on with a command or said yes (the print may be learned);
+     * otherwise closed or cancelled it right away (kept only to calibrate the bar). Prints only, never audio.
+     */
+    @Synchronized
+    fun wakeOutcome(id: Long, confirmed: Boolean) {
+        val sample = feedback.outcome(id, confirmed, android.os.SystemClock.elapsedRealtime()) ?: return
+        val current = _data.value ?: return
+        val next = if (confirmed) VoiceMatch.learn(current, sample) else VoiceMatch.reject(current, sample)
+        if (next !== current) {
+            Log.i(TAG, "Wake ${if (confirmed) "confirmed" else "dismissed"}: voice ${sample.similarity} (bar ${sample.bar}, score ${sample.score}) → " +
+                "learned ${next.phrases.values.sumOf { it.learned.size }}, dismissed ${next.negatives.size}")
+            write(next)
+        }
+    }
+
+    /** "Reset learned voice data": keeps the training, forgets what was learned from wakes. */
+    @Synchronized
+    fun resetLearned() {
+        feedback.clear()
+        _data.value?.let { write(VoiceMatch.forget(it)) }
+    }
+
     @Synchronized
     fun clear() {
+        feedback.clear()
         file.delete()
         prefs.edit().remove(K_VEC).remove(K_NAMES).apply()
         _data.value = null
@@ -68,6 +97,7 @@ class VoiceProfileStore(context: Context) {
     }
 
     private companion object {
+        const val TAG = "VoiceProfile"
         const val FILE_NAME = "voice_profile.txt"
         const val K_VEC = "embedding"
         const val K_NAMES = "names"

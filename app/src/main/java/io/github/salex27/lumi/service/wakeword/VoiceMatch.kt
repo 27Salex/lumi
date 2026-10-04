@@ -57,8 +57,8 @@ class VoiceData(
 data class VoiceScore(val similarity: Float, val phrase: WakePhrase)
 
 /**
- * Voice Match logic (pure, tested): similarity per phrase, the similarity bar computed from the enrolment spread, and
- * the profile's storage format.
+ * Voice Match logic (pure, tested): similarity per phrase, the similarity bar computed from the enrolment spread,
+ * adaptive learning from confirmed wakes and calibration from dismissed ones, and the profile's storage format.
  *
  * Measured with Vosk on TTS voices and TV audio (MEMORY.md, 2026-10-05): the user's 2 s wake window scores 0.70 on
  * average in quiet (5th percentile 0.49) against their phrase print; TV audio alone reached 0.37 at most; another voice
@@ -80,6 +80,21 @@ object VoiceMatch {
     const val MAX_OUTLIERS = 2
     /** The legacy averaged print stood for 3 samples. */
     private const val LEGACY_WEIGHT = 3f
+
+    /** Learned prints kept per phrase (oldest dropped first): at most as many as a training gives. */
+    const val LEARNED_MAX = 10
+    /** Only learn from a wake whose detector score was at least this… */
+    const val LEARN_MIN_SCORE = 0.50f
+    /** …and whose voice similarity was at least this much above the bar (more while media plays: it is mixed in). */
+    const val LEARN_MARGIN = 0.08f
+    const val LEARN_MARGIN_MEDIA = 0.15f
+    /** Dismissed wakes kept for calibration. */
+    const val NEGATIVES_MAX = 20
+    /** Dismissed wakes raise the bar to just above them, at most this much and never into the user's own range. */
+    const val NEGATIVE_MARGIN = 0.03f
+    const val MAX_NEGATIVE_RAISE = 0.10f
+    /** The user's own range starts at this quantile of their genuine similarities (enrolment + learned). */
+    const val GENUINE_LOW_QUANTILE = 0.20f
 
     fun cosine(a: FloatArray, b: FloatArray): Float = WakePhrases.cosine(a, b)
 
@@ -147,8 +162,56 @@ object VoiceMatch {
         // The spread bar matches Normal; the other sensitivities keep their distance from it
         val offset = fixed - WakePhrases.Sensitivity.NORMAL.threshold
         val base = spreadBar(p)?.let { (it + offset).coerceIn(fixed - SPREAD_RANGE, fixed + SPREAD_RANGE) } ?: fixed
-        return maxOf(WakeGate.MIN_VOICE_THRESHOLD, base)
+        return calibrate(maxOf(WakeGate.MIN_VOICE_THRESHOLD, base), data, p)
     }
+
+    /** Genuine similarities: enrolment leave-one-out plus each learned print against the enrolled centroid. */
+    private fun genuine(p: PhrasePrints): List<Float> {
+        val loo = if (!p.legacy && p.enrolled.size >= MIN_SPREAD_SAMPLES) leaveOneOut(p.enrolled) else emptyList()
+        val c = centroid(PhrasePrints(p.enrolled, legacy = p.legacy))
+        return loo + p.learned.map { cosine(it, c) }
+    }
+
+    /**
+     * Wakes the user dismissed right away (TV, someone else) raise the bar to just above them: the second highest
+     * of those below the user's own range + [NEGATIVE_MARGIN], by at most [MAX_NEGATIVE_RAISE] and never above the
+     * user's range. A dismissed wake that sounded like the user (they changed their mind) teaches nothing.
+     */
+    private fun calibrate(bar: Float, data: VoiceData, p: PhrasePrints): Float {
+        if (data.negatives.size < 2) return bar
+        val c = centroid(p)
+        val g = genuine(p).sorted()
+        val genuineLow = if (g.size >= 5) g[((g.size - 1) * GENUINE_LOW_QUANTILE).toInt()] else bar + SPREAD_RANGE
+        val near = data.negatives.map { cosine(it, c) }.filter { it < genuineLow }.sortedDescending()
+        if (near.size < 2) return bar
+        val raised = near[1] + NEGATIVE_MARGIN
+        return maxOf(bar, minOf(raised, genuineLow, bar + MAX_NEGATIVE_RAISE))
+    }
+
+    /** A wake that opened the assistant, waiting to learn whether the user really called Lumi. */
+    class WakeSample(
+        val print: FloatArray, val phrase: WakePhrase, val score: Float, val similarity: Float, val bar: Float, val media: Boolean
+    )
+
+    /**
+     * Confirmed wake (the user went on with a command or said yes): its print is learned for its phrase if both the
+     * detector score and the voice were clearly good, so one doubtful wake can't drag the print towards someone else.
+     */
+    fun learn(data: VoiceData, w: WakeSample): VoiceData {
+        val p = data.prints(w.phrase) ?: return data
+        val margin = if (w.media) LEARN_MARGIN_MEDIA else LEARN_MARGIN
+        if (w.score < LEARN_MIN_SCORE || w.similarity < w.bar + margin) return data
+        val learned = (p.learned + w.print).takeLast(LEARNED_MAX)
+        return VoiceData(data.phrases + (w.phrase to PhrasePrints(p.enrolled, learned, p.legacy)), data.negatives, data.names)
+    }
+
+    /** Dismissed wake (closed or cancelled right away): kept only to calibrate the bar, never added to the print. */
+    fun reject(data: VoiceData, w: WakeSample): VoiceData =
+        VoiceData(data.phrases, (data.negatives + w.print).takeLast(NEGATIVES_MAX), data.names)
+
+    /** "Reset learned voice data": the trained prints stay; learned prints and dismissed wakes go. */
+    fun forget(data: VoiceData): VoiceData =
+        VoiceData(data.phrases.mapValues { (_, p) -> PhrasePrints(p.enrolled, emptyList(), p.legacy) }, emptyList(), data.names)
 
     // ── Storage: plain text, one "key=value" per line; prints as comma-separated numbers, ";" between prints ──
 
@@ -181,4 +244,43 @@ object VoiceMatch {
     fun migrate(legacyPrint: FloatArray, names: Set<String>): VoiceData = VoiceData(
         WakePhrase.entries.associateWith { PhrasePrints(listOf(legacyPrint), legacy = true) }, names = names
     )
+}
+
+/**
+ * The last wake that opened the assistant with a voice print, waiting for what the user did (pure: the time is passed
+ * in). Only the first outcome counts; a confirmation counts within [CONFIRM_WINDOW_MS] of the wake and a dismissal
+ * only within [DISMISS_WINDOW_MS] ("closed it right away").
+ */
+class WakeFeedback {
+    private var pendingId = 0L
+    private var pending: VoiceMatch.WakeSample? = null
+    private var pendingAt = 0L
+    private var nextId = 1L
+
+    /** Remembers [sample] (replacing any older one) and returns its id for the assistant. */
+    @Synchronized
+    fun begin(sample: VoiceMatch.WakeSample, now: Long): Long {
+        pendingId = nextId++
+        pending = sample; pendingAt = now
+        return pendingId
+    }
+
+    /** The sample to learn from ([confirmed]) or to keep as a negative, or null if unknown, late or already used. */
+    @Synchronized
+    fun outcome(id: Long, confirmed: Boolean, now: Long): VoiceMatch.WakeSample? {
+        val s = pending ?: return null
+        if (id != pendingId) return null
+        pending = null
+        val age = now - pendingAt
+        return s.takeIf { age in 0..(if (confirmed) CONFIRM_WINDOW_MS else DISMISS_WINDOW_MS) }
+    }
+
+    @Synchronized
+    fun clear() { pending = null }
+
+    companion object {
+        const val CONFIRM_WINDOW_MS = 60_000L
+        /** Listening (up to ~8 s) plus the unanswered "Should I note it down?" (8 s) fit well inside this. */
+        const val DISMISS_WINDOW_MS = 30_000L
+    }
 }

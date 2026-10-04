@@ -385,12 +385,14 @@
     <string name="voice_language">Idioma de la voz</string>
     <string name="voice_last_heard">Última vez oí «%1$s»%2$s · %3$s</string>
     <string name="voice_last_score">Lo último que se pareció a «Oye Lumi»: %1$d %% (se activa desde %2$d %%)</string>
+    <string name="voice_learned">Lumi se sigue ajustando a tu voz: %1$d huellas aprendidas de activaciones que confirmaste y %2$d activaciones que descartaste para afinarla. Solo se guardan huellas de voz, nunca audio.</string>
     <string name="voice_listening">Te escucho…</string>
     <string name="voice_phrase_done">Listo: «%1$s» aprendida con %2$d muestras</string>
     <string name="voice_phrase_legacy">«%1$s» · entrenamiento antiguo (3 muestras): vuelve a entrenar para mejorarlo</string>
     <string name="voice_phrase_trained">«%1$s» · entrenada con %2$d muestras</string>
     <string name="voice_phrase_untrained">«%1$s» · sin entrenar</string>
     <string name="voice_preparing">Preparando el micrófono…</string>
+    <string name="voice_reset_learned">Borrar lo aprendido de mi voz</string>
     <string name="voice_retrain">Volver a entrenar</string>
     <string name="voice_say_it">Di «%1$s» y haz una pausa (%2$d de %3$d)</string>
     <string name="voice_similarity"> · voz %1$d %%</string>

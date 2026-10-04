@@ -85,6 +85,9 @@ data class PhraseVoice(val samples: Int, val legacy: Boolean)
 data class VoiceUi(
     val trained: Boolean = false,
     val phrases: Map<WakePhrase, PhraseVoice> = emptyMap(),
+    /** Prints learned from confirmed wakes and dismissed wakes kept for calibration (adaptive Voice Match). */
+    val learned: Int = 0,
+    val dismissed: Int = 0,
     val sensitivity: WakePhrases.Sensitivity = WakePhrases.Sensitivity.NORMAL,
     val training: VoiceEnroller.State = VoiceEnroller.State.Idle,
     /** The last short phrase "Oye Lumi" heard and why it was accepted or not. */
@@ -128,6 +131,7 @@ interface SettingsActions {
     fun setWakeWordScreenOnly(enabled: Boolean)
     fun startVoiceTraining(phrase: WakePhrase)
     fun skipVoiceRound()
+    fun resetLearnedVoice()
     fun cancelVoiceTraining()
     fun deleteVoiceProfile()
     fun setVoiceSensitivity(level: WakePhrases.Sensitivity)
@@ -161,6 +165,7 @@ class SettingsViewModel(private val app: TaskManagerApplication) : ViewModel(), 
         VoiceUi(
             trained = data?.trained == true,
             phrases = data?.phrases.orEmpty().mapValues { (_, p) -> PhraseVoice(p.enrolled.size, p.legacy) },
+            learned = data?.phrases?.values?.sumOf { it.learned.size } ?: 0, dismissed = data?.negatives?.size ?: 0,
             sensitivity = sens, training = training, lastHeard = heard, lastScore = score
         )
     }
@@ -332,6 +337,8 @@ class SettingsViewModel(private val app: TaskManagerApplication) : ViewModel(), 
     private var enrollJob: kotlinx.coroutines.Job? = null
 
     override fun skipVoiceRound() = enroller.skipCondition()
+
+    override fun resetLearnedVoice() = app.voiceProfile.resetLearned()
 
     override fun cancelVoiceTraining() {
         enroller.stop()

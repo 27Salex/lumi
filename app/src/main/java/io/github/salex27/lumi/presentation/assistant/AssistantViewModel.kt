@@ -226,7 +226,22 @@ class AssistantViewModel(
         if (fromWakeWord) confirmWake = false // only the first request after the wake
         if (fromWakeWord && (mustConfirm || !io.github.salex27.lumi.service.wakeword.CommandLikeness.looksLikeCommand(text))) {
             _state.update { it.copy(pendingConfirmation = text) }
-        } else send(text, fromVoice = true)
+        } else {
+            if (fromWakeWord) reportWake(confirmed = true) // the user went on with a command: it was them
+            send(text, fromVoice = true)
+        }
+    }
+
+    /**
+     * Adaptive Voice Match: told once whether the wake that opened Lumi was really the user ([confirmed]) or was
+     * dismissed right away. Set by the Activity when opened by the wake word.
+     */
+    var onWakeOutcome: ((confirmed: Boolean) -> Unit)? = null
+
+    fun reportWake(confirmed: Boolean) {
+        val report = onWakeOutcome ?: return
+        onWakeOutcome = null
+        report(confirmed)
     }
 
     /**
@@ -239,6 +254,7 @@ class AssistantViewModel(
     fun confirmPending() {
         val text = _state.value.pendingConfirmation ?: return
         _state.update { it.copy(pendingConfirmation = null) }
+        reportWake(confirmed = true) // "yes, note it down"
         send(text, fromVoice = true)
     }
 
@@ -321,7 +337,10 @@ class AssistantViewModel(
         if (voiceTurn) speak(text)
     }
 
-    fun discardPending() = _state.update { it.copy(pendingConfirmation = null) }
+    fun discardPending() {
+        if (_state.value.pendingConfirmation != null) reportWake(confirmed = false)
+        _state.update { it.copy(pendingConfirmation = null) }
+    }
 
     private fun quick(label: String, block: suspend () -> AIProcessingResult) {
         if (_state.value.isThinking) return

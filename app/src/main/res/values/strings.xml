@@ -385,12 +385,14 @@
     <string name="voice_language">Voice language</string>
     <string name="voice_last_heard">Last time I heard «%1$s»%2$s · %3$s</string>
     <string name="voice_last_score">The last thing that sounded like «Hey Lumi»: %1$d %% (triggers from %2$d %%)</string>
+    <string name="voice_learned">Lumi keeps adjusting to your voice: %1$d prints learned from wakes you confirmed, %2$d wakes you dismissed used to tune it. Only voice prints are kept, never audio.</string>
     <string name="voice_listening">Listening…</string>
     <string name="voice_phrase_done">Done: «%1$s» learned from %2$d samples</string>
     <string name="voice_phrase_legacy">«%1$s» · older training (3 samples): train again to improve it</string>
     <string name="voice_phrase_trained">«%1$s» · trained with %2$d samples</string>
     <string name="voice_phrase_untrained">«%1$s» · not trained</string>
     <string name="voice_preparing">Preparing the microphone…</string>
+    <string name="voice_reset_learned">Reset learned voice data</string>
     <string name="voice_retrain">Train again</string>
     <string name="voice_say_it">Say «%1$s» and pause (%2$d of %3$d)</string>
     <string name="voice_similarity"> · voice %1$d %%</string>
