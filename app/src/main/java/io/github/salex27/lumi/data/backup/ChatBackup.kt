@@ -14,7 +14,9 @@ object ChatBackup {
     @Serializable
     data class Message(
         val role: String, val text: String, val createdAt: Long, val engine: String = "", val isError: Boolean = false,
-        val action: String? = null, val agentId: Long? = null, val payload: String? = null
+        val action: String? = null, val agentId: Long? = null, val payload: String? = null,
+        /** createdAt of the message's agent (ids change on import; agents are matched by this key). */
+        val agentKey: Long? = null
     )
 
     @Serializable
@@ -25,12 +27,12 @@ object ChatBackup {
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = false }
 
-    fun encode(sessions: List<ChatSessionEntity>, messages: List<ChatMessageEntity>): String {
+    fun encode(sessions: List<ChatSessionEntity>, messages: List<ChatMessageEntity>, agentKeyOf: (Long) -> Long? = { null }): String {
         val bySession = messages.groupBy { it.sessionId }
         return json.encodeToString(sessions.map { s ->
             Session(
                 s.kind, s.title, s.titleCustom, s.createdAt, s.updatedAt, s.summary, s.summaryUntil,
-                bySession[s.id].orEmpty().map { m -> Message(m.role, m.text, m.createdAt, m.engine, m.isError, m.action, m.agentId, m.payload) }
+                bySession[s.id].orEmpty().map { m -> Message(m.role, m.text, m.createdAt, m.engine, m.isError, m.action, null, m.payload, m.agentId?.let(agentKeyOf)) }
             )
         })
     }
@@ -45,8 +47,30 @@ object ChatBackup {
         summary = s.summary, summaryUntil = s.summaryUntil
     )
 
-    fun toEntity(m: Message, sessionId: Long) = ChatMessageEntity(
+    fun toEntity(m: Message, sessionId: Long, agentIdOf: (Long) -> Long? = { null }) = ChatMessageEntity(
         sessionId = sessionId, role = m.role, text = m.text, createdAt = m.createdAt, engine = m.engine, isError = m.isError,
-        action = m.action, agentId = m.agentId, payload = m.payload
+        action = m.action, agentId = m.agentKey?.let(agentIdOf), payload = m.payload
+    )
+
+    /** An Orbit agent in the backup, with the Orbits it belongs to (by their createdAt). */
+    @Serializable
+    data class Agent(
+        val name: String, val backend: String, val color: String, val face: String, val purpose: String = "",
+        val canReadTasks: Boolean = false, val createdAt: Long, val config: String = "", val orbits: List<Long> = emptyList()
+    )
+
+    fun encodeAgents(agents: List<io.github.salex27.lumi.data.local.AgentEntity>, members: List<io.github.salex27.lumi.data.local.OrbitMemberEntity>, sessions: List<ChatSessionEntity>): String {
+        val created = sessions.associate { it.id to it.createdAt }
+        return json.encodeToString(agents.map { a ->
+            Agent(a.name, a.backend, a.color, a.face, a.purpose, a.canReadTasks, a.createdAt, a.config,
+                members.filter { it.agentId == a.id }.mapNotNull { created[it.sessionId] })
+        })
+    }
+
+    fun decodeAgents(text: String): List<Agent> = json.decodeFromString(text)
+
+    fun toEntity(a: Agent) = io.github.salex27.lumi.data.local.AgentEntity(
+        name = a.name, backend = a.backend, color = a.color, face = a.face, purpose = a.purpose, canReadTasks = a.canReadTasks,
+        createdAt = a.createdAt, config = a.config
     )
 }

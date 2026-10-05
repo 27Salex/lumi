@@ -6,6 +6,27 @@ translated when the project went public; version numbers before 1.0.0 refer to t
 
 ---
 
+## 2026-10-05 — Orbit v1: chats with AI agents, "Chat with Claude" (issue #4)
+
+- **Threads reuse the chat tables** (#8): an Orbit is a `chat_sessions` row of kind ORBIT; Room v9 adds `agents`
+  (name, backend, colour key, face key, purpose, config JSON, never secrets) and `orbit_members`. Agent inboxes from
+  Lumi Hub (kind HUB) are listed in the same screen.
+- **Backends:** `AgentBackend` is the extension point. v1 = `LUMI` (Lumi's brain via `AssistantOrchestrator.ask`,
+  conversation only: tasks and phone actions stay in the assistant) and `CLAUDE_PC` (wake-per-message through the
+  Hub; thread id `orbit-<session>-<agent>`, so each agent keeps one Claude session per Orbit). API backends wait for #2.
+- **Routing v1:** `@Name` (case/accent-insensitive, longest name wins); a one-agent Orbit sends everything to its agent
+  (the issue's "plain 1:1 chat with my Claude", created in one tap from "Chat with Claude"); a group without a
+  mention → Lumi answers. Claude gets only what happened since its last reply (it has its own session); Lumi's brain
+  gets the newest lines within a char budget.
+- **Streaming:** a placeholder message per turn; Hub `reply` events update the row found by its turn id (payload),
+  under one Mutex because the POST /chat answer and the first events race. "Second opinion" (long press) re-asks the
+  previous user question to another member.
+- Faces: four simple shapes with two eyes (`AgentFace`, Canvas); six palette colours in the theme. A Lumi-brain agent
+  defaults to "Nova" so it isn't confused with Lumi itself.
+- Verified on the emulator with a real hub + real Claude Code: 1:1 chat answered "pong", the next message resumed the
+  same session; a group Orbit: Lumi (Gemma on-device) answered, and a second opinion from Claude streamed in.
+  Gotcha: running the hub with a fake HOME hides Claude's login ("Not logged in"); use `--config` instead.
+
 ## 2026-10-05 — Lumi Hub: MCP server + relay for PC agents (issue #3)
 
 - **Built fresh under `tools/lumi-hub/`** (stdlib Python, like the old bridge): the earlier `tools/claude-bridge`

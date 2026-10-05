@@ -21,7 +21,8 @@ import org.json.JSONObject
  * Backup to a JSON file (the user picks where: Drive, Downloads…). Used to move to another phone and to bring the data
  * of the old app (whose id contained "gemini") over to Lumi 1.0.
  *
- * Included: tasks (with their custom reminders), memory, chat sessions (format 2), places, routines, quick contacts and settings.
+ * Included: tasks (with their custom reminders), memory, chat sessions and Orbit agents (format 2), places, routines, quick
+ * contacts and settings.
  * NOT included: the Gemini API key (a secret), ids tied to this phone (calendar, voice print), caches.
  * Importing ADDS to what is there (never deletes): tasks and memories that already exist aren't duplicated.
  */
@@ -41,7 +42,10 @@ class BackupManager(
         val tasks = database.taskDao().getAllTasksSnapshot()
         val memories = database.memoryDao().all()
         val chatSessions = database.chatDao().allSessions()
-        val chats = ChatBackup.encode(chatSessions, database.chatDao().allMessages())
+        val agents = database.orbitDao().agents()
+        val agentKeys = agents.associate { it.id to it.createdAt }
+        val chats = ChatBackup.encode(chatSessions, database.chatDao().allMessages()) { agentKeys[it] }
+        val orbitAgents = ChatBackup.encodeAgents(agents, database.orbitDao().allMembers(), chatSessions)
         val root = JSONObject()
             .put("app", "Lumi")
             .put("format", FORMAT_VERSION)
@@ -49,6 +53,7 @@ class BackupManager(
             .put("tasks", JSONArray().apply { tasks.forEach { put(taskJson(it)) } })
             .put("memories", JSONArray().apply { memories.forEach { put(JSONObject().put("text", it.text).put("createdAt", it.createdAt)) } })
             .put("chats", JSONArray(chats))
+            .put("agents", JSONArray(orbitAgents))
             .put("prefs", JSONObject().apply {
                 prefsToCopy.forEach { name ->
                     val all = context.getSharedPreferences(name, Context.MODE_PRIVATE).all
@@ -133,7 +138,7 @@ class BackupManager(
         }
 
         // Chat sessions (format 2+): sessions already on the phone are skipped
-        val addedChats = root.optJSONArray("chats")?.let { importChats(it.toString()) } ?: 0
+        val addedChats = importChats(root.optJSONArray("chats")?.toString(), root.optJSONArray("agents")?.toString())
 
         // Settings, places, routines and quick contacts: written as they are (commit: before the restart)
         val prefs = root.optJSONObject("prefs") ?: JSONObject()
@@ -159,15 +164,29 @@ class BackupManager(
         Summary(addedTasks, addedMemories, files, addedChats)
     }
 
-    private suspend fun importChats(text: String): Int {
+    /** Chat sessions and Orbit agents (format 2+). Sessions and agents already on the phone are skipped. */
+    private suspend fun importChats(chatsText: String?, agentsText: String?): Int {
         val dao = database.chatDao()
-        val known = dao.allSessions().map { ChatBackup.key(it.kind, it.createdAt) }.toMutableSet()
+        val orbitDao = database.orbitDao()
+        // Agents first (messages point to them), matched by creation time + name
+        val agentIds = orbitDao.agents().associate { it.createdAt to it.id }.toMutableMap()
+        val agents = agentsText?.let { runCatching { ChatBackup.decodeAgents(it) }.getOrNull() }.orEmpty()
+        for (a in agents) if (a.createdAt !in agentIds) agentIds[a.createdAt] = orbitDao.insertAgent(ChatBackup.toEntity(a))
+        val known = dao.allSessions().associateBy { ChatBackup.key(it.kind, it.createdAt) }.mapValues { it.value.id }.toMutableMap()
         var added = 0
-        for (s in runCatching { ChatBackup.decode(text) }.getOrDefault(emptyList())) {
-            if (!known.add(ChatBackup.key(s.kind, s.createdAt))) continue
+        for (s in chatsText?.let { t -> runCatching { ChatBackup.decode(t) }.getOrNull() }.orEmpty()) {
+            val key = ChatBackup.key(s.kind, s.createdAt)
+            if (key in known) continue
             val id = dao.insertSession(ChatBackup.toEntity(s))
-            s.messages.forEach { dao.insertMessage(ChatBackup.toEntity(it, id)) }
+            known[key] = id
+            s.messages.forEach { dao.insertMessage(ChatBackup.toEntity(it, id) { k -> agentIds[k] }) }
             added++
+        }
+        // Orbit membership: the Orbit is found by its creation time
+        val orbitIds = dao.allSessions().filter { it.kind == io.github.salex27.lumi.data.local.ChatSessionEntity.KIND_ORBIT }.associate { it.createdAt to it.id }
+        for (a in agents) {
+            val agentId = agentIds[a.createdAt] ?: continue
+            a.orbits.forEach { created -> orbitIds[created]?.let { orbitDao.addMember(io.github.salex27.lumi.data.local.OrbitMemberEntity(it, agentId)) } }
         }
         return added
     }

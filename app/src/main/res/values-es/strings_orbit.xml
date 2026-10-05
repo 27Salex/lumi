@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Orbit (issue #4): chats de grupo con agentes de IA. -->
+<resources>
+    <string name="orbit_title">Orbit</string>
+    <string name="orbit_sub">Chats con tus agentes de IA. Menciona a uno con @ para que responda; sin mención, responde Lumi.</string>
+    <string name="orbit_chat_with_claude">Chatear con Claude</string>
+    <string name="orbit_chat_with_claude_sub">Un chat directo con Claude Code en tu PC. Cada mensaje va a Claude.</string>
+    <string name="orbit_needs_hub">Necesita Lumi Hub en tu PC (Ajustes, Lumi Hub)</string>
+    <string name="orbit_new">Nuevo Orbit</string>
+    <string name="orbit_new_sub">Un chat de grupo alrededor de un proyecto, con los agentes que elijas</string>
+    <string name="orbit_name_hint">Nombre (p. ej. Nueva web)</string>
+    <string name="orbit_pick_agents">Agentes de este Orbit</string>
+    <string name="orbit_create">Crear</string>
+    <string name="orbit_no_agents">Aún no hay agentes. Añade uno debajo de la lista de Orbits.</string>
+    <string name="orbit_threads">Tus Orbits</string>
+    <string name="orbit_inboxes">De tus agentes</string>
+    <string name="orbit_agents">Agentes</string>
+    <string name="orbit_add_agent">Añadir agente</string>
+    <string name="orbit_more_backends">Los agentes con tu propia clave de API (Gemini, Anthropic, OpenAI, Ollama) llegarán con el cerebro seleccionable.</string>
+    <string name="orbit_agent_backend">Quién responde</string>
+    <string name="backend_lumi">El cerebro de Lumi (en este móvil)</string>
+    <string name="backend_claude_pc">Claude Code en tu PC</string>
+    <string name="orbit_agent_name">Nombre</string>
+    <string name="orbit_agent_color">Color</string>
+    <string name="orbit_agent_face">Cara</string>
+    <string name="orbit_agent_purpose">Propósito (opcional, p. ej. Revisa mi código)</string>
+    <string name="orbit_members">Agentes de este Orbit</string>
+    <string name="orbit_add_member">Añadir a %1$s</string>
+    <string name="orbit_remove_member">Quitar a %1$s</string>
+    <string name="orbit_input_hint">Mensaje, @ para llamar a un agente</string>
+    <string name="orbit_input_hint_single">Mensaje para %1$s</string>
+    <string name="orbit_input_hint_inbox">Responde a la pregunta abierta</string>
+    <string name="orbit_inbox_no_question">Nada que responder ahora</string>
+    <string name="orbit_inbox_empty">Aquí aparecen los mensajes, preguntas y propuestas de tareas de este agente.</string>
+    <string name="orbit_empty_thread">Saluda. Menciona a un agente con @ para que responda; sin mención, responde Lumi.</string>
+    <string name="orbit_empty_single">Un chat directo: cada mensaje va a %1$s.</string>
+    <string name="orbit_thinking">Pensando…</string>
+    <string name="orbit_second_opinion">Segunda opinión de %1$s</string>
+    <string name="orbit_answered">Respondido: %1$s</string>
+    <string name="orbit_closed">Ya no está abierta</string>
+    <string name="orbit_task_added_state">Añadida a tus tareas</string>
+    <string name="orbit_task_dismissed">Descartada</string>
+    <string name="send">Enviar</string>
+</resources>

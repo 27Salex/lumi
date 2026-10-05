@@ -107,9 +107,17 @@ class MainActivity : ComponentActivity() {
     /** Task the assistant asked to edit (consumed when the editor opens). */
     private val pendingEditId = kotlinx.coroutines.flow.MutableStateFlow<Long?>(null)
 
+    /** Hub message to show (from a notification): its agent inbox opens in Orbit. */
+    private val pendingHubMessage = kotlinx.coroutines.flow.MutableStateFlow<Long?>(null)
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         intent.getLongExtra(EXTRA_EDIT_TASK_ID, -1L).takeIf { it > 0 }?.let { pendingEditId.value = it }
+        intent.getLongExtra(EXTRA_OPEN_HUB_MESSAGE, -1L).takeIf { it > 0 }?.let { pendingHubMessage.value = it }
+    }
+
+    private val orbitViewModel: io.github.salex27.lumi.presentation.orbit.OrbitViewModel by viewModels {
+        io.github.salex27.lumi.presentation.orbit.OrbitViewModel.Factory(app.orbits, app.hubInbox, app.hubSettings)
     }
 
     private val app get() = application as TaskManagerApplication
@@ -208,6 +216,7 @@ class MainActivity : ComponentActivity() {
         (application as io.github.salex27.lumi.TaskManagerApplication).updateAppLanguage(resources.configuration)
         viewModel.refreshIfLanguageChanged()
         if (savedInstanceState == null) intent?.getLongExtra(EXTRA_EDIT_TASK_ID, -1L)?.takeIf { it > 0 }?.let { pendingEditId.value = it }
+        if (savedInstanceState == null) intent?.getLongExtra(EXTRA_OPEN_HUB_MESSAGE, -1L)?.takeIf { it > 0 }?.let { pendingHubMessage.value = it }
 
         if (savedInstanceState == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -237,12 +246,22 @@ class MainActivity : ComponentActivity() {
                     pendingEditId.value = null
                     app.repository.getTask(id)?.let { showSettings = false; tab = Tab.TASKS; editing = it }
                 }
+                var showOrbit by rememberSaveable { mutableStateOf(false) }
+                val hubRequest by pendingHubMessage.collectAsStateWithLifecycle()
+                LaunchedEffect(hubRequest) {
+                    val id = hubRequest ?: return@LaunchedEffect
+                    pendingHubMessage.value = null
+                    app.chatStore.flush()
+                    app.chatStore.message(id)?.let { showSettings = false; showOrbit = true; orbitViewModel.openThread(it.sessionId) }
+                }
                 BackHandler(enabled = showSettings || tab != Tab.HOME) {
                     if (showSettings) showSettings = false else tab = Tab.HOME
                 }
 
                 Box(Modifier.fillMaxSize().background(Lumi.colors.background)) {
-                    if (showSettings) {
+                    if (showOrbit) {
+                        io.github.salex27.lumi.presentation.orbit.OrbitScreen(orbitViewModel, onBack = { showOrbit = false })
+                    } else if (showSettings) {
                         val state by settingsViewModel.state.collectAsStateWithLifecycle()
                         SettingsScreen(
                             state = state,
@@ -277,6 +296,7 @@ class MainActivity : ComponentActivity() {
                                         onDownloadGemma = viewModel::startGemmaDownload,
                                         onOpenAssistant = { listen, prompt -> startActivity(AssistantActivity.intent(this@MainActivity, listen, prompt)) },
                                         onOpenSettings = { showSettings = true },
+                                        onOpenOrbit = { showOrbit = true },
                                         onOpenAgenda = { tab = Tab.AGENDA },
                                         onTaskClick = { editing = it },
                                         onStartTask = { viewModel.updateTaskStatus(it, io.github.salex27.lumi.domain.model.TaskStatus.IN_PROGRESS) },

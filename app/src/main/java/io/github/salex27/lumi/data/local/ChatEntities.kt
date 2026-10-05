@@ -141,4 +141,10 @@ interface ChatDao {
 
     @Query("UPDATE chat_messages SET text = :text, payload = :payload, is_error = :isError WHERE id = :id")
     suspend fun updateMessage(id: Long, text: String, payload: String?, isError: Boolean)
+
+    @Query("UPDATE chat_messages SET engine = :engine WHERE id = :id")
+    suspend fun setEngine(id: Long, engine: String)
+
+    @Query("DELETE FROM chat_messages WHERE id = :id")
+    suspend fun deleteMessage(id: Long)
 }

@@ -682,7 +682,7 @@ def tailscale_self():
 
 
 def cmd_serve(args):
-    config = Config()
+    config = Config(args.config)
     if not Path(args.dir).is_dir():
         sys.exit(f"Folder not found: {args.dir}")
     hub = Hub()
@@ -721,7 +721,7 @@ def cmd_serve(args):
 
 
 def cmd_add_client(args):
-    config = Config()
+    config = Config(args.config)
     token = config.add_client(args.name)
     script = Path(__file__).resolve()
     print(f"Client '{args.name}' added. Its token (keep it secret):\n  {token}\n")
@@ -769,9 +769,11 @@ def main(argv=None):
     serve.add_argument("--https-port", type=int, default=8443, help="Tailnet HTTPS port for tailscale serve")
     serve.add_argument("--ntfy", help="Optional ntfy topic URL for content-free pings while Lumi is closed")
     serve.add_argument("--dev-no-tailscale", action="store_true", help="Development only: skip Tailscale (emulator tests)")
+    serve.add_argument("--config", default=str(CONFIG_PATH), help="Config file (default ~/.lumi-hub.json)")
     add = sub.add_parser("add-client", help="Create a token for an MCP client")
     add.add_argument("name", help="Shown in Lumi as the source, e.g. 'Claude Code · lumi repo'")
     add.add_argument("--port", type=int, default=8766)
+    add.add_argument("--config", default=str(CONFIG_PATH), help="Config file (default ~/.lumi-hub.json)")
     mcp = sub.add_parser("mcp", help="stdio MCP transport (proxy to the running hub)")
     mcp.add_argument("--token", required=True)
     mcp.add_argument("--hub", default="http://127.0.0.1:8766")

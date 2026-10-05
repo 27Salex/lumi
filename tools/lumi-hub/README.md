@@ -33,6 +33,7 @@ MCP-capable app (Claude Desktop, Codex, Gemini CLI...) for messages to you. Stan
 
 Config lives in `~/.lumi-hub.json` (phone token, client tokens, thread → Claude session ids). To rotate tokens,
 delete the file (or one client entry) and restart the hub.
+`--config <file>` uses another config file (tests; don't fake HOME, Claude Code would lose its login).
 
 ## Security
 

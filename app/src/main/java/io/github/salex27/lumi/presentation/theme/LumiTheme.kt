@@ -152,6 +152,16 @@ fun TaskCategory.color(dark: Boolean): Color = when (this) {
     TaskCategory.OTHER -> if (dark) Color(0xFF898781) else Color(0xFF898781)
 }
 
+/** Orbit agent colours: same validated steps as the categories, plus magenta and teal (fills; names go in ink). */
+fun io.github.salex27.lumi.domain.orbit.AgentPalette.color(dark: Boolean): Color = when (this) {
+    io.github.salex27.lumi.domain.orbit.AgentPalette.SKY -> if (dark) Color(0xFF3987E5) else Color(0xFF2A78D6)
+    io.github.salex27.lumi.domain.orbit.AgentPalette.MAGENTA -> if (dark) Color(0xFFD16BB0) else Color(0xFFB8488F)
+    io.github.salex27.lumi.domain.orbit.AgentPalette.ORANGE -> if (dark) Color(0xFFD95926) else Color(0xFFEB6834)
+    io.github.salex27.lumi.domain.orbit.AgentPalette.GREEN -> if (dark) Color(0xFF199E70) else Color(0xFF1BAF7A)
+    io.github.salex27.lumi.domain.orbit.AgentPalette.VIOLET -> if (dark) Color(0xFF9085E9) else Color(0xFF4A3AA7)
+    io.github.salex27.lumi.domain.orbit.AgentPalette.TEAL -> if (dark) Color(0xFF2AA3B0) else Color(0xFF16808C)
+}
+
 // ── Theme ───────────────────────────────────────────────────────────────────
 
 /** @param themeMode "SYSTEM" | "LIGHT" | "DARK" (Settings → Appearance). */

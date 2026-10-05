@@ -96,6 +96,18 @@ class TaskManagerApplication : Application() {
     /** The event stream is open only while a Lumi screen is visible (see [onCreate]). */
     val hubConnection by lazy { io.github.salex27.lumi.data.hub.HubConnection(hubSettings, hubClient, hubInbox, appScope) }
 
+    /** Orbit: group chats with AI agents (Lumi's brain, Claude Code through the Hub). */
+    val orbits by lazy {
+        io.github.salex27.lumi.data.orbit.OrbitRepository(
+            chatStore, database.chatDao(), database.orbitDao(),
+            io.github.salex27.lumi.data.orbit.AgentBackends(listOf(
+                io.github.salex27.lumi.data.orbit.LumiBrainBackend(assistant),
+                io.github.salex27.lumi.data.orbit.ClaudePcBackend(hubClient, hubSettings)
+            )),
+            appScope
+        )
+    }
+
     val reminderScheduler: AlarmReminderScheduler by lazy { AlarmReminderScheduler(this, settings, database.reminderDao()) }
 
     // ── Places, live chip and voice ─────────────────────────────────────────
@@ -195,6 +207,7 @@ class TaskManagerApplication : Application() {
         updateAppLanguage()
         createNotificationChannels()
         registerActivityLifecycleCallbacks(VisibleScreens { hubConnection.setVisible(it) })
+        orbits.start(hubConnection.replies) // agent replies streamed by Lumi Hub land in their Orbit
 
         appScope.launch {
             nanoEngine.refreshStatus()

@@ -19,6 +19,11 @@ Pending work. Finished items are removed; their history is in `MEMORY.md` and gi
 - [ ] Files in `lumi_send`; Codex / Gemini CLI as wake-per-message agents (`Agents.command_for`)
 - [ ] Push to Lumi itself while it is closed (UnifiedPush); today only an optional ntfy ping to the ntfy app
 
+## Orbit (#4) follow-ups
+- [ ] API agents (Gemini, Anthropic, OpenAI, Ollama) and Codex on the PC: new `AgentBackendKind` + `AgentBackend` (#2)
+- [ ] Agents reading the user's tasks (`agents.can_read_tasks` exists, not used yet); images/files inline
+- [ ] Rename an Orbit from the thread (the store supports it; no UI yet)
+
 ## To test on the Galaxy S25
 - [ ] Lumi Hub through real Tailscale (`tailscale serve`, owner check) and notifications while using other apps
 - [ ] Now Bar: One UI promoting the notification (Android 16 + One UI 8)

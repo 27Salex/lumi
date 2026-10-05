@@ -107,6 +107,14 @@ class ChatStore(context: Context, private val dao: ChatDao, scope: CoroutineScop
         queue.trySend { dao.updateMessage(messageId, text, payload, isError) }
     }
 
+    fun updateWithEngine(messageId: Long, text: String, payload: String?, engine: String) {
+        queue.trySend { dao.updateMessage(messageId, text, payload, false); dao.setEngine(messageId, engine) }
+    }
+
+    fun deleteMessage(messageId: Long) {
+        queue.trySend { dao.deleteMessage(messageId) }
+    }
+
     fun rename(sessionId: Long, title: String) {
         val clean = title.trim()
         queue.trySend { if (clean.isNotEmpty()) dao.setTitle(sessionId, clean.take(80), true) }

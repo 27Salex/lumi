@@ -73,9 +73,10 @@ another app). The daily brief is cached in `BriefStore` (per day and language) t
 reading/replying (`LumiNotificationListener`, active notifications only, in memory), routines (`RoutinesStore`),
 phone actions (`DeviceActions`), personal memory (only saved on explicit request), Lumi Hub (`data/hub` +
 `tools/lumi-hub`: AI agents on the PC message you / ask / propose tasks over Tailscale; their input is untrusted text,
-see AGENTS.md rule 9). New intents are recognised in
+see AGENTS.md rule 9), Orbit (`data/orbit`, `presentation/orbit`: chats with AI agents, `@Name` routing, one-step
+"Chat with Claude" through the Hub). New intents are recognised in
 `data/ai/AssistantIntents.kt` (Spanish) and `EnglishCommands` (English) and are RULES_FIRST.
 
-**Persistence.** Room DB version 8 with hand-written migrations (`exportSchema = false`); enums stored as names; seed
+**Persistence.** Room DB version 9 with hand-written migrations (`exportSchema = false`); enums stored as names; seed
 data on first create (in the app language). Settings are SharedPreferences exposed as `StateFlow<AppSettings>`.
 `BackupManager` exports/imports everything as JSON, except the API key and phone-tied ids.

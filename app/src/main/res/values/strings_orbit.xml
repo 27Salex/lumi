@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Orbit (issue #4): group chats with AI agents. -->
+<resources>
+    <string name="orbit_title">Orbit</string>
+    <string name="orbit_sub">Chats with your AI agents. Mention one with @ to get its answer; without a mention, Lumi answers.</string>
+    <string name="orbit_chat_with_claude">Chat with Claude</string>
+    <string name="orbit_chat_with_claude_sub">A direct chat with Claude Code on your PC. Every message goes to Claude.</string>
+    <string name="orbit_needs_hub">Needs Lumi Hub on your PC (Settings, Lumi Hub)</string>
+    <string name="orbit_new">New Orbit</string>
+    <string name="orbit_new_sub">A group chat around a project, with the agents you pick</string>
+    <string name="orbit_name_hint">Name (e.g. New website)</string>
+    <string name="orbit_pick_agents">Agents in this Orbit</string>
+    <string name="orbit_create">Create</string>
+    <string name="orbit_no_agents">No agents yet. Add one below the list of Orbits.</string>
+    <string name="orbit_threads">Your Orbits</string>
+    <string name="orbit_inboxes">From your agents</string>
+    <string name="orbit_agents">Agents</string>
+    <string name="orbit_add_agent">Add agent</string>
+    <string name="orbit_more_backends">Agents with your own API key (Gemini, Anthropic, OpenAI, Ollama) arrive with the selectable brain.</string>
+    <string name="orbit_agent_backend">Who answers</string>
+    <string name="backend_lumi">Lumi\'s brain (on this phone)</string>
+    <string name="backend_claude_pc">Claude Code on your PC</string>
+    <string name="orbit_agent_name">Name</string>
+    <string name="orbit_agent_color">Colour</string>
+    <string name="orbit_agent_face">Face</string>
+    <string name="orbit_agent_purpose">Purpose (optional, e.g. Reviews my code)</string>
+    <string name="orbit_members">Agents in this Orbit</string>
+    <string name="orbit_add_member">Add %1$s</string>
+    <string name="orbit_remove_member">Remove %1$s</string>
+    <string name="orbit_input_hint">Message, @ to ping an agent</string>
+    <string name="orbit_input_hint_single">Message %1$s</string>
+    <string name="orbit_input_hint_inbox">Answer the open question</string>
+    <string name="orbit_inbox_no_question">Nothing to answer right now</string>
+    <string name="orbit_inbox_empty">Messages, questions and task proposals from this agent appear here.</string>
+    <string name="orbit_empty_thread">Say hi. Mention an agent with @ to get its answer; without a mention, Lumi answers.</string>
+    <string name="orbit_empty_single">A direct chat: every message goes to %1$s.</string>
+    <string name="orbit_thinking">Thinking…</string>
+    <string name="orbit_second_opinion">Second opinion from %1$s</string>
+    <string name="orbit_answered">Answered: %1$s</string>
+    <string name="orbit_closed">No longer open</string>
+    <string name="orbit_task_added_state">Added to your tasks</string>
+    <string name="orbit_task_dismissed">Dismissed</string>
+    <string name="send">Send</string>
+</resources>
