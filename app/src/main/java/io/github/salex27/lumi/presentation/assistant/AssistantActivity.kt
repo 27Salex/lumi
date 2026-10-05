@@ -43,7 +43,7 @@ class AssistantActivity : ComponentActivity() {
 
     private val app get() = application as TaskManagerApplication
     private val viewModel: AssistantViewModel by viewModels {
-        AssistantViewModel.Factory(app.repository, app.assistant) { app.speaker.speak(it) }
+        AssistantViewModel.Factory(app.repository, app.assistant, { app.speaker.speak(it) }, app.chatStore, app.chatMemory)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -233,7 +233,8 @@ class AssistantActivity : ComponentActivity() {
                 // Voice activation without a command (heard nothing or nobody confirms) → closes on its own
                 if (fromWakeWord) {
                     LaunchedEffect(state.voiceError, state.messages.size) {
-                        if (state.voiceError != null && state.messages.size <= 1) { kotlinx.coroutines.delay(2_500); finish() }
+                        // Only messages of this opening count (a resumed chat brings its history)
+                        if (state.voiceError != null && state.messages.none { it.id >= LIVE_ID_BASE }) { kotlinx.coroutines.delay(2_500); finish() }
                     }
                     LaunchedEffect(state.pendingConfirmation) {
                         if (state.pendingConfirmation != null) {
@@ -272,7 +273,11 @@ class AssistantActivity : ComponentActivity() {
                     },
                     onDismiss = { finish() },
                     onPickOption = viewModel::pick,
-                    onPickNone = viewModel::pickNone
+                    onPickNone = viewModel::pickNone,
+                    sessionActions = SessionActions(
+                        onNew = viewModel::newSession, onOpen = viewModel::openSession,
+                        onRename = viewModel::renameSession, onDelete = viewModel::deleteSession
+                    )
                 )
             }
         }

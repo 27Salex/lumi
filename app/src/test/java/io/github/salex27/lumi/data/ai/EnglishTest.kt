@@ -176,7 +176,9 @@ class EnglishTest {
         assertTrue(ctx.promptNote().contains("Buy bread"))
         clock = 2_000
         assertNull(ctx.lastTaskId())
-        assertEquals("", ctx.promptNote())
+        // The turn stays in the session's context, but the stale task is no longer offered for "it"
+        assertTrue(ctx.promptNote().contains("remind me to buy bread"))
+        assertTrue(!ctx.promptNote().contains("LAST TASK"))
     }
 
     // ── Quick math ─────────────────────────────────────────────────────────

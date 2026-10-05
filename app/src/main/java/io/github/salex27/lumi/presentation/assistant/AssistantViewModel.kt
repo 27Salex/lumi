@@ -13,6 +13,12 @@ import io.github.salex27.lumi.presentation.agent.DeviceActions
 import io.github.salex27.lumi.domain.model.Task
 import io.github.salex27.lumi.domain.repository.TaskRepository
 import io.github.salex27.lumi.domain.time.DueDateFormatter
+import io.github.salex27.lumi.data.chat.ChatMemory
+import io.github.salex27.lumi.data.chat.ChatStore
+import io.github.salex27.lumi.data.local.ChatMessageEntity
+import io.github.salex27.lumi.data.local.ChatSessionEntity
+import io.github.salex27.lumi.data.local.ChatSessionRow
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -62,7 +68,11 @@ data class AssistantUiState(
     val deviceQueue: List<DeviceCommand> = emptyList(),
     val routineNavigate: io.github.salex27.lumi.domain.model.NavDestination? = null,
     /** Lumi just read someone's messages: "reply that…" goes to that person. */
-    val replyTarget: io.github.salex27.lumi.domain.assistant.IncomingMessage? = null
+    val replyTarget: io.github.salex27.lumi.domain.assistant.IncomingMessage? = null,
+    /** Chat session on screen (null = a new chat, created with its first message) and the saved sessions. */
+    val sessionId: Long? = null,
+    val sessionTitle: String = "",
+    val sessions: List<SessionItem> = emptyList()
 ) {
     /** Texts of the options to choose from (tasks or contacts). */
     val optionLabels: List<String>
@@ -72,6 +82,14 @@ data class AssistantUiState(
 }
 
 data class ContactChoice(val command: DeviceCommand, val options: List<DeviceActions.Contact>)
+
+/** A saved chat in the session list. */
+data class SessionItem(val id: Long, val title: String, val preview: String, val updatedAt: Long, val messageCount: Int)
+
+/** Messages created in this screen get ids from here up; history loaded from a session gets 1..n. */
+internal const val LIVE_ID_BASE = 1_000_000L
+/** The greeting is never stored: it only shows on an empty chat. */
+internal const val GREETING_ID = -1L
 
 /** Spoken/typed answer to "Did you mean…?": chosen index, -1 = none, null = not an answer. Spanish and English. */
 internal fun parseChoiceAnswer(text: String, labels: List<String>): Int? {
@@ -97,29 +115,113 @@ class AssistantViewModel(
     private val repository: TaskRepository,
     orchestrator: AssistantOrchestrator,
     /** Reads the reply aloud (only if the request came by voice). */
-    private val speak: (String) -> Unit = {}
+    private val speak: (String) -> Unit = {},
+    /** Chat sessions (null in previews/tests: nothing is stored). */
+    private val chatStore: ChatStore? = null,
+    private val chatMemory: ChatMemory? = null
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AssistantUiState())
     val state: StateFlow<AssistantUiState> = _state.asStateFlow()
     val activeEngine: StateFlow<String> = orchestrator.activeEngine
 
-    private var nextId = 0L
+    private var nextId = LIVE_ID_BASE
     /** The current request came by voice → the reply is read aloud (hands-free). */
     private var voiceTurn = false
 
+    /** Session being written; messages wait in [pendingWrites] until the session to resume is known. */
+    private var handle = ChatStore.Handle()
+    private val ready = CompletableDeferred<Unit>()
+    private val pendingWrites = mutableListOf<ChatMessageEntity>()
+
     init {
-        val now = LocalDateTime.now()
-        append(
-            ChatMessage.Assistant(
-                id = nextId++,
-                text = "${DueDateFormatter.greeting(now, ReplyLanguage.app)}. " + ReplyLanguage.ui(
-                    "¿En qué te ayudo? Puedes pedirme que apunte algo, preguntarme qué hacer ahora o decirme que ya terminaste una tarea.",
-                    "How can I help? You can ask me to note something down, ask what to do now or tell me you finished a task."
-                )
-            )
-        )
+        _state.update { it.copy(messages = listOf(greeting())) }
         viewModelScope.launch { orchestrator.refreshActiveEngine() }
+        val store = chatStore
+        if (store == null) ready.complete(Unit) else {
+            viewModelScope.launch { store.observeSessions().collect { rows -> _state.update { it.copy(sessions = rows.map(::toItem)) } } }
+            viewModelScope.launch {
+                try {
+                    loadSession(store.sessionToResume(), keepLive = true)
+                } finally {
+                    val h = handle
+                    synchronized(pendingWrites) {
+                        pendingWrites.forEach { e -> store.append(h, e) { _state.update { st -> if (st.sessionId == null && handle === h) st.copy(sessionId = h.sessionId) else st } } }
+                        pendingWrites.clear()
+                        ready.complete(Unit)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun greeting() = ChatMessage.Assistant(
+        id = GREETING_ID,
+        text = "${DueDateFormatter.greeting(LocalDateTime.now(), ReplyLanguage.app)}. " + ReplyLanguage.ui(
+            "¿En qué te ayudo? Puedes pedirme que apunte algo, preguntarme qué hacer ahora o decirme que ya terminaste una tarea.",
+            "How can I help? You can ask me to note something down, ask what to do now or tell me you finished a task."
+        )
+    )
+
+    private fun toItem(row: ChatSessionRow) = SessionItem(
+        row.session.id, row.session.title.ifBlank { ReplyLanguage.ui("Chat", "Chat") }, row.preview.orEmpty(), row.session.updatedAt, row.messageCount
+    )
+
+    /**
+     * Shows [session] (null = a new chat) and loads it into Lumi's conversation memory. With [keepLive], messages typed
+     * before the history finished loading (an initial prompt) stay after it.
+     */
+    private suspend fun loadSession(session: ChatSessionEntity?, keepLive: Boolean) {
+        val store = chatStore ?: return
+        val history = session?.let { s -> store.messages(s.id) }.orEmpty()
+        val ui = history.mapIndexed { i, m -> toUi(m, i + 1L) }
+        chatMemory?.resume(session)
+        handle = ChatStore.Handle(session?.id)
+        _state.update { st ->
+            val live = if (keepLive) st.messages.filter { it.id >= LIVE_ID_BASE } else emptyList()
+            val body = ui + live
+            st.copy(
+                messages = if (body.isEmpty()) listOf(greeting()) else body,
+                revealed = st.revealed + ui.map { it.id },
+                sessionId = session?.id, sessionTitle = session?.title.orEmpty(),
+                choice = if (keepLive) st.choice else null, contactChoice = if (keepLive) st.contactChoice else null,
+                followUp = if (keepLive) st.followUp else null, replyTarget = if (keepLive) st.replyTarget else null
+            )
+        }
+    }
+
+    private suspend fun toUi(m: ChatMessageEntity, id: Long): ChatMessage =
+        if (m.role == ChatMessageEntity.ROLE_USER) ChatMessage.User(id, m.text)
+        else ChatMessage.Assistant(id, m.text, m.engine, m.taskIdList.take(6).mapNotNull { runCatching { repository.getTask(it) }.getOrNull() }, m.isError)
+
+    // ── Sessions ──────────────────────────────────────────────────────────────
+
+    /** "New chat": the old one stays in the list. */
+    fun newSession() {
+        if (_state.value.isThinking) return
+        chatStore?.setActive(null)
+        viewModelScope.launch { loadSession(null, keepLive = false) }
+    }
+
+    /** Resumes a saved chat from the list. */
+    fun openSession(id: Long) {
+        val store = chatStore ?: return
+        if (_state.value.isThinking || id == _state.value.sessionId) return
+        viewModelScope.launch {
+            val session = store.session(id) ?: return@launch
+            store.setActive(id)
+            loadSession(session, keepLive = false)
+        }
+    }
+
+    fun renameSession(id: Long, title: String) {
+        chatStore?.rename(id, title)
+        if (id == _state.value.sessionId && title.isNotBlank()) _state.update { it.copy(sessionTitle = title.trim()) }
+    }
+
+    fun deleteSession(id: Long) {
+        chatStore?.delete(id)
+        if (id == _state.value.sessionId) viewModelScope.launch { loadSession(null, keepLive = false) }
     }
 
     fun send(text: String) = send(text, fromVoice = false)
@@ -316,12 +418,17 @@ class AssistantViewModel(
         voiceTurn = false
         ReplyLanguage.current = ReplyLanguage.app
         append(ChatMessage.User(nextId++, label))
+        run(block)
     }
 
     private fun run(block: suspend () -> AIProcessingResult) {
         _state.update { it.copy(isThinking = true) }
         viewModelScope.launch {
+            ready.await() // the resumed session must be in Lumi's memory before it interprets ("move it")
+            val lastBefore = repository.conversation.sessionTurns().lastOrNull()
             val result = runCatching { block() }.getOrElse { AIProcessingResult.Error(t("Algo ha fallado: ", "Something went wrong: ") + it.localizedMessage) }
+            // The repository recorded the turn: its action is kept with the reply for follow-ups after resuming
+            val action = repository.conversation.sessionTurns().lastOrNull()?.takeIf { it !== lastBefore }?.action
             val tasks = when (result) {
                 is AIProcessingResult.Created -> listOf(result.task)
                 is AIProcessingResult.Updated -> listOf(result.task)
@@ -337,8 +444,10 @@ class AssistantViewModel(
                     engine = result.engine,
                     tasks = tasks,
                     isError = result is AIProcessingResult.Error
-                )
+                ),
+                action
             )
+            chatMemory?.afterTurn(handle)
             _state.update {
                 it.copy(
                     isThinking = false,
@@ -367,15 +476,34 @@ class AssistantViewModel(
         }
     }
 
-    private fun append(message: ChatMessage) = _state.update { it.copy(messages = it.messages + message) }
+    /** Shows a message and stores it in the session ([action] = the command a reply executed, for follow-ups). */
+    private fun append(message: ChatMessage, action: String? = null) {
+        _state.update { st -> st.copy(messages = st.messages.filter { it.id != GREETING_ID } + message) }
+        val store = chatStore ?: return
+        val entity = when (message) {
+            is ChatMessage.User -> ChatMessageEntity(sessionId = 0, role = ChatMessageEntity.ROLE_USER, text = message.text, createdAt = store.stamp())
+            is ChatMessage.Assistant -> ChatMessageEntity(
+                sessionId = 0, role = ChatMessageEntity.ROLE_ASSISTANT, text = message.text, createdAt = store.stamp(),
+                engine = message.engine, isError = message.isError, action = action,
+                taskIds = ChatMessageEntity.joinIds(message.tasks.map { it.id })
+            )
+        }
+        synchronized(pendingWrites) {
+            if (!ready.isCompleted) { pendingWrites += entity; return }
+        }
+        val h = handle
+        store.append(h, entity) { if (_state.value.sessionId == null && handle === h) _state.update { it.copy(sessionId = h.sessionId) } }
+    }
 
     class Factory(
         private val repository: TaskRepository,
         private val orchestrator: AssistantOrchestrator,
-        private val speak: (String) -> Unit = {}
+        private val speak: (String) -> Unit = {},
+        private val chatStore: ChatStore? = null,
+        private val chatMemory: ChatMemory? = null
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T = AssistantViewModel(repository, orchestrator, speak) as T
+        override fun <T : ViewModel> create(modelClass: Class<T>): T = AssistantViewModel(repository, orchestrator, speak, chatStore, chatMemory) as T
     }
 }
 

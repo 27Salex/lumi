@@ -102,7 +102,7 @@ class TaskRepositoryImpl(
     private val zone: ZoneId get() = ZoneId.systemDefault()
 
     /** Short-term memory of the conversation ("move it to 5pm", "and tomorrow?"). */
-    val conversation = ConversationContext()
+    override val conversation = ConversationContext()
     /** Action of the command being executed, recorded in the conversation. */
     @Volatile private var lastAction: String? = null
 

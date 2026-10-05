@@ -74,6 +74,6 @@ reading/replying (`LumiNotificationListener`, active notifications only, in memo
 phone actions (`DeviceActions`), personal memory (only saved on explicit request). New intents are recognised in
 `data/ai/AssistantIntents.kt` (Spanish) and `EnglishCommands` (English) and are RULES_FIRST.
 
-**Persistence.** Room DB version 7 with hand-written migrations (`exportSchema = false`); enums stored as names; seed
+**Persistence.** Room DB version 8 with hand-written migrations (`exportSchema = false`); enums stored as names; seed
 data on first create (in the app language). Settings are SharedPreferences exposed as `StateFlow<AppSettings>`.
 `BackupManager` exports/imports everything as JSON, except the API key and phone-tied ids.

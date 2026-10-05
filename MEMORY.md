@@ -6,6 +6,23 @@ translated when the project went public; version numbers before 1.0.0 refer to t
 
 ---
 
+## 2026-10-05 — Chat sessions (issue #8)
+
+- **Room v8**: `chat_sessions` + `chat_messages` (migration 7→8, SQL in `ChatSchema`, checked against Room's generated
+  schema). Kinds ASSISTANT / ORBIT / HUB so Orbit threads and Hub messages reuse the same tables; messages carry
+  `action`, `task_ids` (follow-ups after resuming), `agent_id` and a JSON `payload`.
+- **One store for the pill and the app** (`ChatStore`): writes go through a single queue in the app scope so they keep
+  their order and finish even when the pill closes right after a phone action. The session on screen is remembered
+  (`active_session`); after 3 h idle (`SessionPolicy.IDLE_GAP_MILLIS`) the next opening starts a new chat (the old one
+  stays in the list). Auto-title from the first user message; rename / delete / new chat from the chat header.
+- **Context for Gemma** (`ChatContextBuilder`, pure): rolling summary + the newest turns within ~360 tokens. When 3+
+  turns overflow, `ChatMemory` folds them into the summary with the active LLM (rules fallback), after the reply, never
+  in front of it. `ConversationContext.fold` removes by time, not by count (a turn recorded meanwhile survives).
+  The stale last task (10 min TTL) is no longer offered for "it", but the turns stay in the note.
+- Backup format 2 adds `chats` (task ids not exported: tasks get new ids on import; dedupe by kind + createdAt).
+- Fixed on the way: the "What should I do now?" / "How am I doing?" chips in the chat added the user bubble but never
+  ran the request (`quick` didn't call `run`).
+
 ## 2026-09-30 — 1.0.0 (same version): "Hey Lumi", better wake word, lock screen and a recognizer loop
 
 User report after trying 1.0.0: English speakers won't say "Oye Lumi", detection still feels weak, and on the lock

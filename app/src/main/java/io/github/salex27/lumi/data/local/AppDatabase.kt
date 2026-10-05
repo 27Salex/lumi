@@ -74,7 +74,31 @@ private val MIGRATION_6_7 = object : Migration(6, 7) {
     }
 }
 
-@Database(entities = [TaskEntity::class, SyncTombstone::class, ReminderEntity::class, MemoryEntity::class], version = 7, exportSchema = false)
+// v8: chat sessions (shared by the overlay pill and the app; Orbit threads reuse them)
+internal val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        ChatSchema.CREATE_V8.forEach { db.execSQL(it) }
+    }
+}
+
+/** SQL of the chat tables, shared by the migration and its test. Must match ChatEntities exactly (Room checks it). */
+internal object ChatSchema {
+    val CREATE_V8 = listOf(
+        "CREATE TABLE IF NOT EXISTS chat_sessions (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, kind TEXT NOT NULL, " +
+            "title TEXT NOT NULL, title_custom INTEGER NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, " +
+            "summary TEXT NOT NULL, summary_until INTEGER NOT NULL)",
+        "CREATE TABLE IF NOT EXISTS chat_messages (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, session_id INTEGER NOT NULL, " +
+            "role TEXT NOT NULL, text TEXT NOT NULL, created_at INTEGER NOT NULL, engine TEXT NOT NULL, is_error INTEGER NOT NULL, " +
+            "action TEXT, task_ids TEXT NOT NULL, agent_id INTEGER, payload TEXT, " +
+            "FOREIGN KEY(session_id) REFERENCES chat_sessions(id) ON UPDATE NO ACTION ON DELETE CASCADE)",
+        "CREATE INDEX IF NOT EXISTS index_chat_messages_session_id ON chat_messages (session_id)"
+    )
+}
+
+@Database(
+    entities = [TaskEntity::class, SyncTombstone::class, ReminderEntity::class, MemoryEntity::class, ChatSessionEntity::class, ChatMessageEntity::class],
+    version = 8, exportSchema = false
+)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
 
@@ -82,6 +106,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun tombstoneDao(): SyncTombstoneDao
     abstract fun reminderDao(): ReminderDao
     abstract fun memoryDao(): MemoryDao
+    abstract fun chatDao(): ChatDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -96,7 +121,7 @@ abstract class AppDatabase : RoomDatabase() {
             AppDatabase::class.java,
             "lumi.db"
         )
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
             .addCallback(object : Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)

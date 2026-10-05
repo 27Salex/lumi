@@ -21,7 +21,7 @@ import org.json.JSONObject
  * Backup to a JSON file (the user picks where: Drive, Downloads…). Used to move to another phone and to bring the data
  * of the old app (whose id contained "gemini") over to Lumi 1.0.
  *
- * Included: tasks (with their custom reminders), memory, places, routines, quick contacts and settings.
+ * Included: tasks (with their custom reminders), memory, chat sessions (format 2), places, routines, quick contacts and settings.
  * NOT included: the Gemini API key (a secret), ids tied to this phone (calendar, voice print), caches.
  * Importing ADDS to what is there (never deletes): tasks and memories that already exist aren't duplicated.
  */
@@ -31,7 +31,7 @@ class BackupManager(
     private val repository: TaskRepository
 ) {
 
-    data class Summary(val tasks: Int, val memories: Int, val prefsFiles: Int)
+    data class Summary(val tasks: Int, val memories: Int, val prefsFiles: Int, val chats: Int = 0)
 
     /** SharedPreferences files that are copied (and keys that aren't: secret or tied to this phone). */
     private val prefsToCopy = listOf("assistant_settings", "places", "routines", "contact_aliases")
@@ -40,12 +40,15 @@ class BackupManager(
     suspend fun export(uri: Uri): Summary = withContext(Dispatchers.IO) {
         val tasks = database.taskDao().getAllTasksSnapshot()
         val memories = database.memoryDao().all()
+        val chatSessions = database.chatDao().allSessions()
+        val chats = ChatBackup.encode(chatSessions, database.chatDao().allMessages())
         val root = JSONObject()
             .put("app", "Lumi")
             .put("format", FORMAT_VERSION)
             .put("exportedAt", System.currentTimeMillis())
             .put("tasks", JSONArray().apply { tasks.forEach { put(taskJson(it)) } })
             .put("memories", JSONArray().apply { memories.forEach { put(JSONObject().put("text", it.text).put("createdAt", it.createdAt)) } })
+            .put("chats", JSONArray(chats))
             .put("prefs", JSONObject().apply {
                 prefsToCopy.forEach { name ->
                     val all = context.getSharedPreferences(name, Context.MODE_PRIVATE).all
@@ -65,7 +68,7 @@ class BackupManager(
             })
         context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(root.toString(2).toByteArray()) }
             ?: error(ReplyLanguage.ui("No se pudo escribir el fichero", "Could not write the file"))
-        Summary(tasks.size, memories.size, prefsToCopy.size)
+        Summary(tasks.size, memories.size, prefsToCopy.size, chatSessions.size)
     }
 
     private suspend fun taskJson(t: TaskEntity): JSONObject {
@@ -129,6 +132,9 @@ class BackupManager(
             addedMemories++
         }
 
+        // Chat sessions (format 2+): sessions already on the phone are skipped
+        val addedChats = root.optJSONArray("chats")?.let { importChats(it.toString()) } ?: 0
+
         // Settings, places, routines and quick contacts: written as they are (commit: before the restart)
         val prefs = root.optJSONObject("prefs") ?: JSONObject()
         var files = 0
@@ -150,13 +156,26 @@ class BackupManager(
             editor.commit()
             files++
         }
-        Summary(addedTasks, addedMemories, files)
+        Summary(addedTasks, addedMemories, files, addedChats)
+    }
+
+    private suspend fun importChats(text: String): Int {
+        val dao = database.chatDao()
+        val known = dao.allSessions().map { ChatBackup.key(it.kind, it.createdAt) }.toMutableSet()
+        var added = 0
+        for (s in runCatching { ChatBackup.decode(text) }.getOrDefault(emptyList())) {
+            if (!known.add(ChatBackup.key(s.kind, s.createdAt))) continue
+            val id = dao.insertSession(ChatBackup.toEntity(s))
+            s.messages.forEach { dao.insertMessage(ChatBackup.toEntity(it, id)) }
+            added++
+        }
+        return added
     }
 
     private fun JSONObject.optLongOrNull(key: String): Long? = if (has(key) && !isNull(key)) getLong(key) else null
     private fun JSONObject.optStringOrNull(key: String): String? = if (has(key) && !isNull(key)) getString(key) else null
 
     companion object {
-        const val FORMAT_VERSION = 1
+        const val FORMAT_VERSION = 2
     }
 }

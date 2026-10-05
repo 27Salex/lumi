@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sesiones de chat (issue #8). Separado de strings.xml para que las funciones se fusionen sin conflictos. -->
+<resources>
+    <string name="chat_delete_confirm">¿Borrar?</string>
+    <string name="chat_empty">Aún no hay chats guardados. Tus conversaciones con Lumi aparecen aquí.</string>
+    <string name="chat_history">Chats</string>
+    <string name="chat_new">Nuevo chat</string>
+    <string name="chat_rename">Renombrar</string>
+</resources>

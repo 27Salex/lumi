@@ -78,6 +78,17 @@ class TaskManagerApplication : Application() {
         io.github.salex27.lumi.data.local.RoomMemoryStore(database.memoryDao())
     }
 
+    /** Chat sessions (v8), shared by the overlay pill and the chat inside the app. */
+    val chatStore: io.github.salex27.lumi.data.chat.ChatStore by lazy {
+        io.github.salex27.lumi.data.chat.ChatStore(this, database.chatDao(), appScope)
+    }
+    val chatMemory: io.github.salex27.lumi.data.chat.ChatMemory by lazy {
+        io.github.salex27.lumi.data.chat.ChatMemory(
+            chatStore, repository.conversation, { repository.getTask(it) },
+            { system, user, max -> assistant.ask(system, user, max)?.first }, appScope
+        )
+    }
+
     val reminderScheduler: AlarmReminderScheduler by lazy { AlarmReminderScheduler(this, settings, database.reminderDao()) }
 
     // ── Places, live chip and voice ─────────────────────────────────────────

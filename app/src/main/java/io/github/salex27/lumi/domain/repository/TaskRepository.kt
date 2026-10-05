@@ -9,6 +9,9 @@ import io.github.salex27.lumi.domain.model.TaskStatus
 import kotlinx.coroutines.flow.Flow
 
 interface TaskRepository {
+    /** Memory of the active chat session (follow-ups and the LLM's conversation note); restored when a session resumes. */
+    val conversation: io.github.salex27.lumi.domain.assistant.ConversationContext
+
     fun getAllTasks(): Flow<List<Task>>
     fun getTasksByStatus(status: TaskStatus): Flow<List<Task>>
     fun getPendingCount(): Flow<Int>

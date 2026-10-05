@@ -14,7 +14,7 @@ plans your day around your schedule, reminds you before appointments (by time or
 the weather, reads and replies to your messages, sets a smart alarm from your calendar, and syncs with Google Calendar
 and Google Tasks.
 
-- **Stack:** Kotlin 2.4, Jetpack Compose (Material 3, own light/dark theme, edge-to-edge), Coroutines/Flow, Room 7,
+- **Stack:** Kotlin 2.4, Jetpack Compose (Material 3, own light/dark theme, edge-to-edge), Coroutines/Flow, Room 8,
   Glance, LiteRT (openWakeWord + LiteRT-LM), Vosk (voice print only), Play Services Location (geofences).
 - **AI:** an engine chain (see below). Reference device: Samsung Galaxy S25 (no Gemini Nano Prompt API).
 - **Architecture:** `domain` / `data` / `presentation` layers + unidirectional data flow with `StateFlow`. No DI
@@ -38,7 +38,8 @@ data/
                                # CategoryHeuristics, DayPlanner, MeetingMatcher, AssistantIntents, QuickMath (pure, tested)
                                # LlmEngine (base) → GeminiNanoEngine, GemmaLocalEngine (+GemmaModelManager), CloudGeminiEngine
                                # AssistantOrchestrator (chain + reconcile), AssistantPrompts (shared prompts)
-  local/                       # Room (v7: tasks, reminders, sync_tombstones, memories) + BriefStore (cached summary)
+  local/                       # Room (v8: tasks, reminders, sync_tombstones, memories, chat_sessions/messages) + BriefStore
+  chat/                        # ChatStore (sessions shared by pill and app), ChatMemory (rolling summary for the LLM)
   backup/BackupManager.kt      # Export / import everything to a JSON file (phone change, reinstall)
   sync/                        # DeviceCalendar/CalendarTaskSync (CalendarContract), GoogleTasksAuth/GoogleTasksSync (REST)
   places/ routines/ weather/   # Saved places, routines store, Open-Meteo client
@@ -105,7 +106,7 @@ tools/gemma_batch.sh           # Runs a batch of phrases through the real Gemma 
 - Resource names can't be Java keywords (`import`, `package`…): the resource merger fails.
 
 ### 3. Data
-- Room v7 with hand-written migrations (`exportSchema = false`): any schema change = bump the version + a `Migration`.
+- Room v8 with hand-written migrations (`exportSchema = false`): any schema change = bump the version + a `Migration`.
 - Update tasks with `TaskEntity.mergeFrom(task)` (keeps `google_task_id`, `calendar_event_id`…), never `toEntity()`.
 - Every write goes through `TaskRepository` → notifies `TaskChangeListener`s (calendar, Google Tasks, widget, places,
   live update) and the reminders.

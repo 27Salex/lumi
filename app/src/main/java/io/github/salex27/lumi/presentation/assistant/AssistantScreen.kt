@@ -46,6 +46,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.AddComment
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.OpenInFull
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -111,7 +113,8 @@ fun AssistantScreen(
     onOpenApp: () -> Unit,
     onDismiss: () -> Unit,
     onPickOption: (Int) -> Unit = {},
-    onPickNone: () -> Unit = {}
+    onPickNone: () -> Unit = {},
+    sessionActions: SessionActions = SessionActions()
 ) {
     var compact by remember { mutableStateOf(startCompact) }
     val lastAssistantAnimating = state.messages.lastOrNull()?.let { it is ChatMessage.Assistant && it.id !in state.revealed } == true
@@ -142,7 +145,8 @@ fun AssistantScreen(
             } else {
                 FullAssistant(
                     state, lumiState, activeEngine, isListening, liveTranscript, micAvailable,
-                    onSend, onPlanDay, onBriefing, onStartVoice, onStopVoice, onRevealed, onOpenApp, onDismiss, onPickOption, onPickNone
+                    onSend, onPlanDay, onBriefing, onStartVoice, onStopVoice, onRevealed, onOpenApp, onDismiss, onPickOption, onPickNone,
+                    sessionActions
                 )
             }
         }
@@ -175,8 +179,8 @@ private fun CompactAssistant(
     var input by remember { mutableStateOf("") }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
-    // The initial greeting (id 0) isn't shown in compact mode: only real replies
-    val lastReply = state.messages.lastOrNull { it is ChatMessage.Assistant && it.id != 0L } as? ChatMessage.Assistant
+    // Only replies from this opening: not the greeting nor the history of a resumed chat
+    val lastReply = state.messages.lastOrNull { it is ChatMessage.Assistant && it.id >= LIVE_ID_BASE } as? ChatMessage.Assistant
 
     LaunchedEffect(typing) { if (typing) { runCatching { focus.requestFocus() }; keyboard?.show() } }
 
@@ -353,10 +357,12 @@ private fun FullAssistant(
     onOpenApp: () -> Unit,
     onDismiss: () -> Unit,
     onPickOption: (Int) -> Unit,
-    onPickNone: () -> Unit
+    onPickNone: () -> Unit,
+    sessionActions: SessionActions
 ) {
     val c = Lumi.colors
     var input by remember { mutableStateOf("") }
+    var showSessions by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(liveTranscript) { if (liveTranscript.isNotBlank()) input = liveTranscript }
@@ -376,11 +382,25 @@ private fun FullAssistant(
                 LumiMark(lumiState, size = 34.dp)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Lumi", style = MaterialTheme.typography.titleMedium, color = c.textPrimary)
+                    val title = state.sessions.firstOrNull { it.id == state.sessionId }?.title ?: state.sessionTitle
+                    Text(title.ifBlank { "Lumi" }, style = MaterialTheme.typography.titleMedium, color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(activeEngine, style = MaterialTheme.typography.labelMedium, color = c.textTertiary, maxLines = 1)
+                }
+                IconButton(onClick = { showSessions = !showSessions }) {
+                    Icon(Icons.Outlined.History, stringResource(R.string.chat_history), tint = if (showSessions) c.accentText else c.textSecondary, modifier = Modifier.size(20.dp))
+                }
+                IconButton(onClick = { showSessions = false; sessionActions.onNew() }, enabled = !state.isThinking) {
+                    Icon(Icons.Outlined.AddComment, stringResource(R.string.chat_new), tint = c.textSecondary, modifier = Modifier.size(20.dp))
                 }
                 IconButton(onClick = onOpenApp) { Icon(Icons.Outlined.OpenInFull, stringResource(R.string.open_app), tint = c.textSecondary, modifier = Modifier.size(20.dp)) }
                 IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, stringResource(R.string.close), tint = c.textSecondary) }
+            }
+
+            if (showSessions) {
+                SessionList(state.sessions, state.sessionId, Modifier.weight(1f, fill = false).padding(top = 12.dp),
+                    onOpen = { showSessions = false; sessionActions.onOpen(it) },
+                    onRename = sessionActions.onRename, onDelete = sessionActions.onDelete)
+                return@Column
             }
 
             LazyColumn(state = listState, modifier = Modifier.weight(1f, fill = false).padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {

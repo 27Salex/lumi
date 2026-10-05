@@ -1,6 +1,8 @@
 package io.github.salex27.lumi.domain.assistant
 
 import io.github.salex27.lumi.domain.model.Task
+import io.github.salex27.lumi.domain.chat.ChatContextBuilder
+import io.github.salex27.lumi.domain.chat.ChatTurn
 import java.text.Normalizer
 
 /** Language of a sentence and of its reply. Lumi started Spanish-only; English was added for the public 1.0. */
@@ -69,9 +71,10 @@ object LanguageDetector {
 }
 
 /**
- * Short-term conversation memory: the last sentences and the last task mentioned, to understand "move it to 5pm",
- * "make it high priority", "and tomorrow?". Expires after [ttlMillis] (a new conversation starts from scratch).
- * Lives in memory only.
+ * Conversation memory of the active chat session: its turns (+ the rolling [summary] of older ones) for the LLM, and
+ * the last task / last action for follow-ups like "move it to 5pm", "make it high priority", "and tomorrow?". The
+ * follow-up memory expires after [ttlMillis]; the turns belong to the session (persisted by ChatStore) and are trimmed
+ * to a token budget by [ChatContextBuilder] before reaching the LLM.
  */
 class ConversationContext(private val ttlMillis: Long = 10 * 60_000L, private val clock: () -> Long = System::currentTimeMillis) {
 
@@ -82,12 +85,25 @@ class ConversationContext(private val ttlMillis: Long = 10 * 60_000L, private va
     private var lastTaskTitle: String? = null
     private var lastTaskAt = 0L
 
+    /** Rolling summary of the session's older turns (already folded out of the turn list). */
+    @Volatile var summary: String = ""
+        private set
+
     @Synchronized
     fun record(user: String, reply: String, action: String?, task: Task?) {
         val now = clock()
         turns.addLast(Turn(user, reply, action, now))
         while (turns.size > MAX_TURNS) turns.removeFirst()
         if (task != null && task.id > 0) { lastTaskId = task.id; lastTaskTitle = task.title; lastTaskAt = now }
+    }
+
+    /** Loads a resumed session: its summary, its newest turns and the last task it mentioned (still subject to the TTL). */
+    @Synchronized
+    fun restore(sessionTurns: List<Turn>, sessionSummary: String, lastTask: Task?, lastTaskAt: Long) {
+        clear()
+        summary = sessionSummary
+        sessionTurns.takeLast(MAX_TURNS).forEach { turns.addLast(it) }
+        if (lastTask != null && lastTask.id > 0) { lastTaskId = lastTask.id; lastTaskTitle = lastTask.title; this.lastTaskAt = lastTaskAt }
     }
 
     /** Id of the last task mentioned (created, changed or picked), while the conversation is alive. */
@@ -97,29 +113,49 @@ class ConversationContext(private val ttlMillis: Long = 10 * 60_000L, private va
     @Synchronized
     fun lastTaskTitle(): String? = lastTaskTitle?.takeIf { clock() - lastTaskAt < ttlMillis }
 
-    /** Recent turns (not expired), oldest first. */
+    /** Recent turns (not expired), oldest first: for follow-ups ("and tomorrow?", the previous question). */
     @Synchronized
     fun recent(): List<Turn> = turns.filter { clock() - it.at < ttlMillis }
+
+    /** Every turn of the session still in memory (not folded into the summary), oldest first. */
+    @Synchronized
+    fun sessionTurns(): List<Turn> = turns.toList()
 
     /** Action of the last sentence ("WEATHER", "ASK"…), to follow the thread ("and tomorrow?"). */
     fun lastAction(): String? = recent().lastOrNull()?.action
 
-    /** Note for the LLM: "User: … / Lumi: …" + the last task. Empty when there is no recent conversation. */
-    fun promptNote(): String {
-        val r = recent()
-        if (r.isEmpty()) return ""
-        return buildString {
-            append("[RECENT CONVERSATION: ")
-            append(r.takeLast(2).joinToString(" | ") { "User: «${it.user.take(120)}» → Lumi: «${it.reply.take(120)}»" })
-            lastTaskTitle()?.let { append(" | LAST TASK: «$it»") }
-            append("]")
-        }
+    /**
+     * Note for the LLM: summary + the newest session turns that fit the token budget + the last task (only while it is
+     * fresh, so "move it" never lands on a task from hours ago). Empty when there is no conversation.
+     */
+    fun promptNote(budgetTokens: Int = ChatContextBuilder.DEFAULT_BUDGET_TOKENS): String =
+        ChatContextBuilder.note(sessionTurns().map { it.toChatTurn() }, summary, budgetTokens, lastTaskTitle())
+
+    /** Turns that no longer fit the budget (oldest first): what [fold] should summarize. */
+    fun overflow(budgetTokens: Int = ChatContextBuilder.DEFAULT_BUDGET_TOKENS): List<Turn> {
+        val all = sessionTurns()
+        val plan = ChatContextBuilder.plan(all.map { it.toChatTurn() }, summary, budgetTokens)
+        return all.take(plan.overflow.size)
     }
+
+    /**
+     * Replaces the turns up to [until] (their time, inclusive) with [newSummary]: they were summarized. By time and not
+     * by count, so turns recorded while the summary was being written are never dropped by mistake.
+     */
+    @Synchronized
+    fun fold(until: Long, newSummary: String) {
+        while (turns.isNotEmpty() && turns.first().at <= until) turns.removeFirst()
+        summary = newSummary
+    }
+
+    private fun Turn.toChatTurn() = ChatTurn(user, reply, at)
 
     @Synchronized
-    fun clear() { turns.clear(); lastTaskId = null; lastTaskTitle = null }
+    fun clear() { turns.clear(); lastTaskId = null; lastTaskTitle = null; lastTaskAt = 0L; summary = "" }
 
     companion object {
-        const val MAX_TURNS = 4
+        /** Turns kept in memory; the token budget decides how many actually reach the LLM. */
+        const val MAX_TURNS = 16
     }
 }
+
