@@ -103,6 +103,9 @@ class TaskManagerApplication : Application() {
     }
 
     // ── Lumi Hub (agents on the PC) ─────────────────────────────────────────
+    /** In-app update from GitHub releases (#11). */
+    val updates by lazy { io.github.salex27.lumi.data.update.UpdateManager(this, appScope) }
+
     val hubSettings by lazy { io.github.salex27.lumi.data.hub.HubSettings(this) }
     val hubClient by lazy { io.github.salex27.lumi.data.hub.HubClient(hubSettings) }
     val hubInbox by lazy { io.github.salex27.lumi.data.hub.HubInbox(this, chatStore, hubClient, repository) }
@@ -227,6 +230,7 @@ class TaskManagerApplication : Application() {
         createNotificationChannels()
         registerActivityLifecycleCallbacks(VisibleScreens { hubConnection.setVisible(it) })
         orbits.start(hubConnection.replies) // agent replies streamed by Lumi Hub land in their Orbit
+        updates.checkOnStart() // at most every 12 h, off the main thread, silent on failure
 
         appScope.launch {
             nanoEngine.refreshStatus()

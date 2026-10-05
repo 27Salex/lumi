@@ -22,7 +22,7 @@ Pending work. Finished items are removed; their history is in `MEMORY.md` and gi
 ## Orbit (#4) follow-ups
 - [ ] API agents (Gemini, Anthropic, OpenAI, Ollama) and Codex on the PC: new `AgentBackendKind` + `AgentBackend` (#2)
 - [ ] Agents reading the user's tasks (`agents.can_read_tasks` exists, not used yet); images/files inline
-- [ ] Rename an Orbit from the thread (the store supports it; no UI yet)
+- [x] Rename an Orbit: long-press in the Chats screen
 - [ ] Leader (#5): cost hints when an API agent would be used; more autonomy levels (act if pre-approved)
 
 ## Intent routing (#1) follow-ups
@@ -36,6 +36,11 @@ Pending work. Finished items are removed; their history is in `MEMORY.md` and gi
 ## Selectable brain (#2) follow-ups
 - [ ] Try real Anthropic / OpenAI / OpenRouter keys (only mocked so far) and measure voice latency per engine
 - [ ] Orbit agents on these APIs (`AgentBackendKind` + an `AgentBackend` that reuses `ApiEngines`)
+
+## Chats (#10) and in-app update (#11) follow-ups
+- [ ] Swipe actions on chat rows; search inside message bodies (today title + last message)
+- [ ] Try the update with a real GitHub release (v1.2.0 with an APK asset) on the S25, including "Install unknown apps" and the same-key rule
+- [ ] Proper release keystore so updates survive a different build machine
 
 ## To test on the Galaxy S25
 - [ ] Lumi Hub through real Tailscale (`tailscale serve`, owner check) and notifications while using other apps

@@ -3,6 +3,8 @@
 
     <!-- Gemma download and Gemini cloud (optional) -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- In-app update (#11): hands the downloaded APK to the system installer -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- "Oye Lumi": foreground listening + opening the assistant over other apps when the phrase is heard -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -200,6 +202,13 @@
                 android:resource="@xml/quick_task_widget_info" />
         </receiver>
 
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/update_paths" />
+        </provider>
     </application>
 
 </manifest>

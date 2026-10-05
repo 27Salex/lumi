@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Actualización desde GitHub (#11). -->
+<resources>
+    <string name="update_section">Actualizaciones</string>
+    <string name="update_current">Versión instalada</string>
+    <string name="update_last_check">Última comprobación</string>
+    <string name="update_never">Nunca</string>
+    <string name="update_check_now">Comprobar ahora</string>
+    <string name="update_checking">Buscando actualizaciones…</string>
+    <string name="update_up_to_date">Lumi está al día.</string>
+    <string name="update_note">Lumi busca una versión nueva en GitHub al abrirse (como máximo cada 12 horas). No hay nada en segundo plano.</string>
+    <string name="update_available">Actualización disponible</string>
+    <string name="update_version">Lumi %1$s</string>
+    <string name="update_action">Actualizar</string>
+    <string name="update_retry">Reintentar</string>
+    <string name="update_install">Instalar</string>
+    <string name="update_later">Luego</string>
+    <string name="update_skip">Omitir esta versión</string>
+    <string name="update_downloading">Descargando… %1$d%% (%2$d MB)</string>
+    <string name="update_allow_installs">Permite que Lumi instale apps, vuelve y pulsa Instalar.</string>
+    <string name="update_err_offline">Sin conexión. Revisa tu internet e inténtalo de nuevo.</string>
+    <string name="update_err_rate_limit">GitHub está limitando las peticiones ahora mismo. Inténtalo más tarde.</string>
+    <string name="update_err_server">No se pudo contactar con GitHub o respondió con un error. Inténtalo más tarde.</string>
+    <string name="update_err_invalid">No se pudo leer la información de la versión.</string>
+    <string name="update_err_no_apk">Esta versión no tiene archivo APK para descargar.</string>
+    <string name="update_err_download">La descarga falló. Inténtalo de nuevo.</string>
+    <string name="update_err_checksum">El archivo descargado está dañado (tamaño o suma de verificación no coinciden). Se descartó; inténtalo de nuevo.</string>
+    <string name="update_err_signature">Este APK está firmado con otra clave distinta a la de Lumi instalado, así que Android no lo instalará como actualización. Desinstala Lumi antes (exporta una copia en Ajustes) o instala una versión firmada con la misma clave.</string>
+</resources>

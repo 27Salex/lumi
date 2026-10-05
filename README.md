@@ -93,6 +93,10 @@ Read [`AGENTS.md`](AGENTS.md) for the architecture and rules, and [`MEMORY.md`](
    [Google Tasks](docs/GOOGLE_TASKS_SETUP.md).
 
 Requires Android 10+. Built and tested on a Samsung Galaxy S25 (Android 16) and the Android emulator.
+
+**Updates.** Lumi checks the latest GitHub release when it opens (at most every 12 hours; Settings, Updates has "Check now") and offers to download and install it. Release APKs are debug-signed, so an update only installs over a Lumi signed with the same key; otherwise Lumi says so before opening the installer (uninstall first, after exporting a backup).
+
+**Chats.** Home has a Chats button: one history of every conversation (Lumi chats, Orbit threads, agent inboxes) grouped by day, with search, rename and delete (long-press). Agents and "what Lumi learned" are under Manage agents.
 The APK is debug-signed; it is a personal project, not a Play Store app.
 
 ## Build

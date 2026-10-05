@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- In-app update from GitHub releases (#11). -->
+<resources>
+    <string name="update_section">Updates</string>
+    <string name="update_current">Installed version</string>
+    <string name="update_last_check">Last checked</string>
+    <string name="update_never">Never</string>
+    <string name="update_check_now">Check now</string>
+    <string name="update_checking">Checking for updates…</string>
+    <string name="update_up_to_date">Lumi is up to date.</string>
+    <string name="update_note">Lumi checks GitHub for a new release when it opens (at most every 12 hours). Nothing runs in the background.</string>
+    <string name="update_available">Update available</string>
+    <string name="update_version">Lumi %1$s</string>
+    <string name="update_action">Update</string>
+    <string name="update_retry">Try again</string>
+    <string name="update_install">Install</string>
+    <string name="update_later">Later</string>
+    <string name="update_skip">Skip this version</string>
+    <string name="update_downloading">Downloading… %1$d%% (%2$d MB)</string>
+    <string name="update_allow_installs">Allow Lumi to install apps, then come back and tap Install.</string>
+    <string name="update_err_offline">No connection. Check your internet and try again.</string>
+    <string name="update_err_rate_limit">GitHub is limiting requests right now. Try again in a while.</string>
+    <string name="update_err_server">GitHub could not be reached or answered with an error. Try again later.</string>
+    <string name="update_err_invalid">The release information could not be read.</string>
+    <string name="update_err_no_apk">This release has no APK file to download.</string>
+    <string name="update_err_download">The download failed. Try again.</string>
+    <string name="update_err_checksum">The downloaded file is damaged (size or checksum does not match). It was discarded; try again.</string>
+    <string name="update_err_signature">This APK is signed with a different key than the installed Lumi, so Android will not install it as an update. Uninstall Lumi first (export a backup in Settings) or install a build signed with the same key.</string>
+</resources>

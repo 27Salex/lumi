@@ -60,7 +60,8 @@ presentation/
   main/                        # MainActivity (bottom nav), HomeScreen, MainViewModel
   tasks/ agenda/ stats/ settings/
   assistant/                   # Translucent AssistantActivity: compact (pill, voice) and full (chat); ACTION_ASSIST and SEND
-  orbit/                       # OrbitScreen (list, thread, agent editor) + OrbitViewModel; Home header opens it
+  orbit/                       # ChatsScreen (history of all chats; Home "Chats" pill), OrbitScreen (Manage agents, thread, agent editor) + OrbitViewModel
+  update/                      # UpdateUi (Home card + Settings section); logic in domain/update (UpdateLogic) + data/update (UpdateManager)
   agent/                       # DeviceActions (calls, messages, alarms…), ContactAliases, ActionPreview
   components/                  # LumiMark (animated logo), AssistantBits (UI kit), UiLabels (labels in the app language)
   theme/LumiTheme.kt           # LumiColors light/dark tokens, Inter, category icons/colors

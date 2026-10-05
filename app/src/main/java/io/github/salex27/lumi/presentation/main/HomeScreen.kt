@@ -106,6 +106,7 @@ fun HomeScreen(
             val whatNowPrompt = stringResource(R.string.prompt_what_now)
             Header(onOpenSettings, onOpenChats, weather) { onOpenAssistant(false, weatherPrompt) }
             HeroNumber(remaining = dueToday.size + overdue.size, overdue = overdue.size, done = doneToday, onClick = onOpenAgenda)
+            io.github.salex27.lumi.presentation.update.UpdateHomeCard()
             LumiBriefCard(uiState.briefing, onRefreshBriefing) { onOpenAssistant(false, whatNowPrompt) }
             FreeTimeCard(uiState.allTasks, todayEvents, onStartTask, onCompleteTask)
             if (uiState.gemmaState != GemmaModelManager.State.Ready) GemmaRow(uiState.gemmaState, onDownloadGemma)

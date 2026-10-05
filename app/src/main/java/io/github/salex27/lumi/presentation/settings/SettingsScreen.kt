@@ -123,6 +123,8 @@ fun SettingsScreen(
             }
         }
 
+        io.github.salex27.lumi.presentation.update.UpdatesSettingsSection()
+
         // ── Voice ───────────────────────────────────────────────────────────
         SectionHeader(stringResource(R.string.voice), Modifier.padding(start = 4.dp, top = 12.dp))
         ListGroup {

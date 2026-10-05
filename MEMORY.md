@@ -6,6 +6,14 @@ translated when the project went public; version numbers before 1.0.0 refer to t
 
 ---
 
+## 2026-10-05 — Chats screen and in-app update (issues #10, #11)
+
+- **Chats (#10).** One list of every `chat_sessions` row (kinds ASSISTANT, ORBIT, HUB) via `ChatDao.observeAllSessions`, newest first, grouped by day (`domain/chat/ChatHistory`, pure and tested), with search over title and last message, a kind badge (Lumi / Orbit / Hub), long-press for rename/delete and a "New chat" dialog (Lumi or one-tap Claude). Home's Orbit icon became a labelled "Chats" pill. A Lumi chat resumes through `ChatStore.requestResume(id)` (sets the active session plus a one-shot flag so `sessionToResume` skips the staleness check) and opens the assistant. Orbit/Hub rows open the existing thread view. The old Orbit list is now "Manage agents" (new Orbit, agents, what Lumi learned). No DB change.
+- **Update (#11).** `UpdateManager` (no service): `checkOnStart` at most every 12 h, 8 s timeouts, silent on failure; manual check in Settings (Updates, now under Appearance). `UpdateLogic` (pure, tested): semver compare, drafts/prereleases ignored, asset `digest` sha256. Download uses HttpURLConnection to `cacheDir/updates` with progress, automatic Range resume, size + sha256 check. Before the installer opens it compares the APK signer with the installed one and shows a readable message on mismatch (debug-signed releases only update over the same key). Install goes through FileProvider (`REQUEST_INSTALL_PACKAGES`); without permission it opens "Install unknown apps". Debug builds read `debug_api_base` / `debug_repo` from the `updates` SharedPreferences to point at a mock server (10.0.2.2 or 127.0.0.1 through `adb reverse` are allowed cleartext in the debug network config).
+- **Testing lesson.** A Python mock that closed the socket right after `sendall` made the emulator lose the last bytes of a 134 MB download (looked like an app bug; the resume logic hid it until sha256 failed). Sleep ~1 s before closing a mock's connection; test with a small signed APK (strip dex/libs, zipalign, apksigner with the debug key).
+
+---
+
 ## 2026-10-05 — Selectable brain: Anthropic, OpenAI and OpenAI-compatible engines (issue #2)
 
 - **Settings → Lumi's brain** picks the engine that leads; `BrainChain.order` puts it first and keeps the default
