@@ -33,6 +33,10 @@ Pending work. Finished items are removed; their history is in `MEMORY.md` and gi
 - [ ] Fetch the page of the top result when snippets are too thin; news-specific backend
 - [ ] Spoken answers: keep them even shorter than the chat text
 
+## Selectable brain (#2) follow-ups
+- [ ] Try real Anthropic / OpenAI / OpenRouter keys (only mocked so far) and measure voice latency per engine
+- [ ] Orbit agents on these APIs (`AgentBackendKind` + an `AgentBackend` that reuses `ApiEngines`)
+
 ## To test on the Galaxy S25
 - [ ] Lumi Hub through real Tailscale (`tailscale serve`, owner check) and notifications while using other apps
 - [ ] Now Bar: One UI promoting the notification (Android 16 + One UI 8)

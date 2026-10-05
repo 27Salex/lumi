@@ -37,7 +37,8 @@ data/
   ai/                          # RuleBasedEngine, SpanishDateParser, EnglishDateParser, EnglishCommands, TaskPhraseParser,
                                # CategoryHeuristics, DayPlanner, MeetingMatcher, AssistantIntents, QuickMath,
                                # IntentRouter (top-level task/agent/opinion/unsure route) (pure, tested)
-                               # LlmEngine (base) → GeminiNanoEngine, GemmaLocalEngine (+GemmaModelManager), CloudGeminiEngine
+                               # LlmEngine (base) → GeminiNanoEngine, GemmaLocalEngine (+GemmaModelManager), CloudGeminiEngine,
+                               # ApiEngines (AnthropicEngine, OpenAiEngine for OpenAI + compatible servers; ApiFormats tested)
                                # AssistantOrchestrator (chain + reconcile), AssistantPrompts (shared prompts)
   local/                       # Room (v9: tasks, reminders, sync_tombstones, memories, chat_sessions/messages, agents,
                                # orbit_members) + BriefStore
@@ -90,7 +91,9 @@ tools/gemma_batch.sh           # Runs a batch of phrases through the real Gemma 
 ## Key rules
 
 ### 1. AI engines
-- Order: Gemini Nano → **Gemma (no timeout)** → Gemini cloud (optional) → rules. An engine returns `null` if it can't
+- Order: Gemini Nano → **Gemma (no timeout)** → Gemini cloud → Anthropic → OpenAI → OpenAI-compatible (all optional) →
+  rules; the user's "brain" choice moves one to the front (`BrainChain`). API keys: `BrainSettings` (Keystore), never
+  in the backup. An engine returns `null` if it can't
   answer → the next one tries.
 - The LLM **only interprets and phrases**; day plans, dates and stats are computed by code, so a small model can't make
   data up. Intents that the rules recognise reliably (weather, device actions, follow-ups, routines…) are RULES_FIRST

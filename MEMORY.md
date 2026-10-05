@@ -6,6 +6,29 @@ translated when the project went public; version numbers before 1.0.0 refer to t
 
 ---
 
+## 2026-10-05 — Selectable brain: Anthropic, OpenAI and OpenAI-compatible engines (issue #2)
+
+- **Settings → Lumi's brain** picks the engine that leads; `BrainChain.order` puts it first and keeps the default
+  order behind it (Nano → Gemma → Gemini cloud → Anthropic → OpenAI → compatible), rules always last. The
+  orchestrator now takes a chain *function*, so a change applies at once (a fixed-list constructor remains for tests).
+- **Engines** (`ApiEngines.kt`, raw HttpURLConnection like `CloudGeminiEngine`, no SDK dependency on purpose):
+  `AnthropicEngine` (Messages API, `x-api-key` + `anthropic-version: 2023-06-01`; interpreting with
+  `claude-haiku-4-5` and replies with `claude-opus-5-5` by default, both editable; `LlmEngine.completeFor(Purpose)`
+  lets an engine pick a model per call). Opus 5.5 gets no sampling params (they 400), extra `max_tokens` room for
+  its always-on thinking, `effort: low` for Lumi's short calls and server-side refusal fallbacks (`fallbacks:
+  "default"` + beta `server-side-fallback-2026-07-01`); a `refusal` stop reason returns null → next engine.
+  `OpenAiEngine` covers the OpenAI API (`max_completion_tokens`, no temperature) and any OpenAI-compatible server
+  (`max_tokens` + temperature, `<think>` blocks stripped, 120 s read timeout for laptops). Timeouts: 45 s API,
+  130 s compatible.
+- **Keys** live in prefs `brain` (not in the backup), AES-GCM encrypted with a non-exportable Android Keystore key;
+  after a restore they must be typed again. A Claude Pro/Max subscription can't be the brain (stated in the UI);
+  Claude Code stays reachable as an agent through Lumi Hub. Plain HTTP base URLs only for the emulator/localhost: a
+  LAN Ollama should be published over HTTPS (tailscale serve).
+- Each provider has "Test connection"; the picker shows a speed hint per engine (voice latency).
+- Verified on the emulator: a mock OpenAI-compatible server on the PC (10.0.2.2) led the chain (interpret 106 ms, reply
+  from the mock); a fake Anthropic key was stored encrypted, survived a restart, the real API answered 401 and Lumi fell
+  back to Gemma. Not verified: real Anthropic/OpenAI calls (no keys yet).
+
 ## 2026-10-05 — General questions with web search, key-less by default (issue #7)
 
 - **Opt-in** (Settings → Web search, off by default; prefs `web_search`, not in the backup because of the Brave key).

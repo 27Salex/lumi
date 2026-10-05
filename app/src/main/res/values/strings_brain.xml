@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lumi's brain (issue #2). -->
+<resources>
+    <string name="brain_title">Lumi\'s brain</string>
+    <string name="brain_sub">The model that understands you and writes the replies. The others stay behind it as a backup, and the built-in rules always work.</string>
+    <string name="brain_auto">Automatic (on this phone first)</string>
+    <string name="brain_gemma">Gemma on this phone</string>
+    <string name="brain_gemini">Gemini (Google AI Studio key)</string>
+    <string name="brain_anthropic">Claude (Anthropic API key)</string>
+    <string name="brain_openai">ChatGPT models (OpenAI API key)</string>
+    <string name="brain_compatible">OpenAI-compatible server (Ollama, LM Studio, OpenRouter, Groq…)</string>
+    <string name="brain_speed_varies">Private and free; speed depends on the phone</string>
+    <string name="brain_speed_device">Private and free; a few seconds per request on a fast phone</string>
+    <string name="brain_speed_fast">Fast (about 1 to 3 s), needs internet; your text goes to the provider</string>
+    <string name="brain_speed_server">Depends on the server: fast in the cloud, slower on a laptop</string>
+    <string name="brain_active">Answering now: %1$s</string>
+    <string name="brain_anthropic_key">Anthropic API key</string>
+    <string name="brain_model_interpret">Model for understanding requests (fast)</string>
+    <string name="brain_model_reply">Model for replies and questions</string>
+    <string name="brain_anthropic_note">Only an API key works here. A Claude Pro or Max subscription can\'t be Lumi\'s brain; to use it, talk to Claude Code on your PC through Lumi Hub (Orbit).</string>
+    <string name="brain_openai_key">OpenAI API key</string>
+    <string name="brain_model">Model</string>
+    <string name="brain_compatible_url">Base URL (e.g. https://openrouter.ai/api/v1)</string>
+    <string name="brain_compatible_url_invalid">Use an https address. For a server on your network, publish it over HTTPS (for example with tailscale serve).</string>
+    <string name="brain_compatible_key">API key (optional)</string>
+    <string name="brain_compatible_model">Model (e.g. llama3.2)</string>
+    <string name="brain_gemini_note">Set the Gemini key and model in the Intelligence section above.</string>
+    <string name="brain_test_ok">Connected: %1$s</string>
+    <string name="brain_keys_note">Keys are encrypted on this phone (Android Keystore), sent only to their provider and never included in backups.</string>
+</resources>

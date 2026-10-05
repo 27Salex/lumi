@@ -40,7 +40,9 @@ writes the conversational answer → `AIProcessingResult(reply, engine)`.
 **Engine chain** (`AssistantEngine`, first available wins, `null` = fall through): `GeminiNanoEngine` (ML Kit Prompt
 API; unavailable on the user's Galaxy S25) → `GemmaLocalEngine` (LiteRT-LM, Gemma 4 E2B downloaded at runtime by
 `GemmaModelManager`; **no timeout** by user decision) → `CloudGeminiEngine` (REST, user-supplied API key, off by
-default) → `RuleBasedEngine` (always available). LLMs only interpret/phrase; the code computes plans (`DayPlanner`),
+default) → `AnthropicEngine` / `OpenAiEngine` (OpenAI or any OpenAI-compatible server; keys in `BrainSettings`,
+Keystore-encrypted) → `RuleBasedEngine` (always available). "Lumi's brain" in Settings moves one engine to the front
+(`BrainChain`). LLMs only interpret/phrase; the code computes plans (`DayPlanner`),
 dates, categories (`CategoryHeuristics`) and stats; these pure-Kotlin classes are the unit-tested core. `reconcile()`
 backfills LLM omissions from the rules.
 

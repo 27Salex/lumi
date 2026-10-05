@@ -48,15 +48,28 @@ class TaskManagerApplication : Application() {
     val gemmaEngine: GemmaLocalEngine by lazy { GemmaLocalEngine(this, gemmaModel, settings) }
     val cloudEngine: CloudGeminiEngine by lazy { CloudGeminiEngine(settings) }
 
+    /** Lumi's brain (#2): the chosen engine leads the chain; API engines use the user's own keys. */
+    val brainSettings by lazy { io.github.salex27.lumi.data.settings.BrainSettings(this) }
+    val anthropicEngine by lazy { io.github.salex27.lumi.data.ai.AnthropicEngine { brainSettings.current } }
+    val openAiEngine by lazy { io.github.salex27.lumi.data.ai.OpenAiEngine({ brainSettings.current }, compatible = false) }
+    val compatibleEngine by lazy { io.github.salex27.lumi.data.ai.OpenAiEngine({ brainSettings.current }, compatible = true) }
+
     val assistant: AssistantOrchestrator by lazy {
         AssistantOrchestrator(
-            llmEngines = listOf(
-                nanoEngine to 20_000L,
-                // No timeout (user decision): Gemma gets all the time it needs; the cloud is only used if it fails
-                // or returns nothing. If it is too slow, turn it off in Settings.
-                gemmaEngine to null,
-                cloudEngine to 25_000L
-            ),
+            engineChain = {
+                val byId = mapOf(
+                    io.github.salex27.lumi.domain.ai.EngineId.NANO to (nanoEngine to 20_000L),
+                    // No timeout (user decision): Gemma gets all the time it needs; the next engine is only used if it
+                    // fails or returns nothing. If it is too slow, turn it off in Settings.
+                    io.github.salex27.lumi.domain.ai.EngineId.GEMMA to (gemmaEngine to null),
+                    io.github.salex27.lumi.domain.ai.EngineId.GEMINI_CLOUD to (cloudEngine to 25_000L),
+                    io.github.salex27.lumi.domain.ai.EngineId.ANTHROPIC to (anthropicEngine to 45_000L),
+                    io.github.salex27.lumi.domain.ai.EngineId.OPENAI to (openAiEngine to 45_000L),
+                    // Local servers (Ollama on a laptop) can be slow
+                    io.github.salex27.lumi.domain.ai.EngineId.OPENAI_COMPATIBLE to (compatibleEngine to 130_000L)
+                )
+                io.github.salex27.lumi.domain.ai.BrainChain.order(brainSettings.current.choice).mapNotNull { byId[it] }
+            },
             rules = RuleBasedEngine(),
             memoryFor = { query ->
                 io.github.salex27.lumi.domain.assistant.MemoryRetriever.relevant(query, memoryStore.all(), 3).map { it.text }
@@ -227,6 +240,7 @@ class TaskManagerApplication : Application() {
             assistant.refreshActiveEngine()
         }.launchIn(appScope)
         settings.settings.onEach { assistant.refreshActiveEngine() }.launchIn(appScope)
+        brainSettings.config.onEach { assistant.refreshActiveEngine() }.launchIn(appScope)
         appScope.launch { liveUpdates.refresh() }
         checkIn.schedule()
         morning.schedule()

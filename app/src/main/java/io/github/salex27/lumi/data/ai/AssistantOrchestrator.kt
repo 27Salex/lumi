@@ -17,12 +17,22 @@ import java.time.LocalDateTime
  * Order: Gemini Nano (AICore) → Gemma on-device → Gemini cloud (optional) → rules (always).
  */
 class AssistantOrchestrator(
-    /** Engine + timeout in ms. `null` = no limit: only move on if it fails or returns nothing. */
-    private val llmEngines: List<Pair<AssistantEngine, Long?>>,
+    /**
+     * Engine + timeout in ms, in the order to try them (`null` = no limit: only move on if it fails or returns
+     * nothing). A function: the user's choice of brain (#2) reorders the chain at any time.
+     */
+    private val engineChain: () -> List<Pair<AssistantEngine, Long?>>,
     private val rules: RuleBasedEngine,
     /** Memories related to a sentence (on-demand memory; never the whole memory). */
     private val memoryFor: suspend (String) -> List<String> = { emptyList() }
 ) {
+    /** A fixed chain (tests, previews). */
+    constructor(
+        llmEngines: List<Pair<AssistantEngine, Long?>>, rules: RuleBasedEngine, memoryFor: suspend (String) -> List<String> = { emptyList() }
+    ) : this({ llmEngines }, rules, memoryFor)
+
+    private val llmEngines: List<Pair<AssistantEngine, Long?>> get() = engineChain()
+
     data class Interpretation(val command: TaskAICommand, val engineName: String)
 
     val rulesName: String get() = rules.displayName

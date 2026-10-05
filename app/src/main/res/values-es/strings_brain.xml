@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- El cerebro de Lumi (issue #2). -->
+<resources>
+    <string name="brain_title">El cerebro de Lumi</string>
+    <string name="brain_sub">El modelo que te entiende y escribe las respuestas. Los demás quedan detrás como respaldo y las reglas integradas siempre funcionan.</string>
+    <string name="brain_auto">Automático (primero en este móvil)</string>
+    <string name="brain_gemma">Gemma en este móvil</string>
+    <string name="brain_gemini">Gemini (clave de Google AI Studio)</string>
+    <string name="brain_anthropic">Claude (clave de la API de Anthropic)</string>
+    <string name="brain_openai">Modelos de ChatGPT (clave de la API de OpenAI)</string>
+    <string name="brain_compatible">Servidor compatible con OpenAI (Ollama, LM Studio, OpenRouter, Groq…)</string>
+    <string name="brain_speed_varies">Privado y gratis; la velocidad depende del móvil</string>
+    <string name="brain_speed_device">Privado y gratis; unos segundos por petición en un móvil rápido</string>
+    <string name="brain_speed_fast">Rápido (de 1 a 3 s), necesita internet; tu texto va al proveedor</string>
+    <string name="brain_speed_server">Depende del servidor: rápido en la nube, más lento en un portátil</string>
+    <string name="brain_active">Responde ahora: %1$s</string>
+    <string name="brain_anthropic_key">Clave de la API de Anthropic</string>
+    <string name="brain_model_interpret">Modelo para entender peticiones (rápido)</string>
+    <string name="brain_model_reply">Modelo para respuestas y preguntas</string>
+    <string name="brain_anthropic_note">Aquí solo vale una clave de API. Una suscripción Claude Pro o Max no puede ser el cerebro de Lumi; para usarla, habla con Claude Code en tu PC a través de Lumi Hub (Orbit).</string>
+    <string name="brain_openai_key">Clave de la API de OpenAI</string>
+    <string name="brain_model">Modelo</string>
+    <string name="brain_compatible_url">URL base (p. ej. https://openrouter.ai/api/v1)</string>
+    <string name="brain_compatible_url_invalid">Usa una dirección https. Para un servidor en tu red, publícalo por HTTPS (por ejemplo con tailscale serve).</string>
+    <string name="brain_compatible_key">Clave de API (opcional)</string>
+    <string name="brain_compatible_model">Modelo (p. ej. llama3.2)</string>
+    <string name="brain_gemini_note">Pon la clave y el modelo de Gemini en la sección Inteligencia de arriba.</string>
+    <string name="brain_test_ok">Conectado: %1$s</string>
+    <string name="brain_keys_note">Las claves se guardan cifradas en este móvil (Android Keystore), solo se envían a su proveedor y nunca van en las copias de seguridad.</string>
+</resources>

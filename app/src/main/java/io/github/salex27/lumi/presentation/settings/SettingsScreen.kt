@@ -267,6 +267,9 @@ fun SettingsScreen(
             }, onClick = actions::checkNano)
         }
 
+        // ── Lumi's brain (#2) ───────────────────────────────────────────────
+        BrainSettingsSection()
+
         // ── Integrations ────────────────────────────────────────────────────
         SectionHeader(stringResource(R.string.integrations), Modifier.padding(start = 4.dp, top = 12.dp))
         ListGroup {
