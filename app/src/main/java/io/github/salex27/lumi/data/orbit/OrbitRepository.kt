@@ -18,6 +18,8 @@ import io.github.salex27.lumi.domain.orbit.AgentFaceStyle
 import io.github.salex27.lumi.domain.orbit.AgentPalette
 import io.github.salex27.lumi.domain.orbit.OrbitAgent
 import io.github.salex27.lumi.domain.orbit.OrbitContext
+import io.github.salex27.lumi.domain.orbit.LeaderAgent
+import io.github.salex27.lumi.domain.orbit.OrbitLeader
 import io.github.salex27.lumi.domain.orbit.OrbitLine
 import io.github.salex27.lumi.domain.orbit.OrbitRouter
 import io.github.salex27.lumi.domain.orbit.OrbitThreads
@@ -41,7 +43,11 @@ class OrbitRepository(
     private val chatDao: ChatDao,
     private val dao: OrbitDao,
     private val backends: AgentBackends,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    /** The leader's memory of the user's routing choices, and which Orbits route on their own. */
+    val routing: RoutingMemory? = null,
+    /** (system, user, maxTokens) → Lumi's brain, for the leader's pick when the rules have no opinion. */
+    private val ask: suspend (String, String, Int) -> String? = { _, _, _ -> null }
 ) {
     /** Message rows of one streamed turn are created/updated under this lock (send and the event stream race). */
     private val turns = Mutex()
@@ -107,8 +113,69 @@ class OrbitRepository(
         val members = dao.members(sessionId)
         appendAndWait(sessionId, ChatMessageEntity(sessionId = sessionId, role = ChatMessageEntity.ROLE_USER, text = clean, createdAt = store.stamp()))
         val route = OrbitRouter.route(clean, members.map { OrbitAgent(it.id, it.name) })
-        if (route.toLumi) answerAsLumi(sessionId, route.text)
-        else route.agents.forEach { a -> members.firstOrNull { it.id == a.id }?.let { ask(sessionId, it, route.text) } }
+        when {
+            !route.toLumi -> route.agents.forEach { a -> members.firstOrNull { it.id == a.id }?.let { ask(sessionId, it, route.text) } }
+            members.isEmpty() -> answerAsLumi(sessionId, route.text)
+            else -> lead(sessionId, route.text, members)
+        }
+    }
+
+    // ── Lumi as the team leader (#5) ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * A group message without a mention: Lumi decides who should answer. It answers itself, or names the agent and
+     * why, and either hands the message over (Orbit on automatic) or asks first (default). Always visible.
+     */
+    private suspend fun lead(sessionId: Long, text: String, members: List<AgentEntity>) {
+        val agents = members.map { LeaderAgent(it.id, it.name, AgentBackendKind.of(it.backend), it.purpose) }
+        val examples = routing?.examples?.value.orEmpty()
+        var decision = OrbitLeader.decide(text, agents, examples)
+        // Only when the rules have no opinion, and only for real requests: Lumi's brain picks (or keeps it)
+        if (decision.why == OrbitLeader.Why.NONE && text.trim().split(Regex("\\s+")).size >= 4) {
+            val (system, user) = OrbitLeader.llmPrompt(text, agents)
+            val pick = runCatching { ask(system, user, 12) }.getOrNull()
+            decision = OrbitLeader.decide(text, agents, examples, pick)
+        }
+        val agent = decision.agent?.let { d -> members.firstOrNull { it.id == d.id } }
+        if (agent == null) { answerAsLumi(sessionId, text); return }
+        val reason = reason(decision.why)
+        val choices = listOf(agent.id) + members.filter { it.id != agent.id }.map { it.id } + LUMI_CHOICE
+        val auto = chatDao.session(sessionId)?.let { routing?.isAuto(it.createdAt) } == true
+        val note = if (auto) ReplyLanguage.t("Se lo paso a ${agent.name}: $reason.", "Passing this to ${agent.name}: $reason.")
+        else ReplyLanguage.t("¿Se lo paso a ${agent.name}? $reason.", "Shall I pass this to ${agent.name}? ${reason.replaceFirstChar { it.uppercase() }}.")
+        appendAndWait(sessionId, ChatMessageEntity(
+            sessionId = sessionId, role = ChatMessageEntity.ROLE_ASSISTANT, text = note, createdAt = store.stamp(),
+            payload = HubPayload(HubPayload.ROUTE, routeTo = agent.id, choices = choices, question = text.take(2_000),
+                state = if (auto) STATE_DONE else HubPayload.STATE_OPEN).encode()
+        ))
+        if (auto) ask(sessionId, agent, text)
+    }
+
+    /**
+     * The user picked who answers a leader message: [agentId] (or [LUMI_CHOICE]). A proposal is closed; on a hand-off
+     * that already happened it is a redirect. Either way the choice is remembered for similar messages.
+     */
+    suspend fun pickRoute(messageId: Long, agentId: Long) {
+        store.flush()
+        val m = store.message(messageId) ?: return
+        val p = HubPayload.decode(m.payload)?.takeIf { it.hub == HubPayload.ROUTE } ?: return
+        if (p.state == HubPayload.STATE_CLOSED || agentId !in p.choices) return
+        val question = p.question ?: return
+        val agent = if (agentId == LUMI_CHOICE) null else dao.members(m.sessionId).firstOrNull { it.id == agentId }
+        if (agentId != LUMI_CHOICE && agent == null) return
+        store.update(m.id, m.text, p.copy(state = HubPayload.STATE_CLOSED, answer = agent?.name ?: "Lumi").encode())
+        routing?.remember(question, agent?.name ?: OrbitLeader.LUMI)
+        // On automatic the first agent is already answering: only a different pick re-asks
+        if (p.state == STATE_DONE && agentId == p.routeTo) return
+        if (agent == null) answerAsLumi(m.sessionId, question) else ask(m.sessionId, agent, question)
+    }
+
+    private fun reason(why: OrbitLeader.Why): String = when (why) {
+        OrbitLeader.Why.LEARNED -> ReplyLanguage.t("como elegiste la otra vez", "like you chose last time")
+        OrbitLeader.Why.PURPOSE -> ReplyLanguage.t("encaja con su papel", "it fits its role")
+        OrbitLeader.Why.CODE -> ReplyLanguage.t("es trabajo de código en tu PC", "it's code work on your PC")
+        OrbitLeader.Why.COMPLEX -> ReplyLanguage.t("es un encargo grande para mí", "it's a big job for me")
+        OrbitLeader.Why.LLM, OrbitLeader.Why.NONE -> ReplyLanguage.t("parece lo suyo", "it looks like the best fit")
     }
 
     /** "Second opinion": the same question goes to another agent of the Orbit. */
@@ -209,6 +276,8 @@ class OrbitRepository(
 
     companion object {
         const val STATE_DONE = "done"
+        /** "Lumi answers" among a leader message's choices. */
+        const val LUMI_CHOICE = 0L
         private const val TAG = "LumiOrbit"
     }
 }

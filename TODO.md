@@ -23,6 +23,7 @@ Pending work. Finished items are removed; their history is in `MEMORY.md` and gi
 - [ ] API agents (Gemini, Anthropic, OpenAI, Ollama) and Codex on the PC: new `AgentBackendKind` + `AgentBackend` (#2)
 - [ ] Agents reading the user's tasks (`agents.can_read_tasks` exists, not used yet); images/files inline
 - [ ] Rename an Orbit from the thread (the store supports it; no UI yet)
+- [ ] Leader (#5): cost hints when an API agent would be used; more autonomy levels (act if pre-approved)
 
 ## To test on the Galaxy S25
 - [ ] Lumi Hub through real Tailscale (`tailscale serve`, owner check) and notifications while using other apps

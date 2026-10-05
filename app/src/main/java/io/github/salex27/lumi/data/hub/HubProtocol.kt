@@ -150,7 +150,7 @@ object HubTaskProposal {
  */
 @Serializable
 data class HubPayload(
-    /** message | ask | task | notify | reply */
+    /** message | ask | task | notify | reply | route */
     val hub: String,
     val link: String? = null,
     @SerialName("ask_id") val askId: String? = null,
@@ -163,7 +163,11 @@ data class HubPayload(
     val notes: String? = null,
     val source: String? = null,
     /** Agent reply in a thread: its turn id (streamed updates go to the same message). */
-    val turn: String? = null
+    val turn: String? = null,
+    // Orbit leader ("route"): the agent Lumi picked, the choices offered (agent ids, 0 = Lumi) and the question
+    val routeTo: Long? = null,
+    val choices: List<Long> = emptyList(),
+    val question: String? = null
 ) {
     fun encode(): String = json.encodeToString(this)
 
@@ -173,6 +177,8 @@ data class HubPayload(
         const val STATE_CLOSED = "closed"
         const val STATE_ADDED = "added"
         const val STATE_DISMISSED = "dismissed"
+        /** Orbit leader message (proposal or notice of a hand-off). */
+        const val ROUTE = "route"
 
         private val json = Json { ignoreUnknownKeys = true; encodeDefaults = false; explicitNulls = false }
 

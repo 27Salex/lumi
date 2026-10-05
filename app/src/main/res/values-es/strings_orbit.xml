@@ -41,4 +41,10 @@
     <string name="orbit_task_added_state">Añadida a tus tareas</string>
     <string name="orbit_task_dismissed">Descartada</string>
     <string name="send">Enviar</string>
+    <string name="orbit_learned">Lo que Lumi ha aprendido</string>
+    <string name="orbit_learned_sub">Tus elecciones de a quién va cada mensaje. Lumi las usa para mensajes parecidos; borra las que no quieras.</string>
+    <string name="orbit_learned_to">Va a %1$s</string>
+    <string name="orbit_auto_route">Lumi reparte solo</string>
+    <string name="orbit_routed_to">Enviado a %1$s</string>
+    <string name="orbit_redirect">Redirigir:</string>
 </resources>

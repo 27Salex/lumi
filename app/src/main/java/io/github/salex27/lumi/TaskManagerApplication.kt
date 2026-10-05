@@ -104,7 +104,9 @@ class TaskManagerApplication : Application() {
                 io.github.salex27.lumi.data.orbit.LumiBrainBackend(assistant),
                 io.github.salex27.lumi.data.orbit.ClaudePcBackend(hubClient, hubSettings)
             )),
-            appScope
+            appScope,
+            io.github.salex27.lumi.data.orbit.RoutingMemory(this),
+            { system, user, max -> assistant.ask(system, user, max)?.first }
         )
     }
 

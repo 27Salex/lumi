@@ -6,6 +6,23 @@ translated when the project went public; version numbers before 1.0.0 refer to t
 
 ---
 
+## 2026-10-05 — Orbit: Lumi as team leader (issue #5)
+
+- **Group message without a mention → `OrbitLeader.decide`** (pure, tested): the user's past choices (word-overlap
+  with stored `RoutingExample`s, newest first; "Lumi" is a valid learned choice) → an agent's purpose → code/repo work
+  to Claude Code → big multi-step jobs (delegation) to Claude Code → only then Lumi's brain picks a name (short
+  prompt, ≥ 4 words, tie breaker only) → otherwise Lumi answers. Cheapest first: Lumi before the PC.
+- **Always visible, proposed by default:** "Shall I pass this to Claude? It's code work on your PC." with chips (the
+  pick, the other members, Lumi). Per-Orbit "Lumi routes on its own" (header menu) hands off directly and shows
+  "Redirect:" chips. Autonomy levels beyond propose/auto (act if pre-approved...) are not built.
+- **Learning is explicit and inspectable:** only taps (accept / redirect / pick Lumi) are stored, in prefs
+  `orbit_routing` (in the backup), listed under "What Lumi learned" in Orbit with a delete button per row. The
+  automatic flag is keyed by the Orbit's createdAt so it survives a backup import.
+- Not done: cost display for API agents (no API agents until #2); the #1 intent router is not used yet (#5 was asked
+  before #1); `OrbitLeader.isCode/isComplex` are candidates to merge into it.
+- Verified on the emulator: "Fix the failing gradle build please" in a 2-agent Orbit → proposal → tap Claude → real
+  Claude Code answered; the choice appeared in "What Lumi learned".
+
 ## 2026-10-05 — Orbit v1: chats with AI agents, "Chat with Claude" (issue #4)
 
 - **Threads reuse the chat tables** (#8): an Orbit is a `chat_sessions` row of kind ORBIT; Room v9 adds `agents`

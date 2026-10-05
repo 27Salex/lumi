@@ -51,6 +51,28 @@ class OrbitViewModel(
     val messages: StateFlow<List<ChatMessageEntity>> = _open.flatMapLatest { id -> if (id == null) flowOf(emptyList()) else repo.observeMessages(id) }.state(emptyList())
     val members: StateFlow<List<AgentEntity>> = _open.flatMapLatest { id -> if (id == null) flowOf(emptyList()) else repo.observeMembers(id) }.state(emptyList())
 
+    /** What the leader learned (explicit routing choices), shown so the user can delete them. */
+    val examples: StateFlow<List<io.github.salex27.lumi.domain.orbit.RoutingExample>> =
+        repo.routing?.examples ?: MutableStateFlow(emptyList())
+
+    private val _auto = MutableStateFlow(false)
+    /** The open Orbit routes on its own (otherwise Lumi proposes and waits for a tap). */
+    val auto: StateFlow<Boolean> = _auto.asStateFlow()
+
+    init {
+        viewModelScope.launch { session.collect { s -> _auto.value = s?.let { repo.routing?.isAuto(it.createdAt) } == true } }
+    }
+
+    fun setAuto(on: Boolean) {
+        val s = session.value ?: return
+        repo.routing?.setAuto(s.createdAt, on)
+        _auto.value = on
+    }
+
+    fun pickRoute(messageId: Long, agentId: Long) = viewModelScope.launch { repo.pickRoute(messageId, agentId) }
+
+    fun forgetExample(e: io.github.salex27.lumi.domain.orbit.RoutingExample) = repo.routing?.forget(e)
+
     private val _notices = MutableSharedFlow<Notice>(extraBufferCapacity = 4)
     val notices: SharedFlow<Notice> = _notices.asSharedFlow()
 

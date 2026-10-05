@@ -7,6 +7,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +36,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.GroupAdd
 import androidx.compose.material3.DropdownMenu
@@ -166,6 +168,19 @@ private fun OrbitList(vm: OrbitViewModel, onBack: () -> Unit) {
             }
             ListRow(stringResource(R.string.orbit_add_agent), null, onClick = { adding = true },
                 leading = { Icon(Icons.Outlined.Add, null, tint = c.accentText, modifier = Modifier.size(24.dp)) })
+        }
+        val examples by vm.examples.collectAsStateWithLifecycle()
+        if (examples.isNotEmpty()) {
+            SectionHeader(stringResource(R.string.orbit_learned), Modifier.padding(start = 4.dp, top = 12.dp))
+            Text(stringResource(R.string.orbit_learned_sub), style = MaterialTheme.typography.bodySmall, color = c.textTertiary, modifier = Modifier.padding(horizontal = 4.dp))
+            ListGroup {
+                examples.asReversed().forEachIndexed { i, e ->
+                    if (i > 0) ListDivider()
+                    ListRow("«${e.text}»", stringResource(R.string.orbit_learned_to, if (e.agentName == io.github.salex27.lumi.domain.orbit.OrbitLeader.LUMI) "Lumi" else e.agentName), trailing = {
+                        IconButton(onClick = { vm.forgetExample(e) }) { Icon(Icons.Outlined.DeleteOutline, stringResource(R.string.delete), tint = c.textTertiary) }
+                    })
+                }
+            }
         }
         Text(stringResource(R.string.orbit_more_backends), style = MaterialTheme.typography.bodySmall, color = c.textTertiary, modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp))
     }
@@ -325,6 +340,14 @@ private fun OrbitThread(vm: OrbitViewModel, onBack: () -> Unit) {
             if (!isInbox) Box {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.GroupAdd, stringResource(R.string.orbit_members), tint = c.textSecondary) }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    if (members.size > 1) {
+                        val auto by vm.auto.collectAsStateWithLifecycle()
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.orbit_auto_route)) },
+                            trailingIcon = { if (auto) Icon(Icons.Outlined.Check, null, tint = c.accentText) },
+                            onClick = { menu = false; vm.setAuto(!auto) }
+                        )
+                    }
                     agents.forEach { a ->
                         val inside = members.any { it.id == a.id }
                         DropdownMenuItem(
@@ -435,8 +458,9 @@ private fun MessageItem(m: ChatMessageEntity, agent: AgentEntity?, members: List
                         runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link)).addCategory(Intent.CATEGORY_BROWSABLE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                     })
             }
+            if (p?.hub == HubPayload.ROUTE) RouteChoices(m, p, members, vm)
             when {
-                p?.hub == HubEvent.ASK && p.state == HubPayload.STATE_OPEN -> Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                p?.hub == HubEvent.ASK && p.state == HubPayload.STATE_OPEN -> Row(Modifier.padding(top = 8.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     p.options.forEach { o -> PillButton(o, style = PillStyle.SECONDARY) { vm.answer(m.id, o) } }
                 }
                 p?.hub == HubEvent.ASK -> StateLine(if (p.state == HubPayload.STATE_ANSWERED && p.answer != null) stringResource(R.string.orbit_answered, p.answer) else stringResource(R.string.orbit_closed))
@@ -447,6 +471,27 @@ private fun MessageItem(m: ChatMessageEntity, agent: AgentEntity?, members: List
                 p?.hub == HubEvent.TASK -> StateLine(stringResource(if (p.state == HubPayload.STATE_ADDED) R.string.orbit_task_added_state else R.string.orbit_task_dismissed))
             }
             if (m.engine.isNotBlank() && m.role == ChatMessageEntity.ROLE_ASSISTANT) Text(m.engine, style = MaterialTheme.typography.labelSmall, color = c.textTertiary)
+        }
+    }
+}
+
+/** Leader message: the choices (proposal), redirect chips (after an automatic hand-off) or who got it. */
+@Composable
+private fun RouteChoices(m: ChatMessageEntity, p: HubPayload, members: List<AgentEntity>, vm: OrbitViewModel) {
+    fun name(id: Long) = if (id == io.github.salex27.lumi.data.orbit.OrbitRepository.LUMI_CHOICE) "Lumi" else members.firstOrNull { it.id == id }?.name
+    when (p.state) {
+        HubPayload.STATE_OPEN -> Row(Modifier.padding(top = 8.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            p.choices.forEachIndexed { i, id ->
+                name(id)?.let { n -> PillButton(n, style = if (i == 0) PillStyle.PRIMARY else PillStyle.SECONDARY) { vm.pickRoute(m.id, id) } }
+            }
+        }
+        HubPayload.STATE_CLOSED -> StateLine(stringResource(R.string.orbit_routed_to, p.answer.orEmpty()))
+        else -> {
+            val others = p.choices.filter { it != p.routeTo }.mapNotNull { id -> name(id)?.let { id to it } }
+            if (others.isNotEmpty()) Row(Modifier.padding(top = 6.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.orbit_redirect), style = MaterialTheme.typography.labelMedium, color = Lumi.colors.textTertiary)
+                others.forEach { (id, n) -> PillButton(n, style = PillStyle.GHOST) { vm.pickRoute(m.id, id) } }
+            }
         }
     }
 }

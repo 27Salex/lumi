@@ -35,7 +35,7 @@ class BackupManager(
     data class Summary(val tasks: Int, val memories: Int, val prefsFiles: Int, val chats: Int = 0)
 
     /** SharedPreferences files that are copied (and keys that aren't: secret or tied to this phone). */
-    private val prefsToCopy = listOf("assistant_settings", "places", "routines", "contact_aliases")
+    private val prefsToCopy = listOf("assistant_settings", "places", "routines", "contact_aliases", "orbit_routing")
     private val skippedKeys = setOf("cloud_api_key", "calendar_id", "calendar_sync", "google_tasks", "google_tasks_last_sync", "google_tasks_list_id")
 
     suspend fun export(uri: Uri): Summary = withContext(Dispatchers.IO) {

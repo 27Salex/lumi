@@ -41,4 +41,10 @@
     <string name="orbit_task_added_state">Added to your tasks</string>
     <string name="orbit_task_dismissed">Dismissed</string>
     <string name="send">Send</string>
+    <string name="orbit_learned">What Lumi learned</string>
+    <string name="orbit_learned_sub">Your routing choices. Lumi uses them for similar messages; delete any you don\'t want.</string>
+    <string name="orbit_learned_to">Goes to %1$s</string>
+    <string name="orbit_auto_route">Lumi routes on its own</string>
+    <string name="orbit_routed_to">Sent to %1$s</string>
+    <string name="orbit_redirect">Redirect:</string>
 </resources>
