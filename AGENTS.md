@@ -35,7 +35,8 @@ domain/
   stats/  time/  weather/  live/   # StatsCalculator, DueDateFormatter, WeatherAdvisor, LiveUpdatePlanner (all pure)
 data/
   ai/                          # RuleBasedEngine, SpanishDateParser, EnglishDateParser, EnglishCommands, TaskPhraseParser,
-                               # CategoryHeuristics, DayPlanner, MeetingMatcher, AssistantIntents, QuickMath (pure, tested)
+                               # CategoryHeuristics, DayPlanner, MeetingMatcher, AssistantIntents, QuickMath,
+                               # IntentRouter (top-level task/agent/opinion/unsure route) (pure, tested)
                                # LlmEngine (base) → GeminiNanoEngine, GemmaLocalEngine (+GemmaModelManager), CloudGeminiEngine
                                # AssistantOrchestrator (chain + reconcile), AssistantPrompts (shared prompts)
   local/                       # Room (v9: tasks, reminders, sync_tombstones, memories, chat_sessions/messages, agents,
@@ -64,6 +65,7 @@ presentation/
   widget/QuickTaskWidget.kt    # Glance + WidgetUpdater
 docs/GOOGLE_TASKS_SETUP.md     # OAuth client for Google Tasks (the user does it once)
 tools/lumi-hub/                # PC side of Lumi Hub: MCP server + relay + wake-per-message Claude Code (stdlib Python)
+tools/intent_eval.sh           # Scores the top-level routing of a device's engine on app/src/test/resources/intent_eval.tsv
 tools/gemma_batch.sh           # Runs a batch of phrases through the real Gemma on a device and greps the log
 ```
 

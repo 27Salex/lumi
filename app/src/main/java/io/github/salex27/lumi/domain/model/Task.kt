@@ -230,6 +230,15 @@ sealed interface AIProcessingResult {
     data class Device(val command: io.github.salex27.lumi.domain.assistant.DeviceCommand, override val reply: String, override val engine: String) : AIProcessingResult
     /** Information answer (weather, general question, day summary, messages). */
     data class Answer(override val reply: String, override val engine: String) : AIProcessingResult
+
+    /** The request is for an AI agent ([agent], e.g. "claude"): the assistant hands [request] over through Lumi Hub. */
+    data class Agent(val agent: String, val request: String, override val reply: String, override val engine: String) : AIProcessingResult
+
+    /** Lumi isn't sure what kind of request [text] is: it offers [options] (e.g. task or agent) instead of guessing. */
+    data class Clarify(
+        val text: String, val options: List<io.github.salex27.lumi.domain.assistant.IntentRoute>,
+        override val reply: String, override val engine: String
+    ) : AIProcessingResult
     /** Messages read out; when they come from one person, [replyTo] enables "reply that…". */
     data class Messages(val replyTo: io.github.salex27.lumi.domain.assistant.IncomingMessage?, override val reply: String, override val engine: String) : AIProcessingResult
     /** Routine or several commands: phone actions in order (the ones that stay in Lumi first) and, at the end, a route. */

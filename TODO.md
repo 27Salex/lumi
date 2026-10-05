@@ -25,6 +25,10 @@ Pending work. Finished items are removed; their history is in `MEMORY.md` and gi
 - [ ] Rename an Orbit from the thread (the store supports it; no UI yet)
 - [ ] Leader (#5): cost hints when an API agent would be used; more autonomy levels (act if pre-approved)
 
+## Intent routing (#1) follow-ups
+- [ ] Run `tools/intent_eval.sh` with Gemma on the S25 and with the cloud engine; grow the set from real logcat
+- [ ] Show Claude's answer inside the assistant chat (today it lands in Orbit); remember "task or Claude?" preferences
+
 ## To test on the Galaxy S25
 - [ ] Lumi Hub through real Tailscale (`tailscale serve`, owner check) and notifications while using other apps
 - [ ] Now Bar: One UI promoting the notification (Android 16 + One UI 8)

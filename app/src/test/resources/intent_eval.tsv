@@ -1,0 +1,102 @@
+# Intent evaluation set (#1): expected top-level label <TAB> sentence. Spanish + English.
+# Labels: TASK | AGENT | QUESTION | OPINION | DEVICE | UNSURE. The JVM test checks the rules (AGENT, OPINION, UNSURE
+# must be caught; the rest must be left to the pipeline); tools/intent_eval.sh scores a real engine on a device.
+AGENT	Quiero hacer una nueva web con Claude
+AGENT	quiero programar una app de recetas con Claude
+AGENT	Claude, arregla el build que falla
+AGENT	Oye Claude: revisa el último commit
+AGENT	dile a Claude que actualice las dependencias
+AGENT	pídele a Claude que escriba los tests del login
+AGENT	pregúntale a Claude por qué falla gradle
+AGENT	haz un script para renombrar fotos, que lo haga Claude
+AGENT	abre una sesión de Claude para revisar el repo
+AGENT	pásale esto a Claude: el login no funciona en Android 14
+AGENT	refactoriza el módulo de pagos en Claude Code
+AGENT	monta una landing page usando Claude
+AGENT	Claude, what's the status of the migration?
+AGENT	ask Claude to fix the failing build
+AGENT	tell Claude to bump the version to 1.0.2
+AGENT	have Claude write unit tests for the parser
+AGENT	I want to build a new website with Claude
+AGENT	refactor the settings screen with Claude Code
+AGENT	write a release note via Claude
+AGENT	send this to Claude: the widget crashes on rotation
+AGENT	open a Claude session to review the PR
+AGENT	clean up the old branches and let Claude handle it
+AGENT	Hey Claude, summarize today's commits
+AGENT	get Claude to check why the tests are slow
+OPINION	¿qué opinas de usar Kotlin Multiplatform?
+OPINION	¿crees que debería cambiar de móvil?
+OPINION	¿qué te parece salir a correr por la mañana?
+OPINION	¿me recomiendas el Pixel o el Galaxy?
+OPINION	¿es buena idea estudiar por la noche?
+OPINION	¿qué piensas sobre trabajar desde casa?
+OPINION	¿vale la pena comprar un e-reader?
+OPINION	tú qué harías con el dinero extra
+OPINION	what do you think about learning Rust?
+OPINION	do you think I should take the job?
+OPINION	what's your take on standing desks?
+OPINION	would you recommend a Kindle or a Kobo?
+OPINION	is it a good idea to run every day?
+OPINION	is it worth upgrading to the new laptop?
+OPINION	what would you do in my place?
+OPINION	should I go with the blue or the black one?
+OPINION	give me your opinion on my plan to move
+UNSURE	Me gustaría programar una nueva web
+UNSURE	quiero hacer una app para mis gastos
+UNSURE	quiero crear un blog de cocina
+UNSURE	me gustaría escribir un libro
+UNSURE	tengo ganas de montar una tienda online
+UNSURE	estoy pensando en diseñar mi propio logo
+UNSURE	quisiera desarrollar un juego pequeño
+UNSURE	I'd like to build a website for my band
+UNSURE	I want to make an app to track my runs
+UNSURE	I would like to write a short story
+UNSURE	I'm thinking of starting a podcast
+UNSURE	I want to code a small game
+TASK	quiero hacer la compra mañana a las 6
+TASK	me gustaría escribir a mamá el viernes
+TASK	I want to build the shelf on Saturday morning
+TASK	recuérdame llamar al dentista mañana a las 5
+TASK	apunta comprar pan
+TASK	tengo reunión con Laura el jueves a las 10
+TASK	créame una tarea que se llama revisar la caldera
+TASK	añade comprar leche y huevos
+TASK	remind me to call the dentist tomorrow at 5
+TASK	add buy milk to my list
+TASK	I have a meeting with Ana on Thursday at 10
+TASK	note down: renew the passport
+TASK	mueve lo del dentista al viernes
+TASK	marca como hecha la compra
+TASK	move the dentist to Friday
+TASK	mark buy milk as done
+QUESTION	¿cuántos gramos tiene una libra?
+QUESTION	¿qué tiempo hace mañana?
+QUESTION	¿cuál es la capital de Australia?
+QUESTION	¿qué puedo cenar con huevos y patatas?
+QUESTION	¿qué tengo hoy?
+QUESTION	¿cómo se dice ventana en inglés?
+QUESTION	what's the weather tomorrow?
+QUESTION	how many ounces are in a pound?
+QUESTION	what's the capital of Canada?
+QUESTION	what do I have today?
+QUESTION	how do you say window in Spanish?
+QUESTION	what is Claude Code?
+QUESTION	who makes Claude?
+QUESTION	¿qué es Claude?
+DEVICE	llama a mamá
+DEVICE	pon una alarma a las 7
+DEVICE	abre Spotify
+DEVICE	escribe a Víctor que llego tarde
+DEVICE	call mum
+DEVICE	set an alarm for 7
+DEVICE	open the Claude app
+DEVICE	text Ana that I'm on my way
+DEVICE	turn on the flashlight
+DEVICE	enciende la linterna
+TASK	planifica mi día
+TASK	plan my day
+TASK	¿qué hago ahora?
+TASK	what should I do now?
+QUESTION	confío en Claude para esto?
+QUESTION	I trust Claude

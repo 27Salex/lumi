@@ -21,10 +21,14 @@ interface TaskRepository {
     suspend fun deleteTask(task: Task)
     suspend fun deleteTaskById(id: Long)
 
-    /** @param defaultCategory category to use when neither the AI nor keywords decide one. */
+    /**
+     * @param defaultCategory category to use when neither the AI nor keywords decide one.
+     * @param route forces the top-level route (the user answered "task or agent?"); null = the router decides.
+     */
     suspend fun processNaturalLanguageCommand(
         prompt: String,
-        defaultCategory: TaskCategory? = null
+        defaultCategory: TaskCategory? = null,
+        route: io.github.salex27.lumi.domain.assistant.IntentRoute? = null
     ): AIProcessingResult
 
     /** Runs an already interpreted command (e.g. after picking in "Did you mean…?", with targetId). */

@@ -6,6 +6,28 @@ translated when the project went public; version numbers before 1.0.0 refer to t
 
 ---
 
+## 2026-10-05 — Top-level intent routing: task / agent / question / opinion, ask when unsure (issue #1)
+
+- **`IntentRouter` (data/ai, pure) runs first** in `processNaturalLanguageCommand` (after routines, before the
+  multi-command split) and only decides unambiguous cases: AGENT ("… con Claude" anywhere at the end, «dile /
+  pídele / pásale a Claude…», "ask/tell/have Claude to…", "Claude, …", «que lo haga Claude», a Claude session),
+  OPINION («qué opinas», «crees que», "what do you think", "is it worth"… → answered via the ASK path, never a task)
+  and UNSURE (a wish to build/write/create with no date → "Should I add it as a task or send it to Claude?" chips).
+  Everything else goes through the old pipeline. "… con Claude" needs ≥ 3 words before it («confío en Claude» isn't
+  a request).
+- `ClaudeIntent` (mentioned in the issue) only existed in an uncommitted checkout; this replaces it.
+- **AGENT hands off to Orbit:** the assistant sends the request to the 1:1 "Chat with Claude" Orbit through Lumi Hub
+  and says the answer will appear in Orbit (Claude's reply is not shown inside the assistant chat yet). Without the
+  Hub it says how to set it up.
+- Forced routes (`route` parameter): picking "task" builds a CREATE even if the LLM thought otherwise, with the wish
+  prefix stripped from the title ("Programar una nueva web").
+- **Evaluation set** `app/src/test/resources/intent_eval.tsv` (101 sentences, es + en, 6 labels): the JVM test
+  requires the rules to catch every AGENT/OPINION/UNSURE sentence and to leave every other one alone (all pass).
+  `tools/intent_eval.sh` scores a real engine on a device from the `route=` / `final=` log lines (not run in full: ~1 h
+  with Gemma on the emulator CPU). Two opinion few-shots were added to the interpret prompt.
+- Verified on the emulator: «Me gustaría programar una nueva web» → chips → "task" → Gemma CREATE "Programar una
+  nueva web"; «pregúntale a Claude cuánto es 2 más 2» → Orbit → real Claude answered "4".
+
 ## 2026-10-05 — Orbit: Lumi as team leader (issue #5)
 
 - **Group message without a mention → `OrbitLeader.decide`** (pure, tested): the user's past choices (word-overlap

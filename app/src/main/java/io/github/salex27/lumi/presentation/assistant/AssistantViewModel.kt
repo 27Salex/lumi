@@ -72,13 +72,23 @@ data class AssistantUiState(
     /** Chat session on screen (null = a new chat, created with its first message) and the saved sessions. */
     val sessionId: Long? = null,
     val sessionTitle: String = "",
-    val sessions: List<SessionItem> = emptyList()
+    val sessions: List<SessionItem> = emptyList(),
+    /** "Task or Claude?": Lumi wasn't sure what kind of request it was (#1). */
+    val clarify: AIProcessingResult.Clarify? = null
 ) {
-    /** Texts of the options to choose from (tasks or contacts). */
+    /** Texts of the options to choose from (tasks, contacts or the kind of request). */
     val optionLabels: List<String>
         get() = choice?.options?.map { it.title }
             ?: contactChoice?.options?.map { "${it.name} · ${it.label}" }
+            ?: clarify?.options?.map { routeLabel(it) }
             ?: emptyList()
+}
+
+/** Chip of a "task or agent?" question, in the conversation language. */
+internal fun routeLabel(route: io.github.salex27.lumi.domain.assistant.IntentRoute): String = when (route) {
+    io.github.salex27.lumi.domain.assistant.IntentRoute.TASK -> ReplyLanguage.t("Apúntalo como tarea", "Add it as a task")
+    io.github.salex27.lumi.domain.assistant.IntentRoute.AGENT -> ReplyLanguage.t("Pásaselo a Claude", "Send it to Claude")
+    else -> route.name
 }
 
 data class ContactChoice(val command: DeviceCommand, val options: List<DeviceActions.Contact>)
@@ -118,7 +128,9 @@ class AssistantViewModel(
     private val speak: (String) -> Unit = {},
     /** Chat sessions (null in previews/tests: nothing is stored). */
     private val chatStore: ChatStore? = null,
-    private val chatMemory: ChatMemory? = null
+    private val chatMemory: ChatMemory? = null,
+    /** Hands a request to Claude on the PC (Orbit 1:1 through Lumi Hub); false when the Hub isn't set up. */
+    private val handOff: suspend (String) -> Boolean = { false }
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AssistantUiState())
@@ -266,13 +278,13 @@ class AssistantViewModel(
                 voiceTurn = fromVoice
                 append(ChatMessage.User(nextId++, prompt))
                 if (answer < 0) {
-                    _state.update { it.copy(choice = null, contactChoice = null) }
+                    _state.update { it.copy(choice = null, contactChoice = null, clarify = null) }
                     append(ChatMessage.Assistant(nextId++, t("Vale, no toco nada.", "OK, I won't touch anything.")))
                     if (fromVoice) speak(t("Vale, no toco nada.", "OK, I won't touch anything."))
                 } else pick(answer, echo = false)
                 return
             }
-            _state.update { it.copy(choice = null, contactChoice = null) } // something else: the question is dropped
+            _state.update { it.copy(choice = null, contactChoice = null, clarify = null) } // something else: the question is dropped
         }
         voiceTurn = fromVoice
         _state.update { it.copy(voiceError = null) }
@@ -372,6 +384,13 @@ class AssistantViewModel(
             run { repository.executeCommand(choice.command.copy(targetId = task.id)) }
             return
         }
+        s.clarify?.let { c ->
+            val route = c.options.getOrNull(index) ?: return
+            if (echo) append(ChatMessage.User(nextId++, routeLabel(route)))
+            _state.update { it.copy(clarify = null) }
+            run { repository.processNaturalLanguageCommand(c.text, route = route) }
+            return
+        }
         s.contactChoice?.let { cc ->
             val contact = cc.options.getOrNull(index) ?: return
             if (echo) append(ChatMessage.User(nextId++, contact.name))
@@ -380,7 +399,7 @@ class AssistantViewModel(
     }
 
     fun pickNone() {
-        _state.update { it.copy(choice = null, contactChoice = null) }
+        _state.update { it.copy(choice = null, contactChoice = null, clarify = null) }
         append(ChatMessage.Assistant(nextId++, t("Vale, no toco nada.", "OK, I won't touch anything.")))
     }
 
@@ -458,6 +477,7 @@ class AssistantViewModel(
             ready.await() // the resumed session must be in Lumi's memory before it interprets ("move it")
             val lastBefore = repository.conversation.sessionTurns().lastOrNull()
             val result = runCatching { block() }.getOrElse { AIProcessingResult.Error(t("Algo ha fallado: ", "Something went wrong: ") + it.localizedMessage) }
+                .let { r -> if (r is AIProcessingResult.Agent) handOffReply(r) else r }
             // The repository recorded the turn: its action is kept with the reply for follow-ups after resuming
             val action = repository.conversation.sessionTurns().lastOrNull()?.takeIf { it !== lastBefore }?.action
             val tasks = when (result) {
@@ -484,6 +504,7 @@ class AssistantViewModel(
                     isThinking = false,
                     navigateTo = (result as? AIProcessingResult.Navigate)?.destination,
                     choice = result as? AIProcessingResult.Choose,
+                    clarify = result as? AIProcessingResult.Clarify,
                     openTaskId = (result as? AIProcessingResult.OpenTask)?.task?.id,
                     device = (result as? AIProcessingResult.Device)?.command
                         ?: (result as? AIProcessingResult.Routine)?.devices?.firstOrNull(),
@@ -505,6 +526,18 @@ class AssistantViewModel(
                 (result is AIProcessingResult.Routine && (result.navigate != null || result.devices.any { !it.staysInLumi }))
             if (voiceTurn && !leaves) _listenAgain.update { it + 1 }
         }
+    }
+
+    /** Sends the request to Claude (Orbit 1:1 through the Hub) and says what happened. */
+    private suspend fun handOffReply(r: AIProcessingResult.Agent): AIProcessingResult {
+        val sent = runCatching { handOff(r.request) }.getOrDefault(false)
+        return r.copy(reply = if (sent) t(
+            "Se lo he pasado a Claude en tu PC. Su respuesta aparecerá en Orbit (arriba a la derecha en Inicio).",
+            "Sent to Claude on your PC. Its answer will show up in Orbit (top right on Home)."
+        ) else t(
+            "Para pasarle cosas a Claude, conecta Lumi Hub en Ajustes (Claude Code en tu PC por Tailscale).",
+            "To send things to Claude, connect Lumi Hub in Settings (Claude Code on your PC over Tailscale)."
+        ))
     }
 
     /** Shows a message and stores it in the session ([action] = the command a reply executed, for follow-ups). */
@@ -531,10 +564,11 @@ class AssistantViewModel(
         private val orchestrator: AssistantOrchestrator,
         private val speak: (String) -> Unit = {},
         private val chatStore: ChatStore? = null,
-        private val chatMemory: ChatMemory? = null
+        private val chatMemory: ChatMemory? = null,
+        private val handOff: suspend (String) -> Boolean = { false }
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T = AssistantViewModel(repository, orchestrator, speak, chatStore, chatMemory) as T
+        override fun <T : ViewModel> create(modelClass: Class<T>): T = AssistantViewModel(repository, orchestrator, speak, chatStore, chatMemory, handOff) as T
     }
 }
 

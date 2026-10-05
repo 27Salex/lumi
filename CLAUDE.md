@@ -27,7 +27,7 @@ it with `-gpu host` (a software GPU produces blank screenshots).
 
 **Command pipeline.** Every natural-language input (AssistantActivity chat/voice, widget mic, "What should I do now?")
 goes through `TaskRepository.processNaturalLanguageCommand`: language detection → routines → conversation follow-ups
-→ multi-command split → `AssistantOrchestrator.interpret` → a `TaskAICommand` (`CREATE | CREATE_MANY | UPDATE_STATUS |
+→ top-level route (`IntentRouter`: agent / opinion / ask-when-unsure, rules only) → multi-command split → `AssistantOrchestrator.interpret` → a `TaskAICommand` (`CREATE | CREATE_MANY | UPDATE_STATUS |
 RESCHEDULE | SET_PRIORITY | PLAN_DAY | SUMMARIZE | WEATHER | ASK | DEVICE | …` + title/category/dueDate/description/
 recurrence/remindBeforeMinutes/meeting/priority/place) → the repository executes it → `AssistantOrchestrator.reply`
 writes the conversational answer → `AIProcessingResult(reply, engine)`.

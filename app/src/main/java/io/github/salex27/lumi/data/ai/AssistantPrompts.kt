@@ -57,6 +57,8 @@ Examples (current date Monday 2026-09-28 10:00):
 "edítame mi tarea de llevar a Víctor al trabajo y ponla para mañana" → {"action":"EDIT","targetTitle":"llevar a Víctor","dueDate":"2026-09-29"}
 "he dejado las natillas fuera toda la noche, me las puedo comer" → {"action":"ASK","targetTitle":"he dejado las natillas fuera toda la noche, me las puedo comer"}
 "do I need a jacket tonight?" → {"action":"WEATHER","targetTitle":"do I need a jacket tonight?"}
+"¿crees que debería aprender a programar?" → {"action":"ASK","targetTitle":"¿crees que debería aprender a programar?"}
+"what do you think about running at night?" → {"action":"ASK","targetTitle":"what do you think about running at night?"}
 "¿qué hago hoy?" → {"action":"PLAN_DAY"}
 """.trim()
 

@@ -28,7 +28,9 @@ import io.github.salex27.lumi.domain.assistant.DeviceCommandParser
 import io.github.salex27.lumi.domain.assistant.FreeTimeFinder
 import io.github.salex27.lumi.domain.assistant.IncomingMessage
 import io.github.salex27.lumi.domain.assistant.Lang
+import io.github.salex27.lumi.domain.assistant.IntentRoute
 import io.github.salex27.lumi.domain.assistant.LanguageDetector
+import io.github.salex27.lumi.data.ai.IntentRouter
 import io.github.salex27.lumi.domain.assistant.MemoryRetriever
 import io.github.salex27.lumi.domain.assistant.MessageDigest
 import io.github.salex27.lumi.domain.assistant.RenameSplitter
@@ -203,20 +205,46 @@ class TaskRepositoryImpl(
 
     override suspend fun processNaturalLanguageCommand(
         prompt: String,
-        defaultCategory: TaskCategory?
+        defaultCategory: TaskCategory?,
+        route: IntentRoute?
     ): AIProcessingResult = try {
         val now = LocalDateTime.now()
         // The reply follows the language of the sentence; short ambiguous ones keep the app language
         ReplyLanguage.current = LanguageDetector.detect(prompt, ReplyLanguage.app)
         lastAction = null
-        val routine = RoutineMatcher.match(prompt, extras.routines())
-        val result = if (routine != null) runRoutine(routine, now) else {
-            val sentence = followUpWeather(prompt) ?: prompt
+        val routine = if (route == null) RoutineMatcher.match(prompt, extras.routines()) else null
+        val sentence = followUpWeather(prompt) ?: prompt
+        // Top-level route first (#1): only unambiguous cases are decided here, the rest goes on as before
+        val top = route ?: if (routine == null) IntentRouter.classify(sentence, now) else null
+        if (top != null) android.util.Log.i("LumiInterpret", "route=$top for «$sentence»")
+        val result = if (routine != null) runRoutine(routine, now) else when (top) {
+            IntentRoute.AGENT -> {
+                lastAction = ACTION_AGENT
+                val request = IntentRouter.agentRequest(sentence) ?: sentence
+                AIProcessingResult.Agent("claude", request, t("Se lo paso a Claude en tu PC.", "Passing it to Claude on your PC."), assistant.rulesName)
+            }
+            IntentRoute.OPINION -> { lastAction = TaskAICommand.ASK; answer(sentence, now, assistant.rulesName) }
+            IntentRoute.UNSURE -> {
+                lastAction = ACTION_CLARIFY
+                AIProcessingResult.Clarify(
+                    sentence, listOf(IntentRoute.TASK, IntentRoute.AGENT),
+                    t("¿Lo apunto como tarea o se lo paso a Claude?", "Should I add it as a task or send it to Claude?"), assistant.rulesName
+                )
+            }
+            IntentRoute.TASK -> {
+                // The user said "task": whatever the interpretation, it becomes one (date and category still parsed)
+                val (command, engine) = assistant.interpret(sentence, now, conversation.promptNote())
+                val forced = if (command.action == TaskAICommand.CREATE || command.action == TaskAICommand.CREATE_MANY) command
+                else command.copy(action = TaskAICommand.CREATE, targetTitle = IntentRouter.wishObject(sentence))
+                execute(forced, sentence, defaultCategory, now, engine)
+            }
+            else -> {
             val parts = CommandSplitter.split(sentence)
             if (parts.size > 1) runSteps(parts, now, useLlm = true, name = null)
             else {
                 val (command, engine) = assistant.interpret(sentence, now, conversation.promptNote())
                 execute(command, sentence, defaultCategory, now, engine)
+            }
             }
         }
         remember(prompt, result)
@@ -865,3 +893,7 @@ internal object ReminderPlannerText {
         else -> "${seconds / 3600} h ${(seconds % 3600) / 60} min"
     }
 }
+
+/** Conversation actions of the top-level router (recorded with the turn, not TaskAICommand actions). */
+private const val ACTION_AGENT = "AGENT"
+private const val ACTION_CLARIFY = "CLARIFY"
