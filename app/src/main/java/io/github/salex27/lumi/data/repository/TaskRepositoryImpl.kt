@@ -521,6 +521,8 @@ class TaskRepositoryImpl(
         var cmd = DeviceCommand.parse(command.device)
             ?: (if (en) EnglishCommands.device(prompt) else DeviceCommandParser.parse(prompt))
             ?: return AIProcessingResult.Error(t("No sé hacer eso en el móvil todavía.", "I can't do that on the phone yet."), engine)
+        // An explicit "search for…" answers from the web with sources when search is on (#13); otherwise it opens the browser
+        (cmd as? DeviceCommand.WebSearch)?.let { search -> webAnswer(search.query)?.let { return it } }
         var usedEngine = engine
         if (cmd is DeviceCommand.Message) {
             // 1) The LLM (if any) separates recipient and text and rewrites it as a direct message

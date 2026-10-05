@@ -456,6 +456,8 @@ class Agents:
         # The prompt goes through stdin, never through the argument list
         args = [self.claude, "-p", "--output-format", "stream-json", "--verbose"]
         args += lumi_agent_args()
+        # Non-interactive turns can't ask for permission, so read-only web tools must be pre-approved
+        args += ["--allowedTools", "WebSearch", "WebFetch"]
         if session:
             args += ["--resume", session]
         return args
