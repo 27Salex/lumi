@@ -54,6 +54,7 @@ class OrbitRepository(
 
     fun observeOrbits(): Flow<List<ChatSessionRow>> = store.observeSessions(ChatSessionEntity.KIND_ORBIT)
     fun observeInboxes(): Flow<List<ChatSessionRow>> = store.observeSessions(ChatSessionEntity.KIND_HUB)
+    fun observeAllChats(): Flow<List<ChatSessionRow>> = store.observeAllSessions()
     fun observeAgents(): Flow<List<AgentEntity>> = dao.observeAgents()
     fun observeMembers(sessionId: Long): Flow<List<AgentEntity>> = dao.observeMembers(sessionId)
     fun observeMessages(sessionId: Long): Flow<List<ChatMessageEntity>> = chatDao.observeMessages(sessionId)

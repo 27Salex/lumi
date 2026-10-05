@@ -11,7 +11,7 @@
     <string name="orbit_name_hint">Name (e.g. New website)</string>
     <string name="orbit_pick_agents">Agents in this Orbit</string>
     <string name="orbit_create">Create</string>
-    <string name="orbit_no_agents">No agents yet. Add one below the list of Orbits.</string>
+    <string name="orbit_no_agents">No agents yet. Add one under Agents.</string>
     <string name="orbit_threads">Your Orbits</string>
     <string name="orbit_inboxes">From your agents</string>
     <string name="orbit_agents">Agents</string>

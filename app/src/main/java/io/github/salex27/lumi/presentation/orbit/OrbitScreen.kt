@@ -123,8 +123,6 @@ fun OrbitScreen(vm: OrbitViewModel, onBack: () -> Unit) {
 @Composable
 private fun OrbitList(vm: OrbitViewModel, onBack: () -> Unit) {
     val c = Lumi.colors
-    val orbits by vm.orbits.collectAsStateWithLifecycle()
-    val inboxes by vm.inboxes.collectAsStateWithLifecycle()
     val agents by vm.agents.collectAsStateWithLifecycle()
     val hub by vm.hubConfigured.collectAsStateWithLifecycle()
     var newOrbit by remember { mutableStateOf(false) }
@@ -134,30 +132,15 @@ private fun OrbitList(vm: OrbitViewModel, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back), tint = c.textPrimary) }
-            Text(stringResource(R.string.orbit_title), style = MaterialTheme.typography.headlineMedium, color = c.textPrimary)
+            Text(stringResource(R.string.orbit_manage_title), style = MaterialTheme.typography.headlineMedium, color = c.textPrimary)
         }
-        Text(stringResource(R.string.orbit_sub), style = MaterialTheme.typography.bodySmall, color = c.textTertiary, modifier = Modifier.padding(horizontal = 4.dp))
+        Text(stringResource(R.string.orbit_manage_sub), style = MaterialTheme.typography.bodySmall, color = c.textTertiary, modifier = Modifier.padding(horizontal = 4.dp))
 
         ListGroup(Modifier.padding(top = 8.dp)) {
-            ListRow(
-                stringResource(R.string.orbit_chat_with_claude),
-                stringResource(if (hub) R.string.orbit_chat_with_claude_sub else R.string.orbit_needs_hub),
-                onClick = if (hub) ({ vm.chatWithClaude() }) else null,
-                leading = { AgentFace(AgentBackendKind.CLAUDE_PC.defaultFace, AgentBackendKind.CLAUDE_PC.defaultColor) }
-            )
-            ListDivider()
             ListRow(stringResource(R.string.orbit_new), stringResource(R.string.orbit_new_sub), onClick = { newOrbit = true },
                 leading = { LumiMark(LumiState.IDLE, size = 32.dp) })
         }
 
-        if (orbits.isNotEmpty()) {
-            SectionHeader(stringResource(R.string.orbit_threads), Modifier.padding(start = 4.dp, top = 12.dp))
-            ListGroup { orbits.forEachIndexed { i, row -> if (i > 0) ListDivider(); ThreadRow(row, agents) { vm.openThread(row.session.id) } } }
-        }
-        if (inboxes.isNotEmpty()) {
-            SectionHeader(stringResource(R.string.orbit_inboxes), Modifier.padding(start = 4.dp, top = 12.dp))
-            ListGroup { inboxes.forEachIndexed { i, row -> if (i > 0) ListDivider(); ThreadRow(row, emptyList()) { vm.openThread(row.session.id) } } }
-        }
 
         SectionHeader(stringResource(R.string.orbit_agents), Modifier.padding(start = 4.dp, top = 12.dp))
         ListGroup {
@@ -196,15 +179,6 @@ private fun backendLabel(kind: AgentBackendKind?) = when (kind) {
     AgentBackendKind.LUMI -> stringResource(R.string.backend_lumi)
     AgentBackendKind.CLAUDE_PC -> stringResource(R.string.backend_claude_pc)
     null -> "-"
-}
-
-@Composable
-private fun ThreadRow(row: ChatSessionRow, agents: List<AgentEntity>, onClick: () -> Unit) {
-    ListRow(row.session.title.ifBlank { "Orbit" }, row.preview?.replace('\n', ' ')?.take(80), onClick = onClick,
-        leading = {
-            if (row.session.kind == ChatSessionEntity.KIND_HUB) AgentFace(AgentFaceStyle.RING, AgentPalette.TEAL)
-            else LumiMark(LumiState.IDLE, size = 32.dp)
-        })
 }
 
 @Composable

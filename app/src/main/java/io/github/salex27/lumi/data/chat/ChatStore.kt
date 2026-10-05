@@ -45,6 +45,8 @@ class ChatStore(context: Context, private val dao: ChatDao, scope: CoroutineScop
 
     fun observeSessions(kind: String = ChatSessionEntity.KIND_ASSISTANT): Flow<List<ChatSessionRow>> = dao.observeSessions(kind)
 
+    fun observeAllSessions(): Flow<List<ChatSessionRow>> = dao.observeAllSessions()
+
     suspend fun session(id: Long): ChatSessionEntity? = dao.session(id)
     suspend fun messages(sessionId: Long): List<ChatMessageEntity> = dao.messages(sessionId)
 
@@ -55,9 +57,17 @@ class ChatStore(context: Context, private val dao: ChatDao, scope: CoroutineScop
     suspend fun sessionToResume(now: Long = System.currentTimeMillis()): ChatSessionEntity? {
         val active = prefs.getLong(K_ACTIVE, -1L)
         if (active == 0L) return null // "New chat" was tapped
+        // Picked in the Chats screen: it opens even if it is old (consumed once)
+        if (active > 0 && prefs.getBoolean(K_FORCED, false)) {
+            prefs.edit().putBoolean(K_FORCED, false).apply()
+            dao.session(active)?.let { return it }
+        }
         val candidate = (if (active > 0) dao.session(active) else null) ?: dao.latest(ChatSessionEntity.KIND_ASSISTANT) ?: return null
         return candidate.takeIf { !SessionPolicy.isStale(it.updatedAt, now) }
     }
+
+    /** The Chats screen picked [sessionId]: the assistant opens exactly that one next, however old it is. */
+    fun requestResume(sessionId: Long) = prefs.edit().putLong(K_ACTIVE, sessionId).putBoolean(K_FORCED, true).apply()
 
     /** Remembers the session on screen (0 = a new, still empty chat) so the next opening resumes it. */
     fun setActive(sessionId: Long?) = prefs.edit().putLong(K_ACTIVE, sessionId ?: 0L).apply()
@@ -142,6 +152,7 @@ class ChatStore(context: Context, private val dao: ChatDao, scope: CoroutineScop
 
     private companion object {
         const val K_ACTIVE = "active_session"
+        const val K_FORCED = "force_resume"
     }
 }
 

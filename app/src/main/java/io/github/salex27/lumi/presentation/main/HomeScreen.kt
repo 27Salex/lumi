@@ -81,7 +81,7 @@ fun HomeScreen(
     onDownloadGemma: () -> Unit,
     onOpenAssistant: (listen: Boolean, prompt: String?) -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenOrbit: () -> Unit = {},
+    onOpenChats: () -> Unit = {},
     onOpenAgenda: () -> Unit,
     onTaskClick: (Task) -> Unit,
     onStartTask: (Task) -> Unit = {},
@@ -104,7 +104,7 @@ fun HomeScreen(
         ) {
             val weatherPrompt = stringResource(R.string.prompt_weather_today)
             val whatNowPrompt = stringResource(R.string.prompt_what_now)
-            Header(onOpenSettings, onOpenOrbit, weather) { onOpenAssistant(false, weatherPrompt) }
+            Header(onOpenSettings, onOpenChats, weather) { onOpenAssistant(false, weatherPrompt) }
             HeroNumber(remaining = dueToday.size + overdue.size, overdue = overdue.size, done = doneToday, onClick = onOpenAgenda)
             LumiBriefCard(uiState.briefing, onRefreshBriefing) { onOpenAssistant(false, whatNowPrompt) }
             FreeTimeCard(uiState.allTasks, todayEvents, onStartTask, onCompleteTask)
@@ -181,7 +181,7 @@ private fun humanDuration(minutes: Int): String = when {
 @Composable
 private fun Header(
     onOpenSettings: () -> Unit,
-    onOpenOrbit: () -> Unit,
+    onOpenChats: () -> Unit,
     weather: io.github.salex27.lumi.domain.weather.WeatherReport? = null,
     onWeatherClick: () -> Unit = {}
 ) {
@@ -204,8 +204,13 @@ private fun Header(
                 )
             }
         }
-        IconButton(onClick = onOpenOrbit, modifier = Modifier.clip(CircleShape).background(Lumi.colors.muted).size(40.dp)) {
-            Icon(Icons.Outlined.Forum, stringResource(R.string.orbit_title), tint = Lumi.colors.textPrimary, modifier = Modifier.size(20.dp))
+        Row(
+            Modifier.height(40.dp).clip(RoundedCornerShape(50)).background(Lumi.colors.muted).clickable(onClick = onOpenChats).padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Outlined.Forum, null, tint = Lumi.colors.textPrimary, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(stringResource(R.string.chats_title), style = MaterialTheme.typography.labelLarge, color = Lumi.colors.textPrimary)
         }
         Spacer(Modifier.width(8.dp))
         IconButton(onClick = onOpenSettings, modifier = Modifier.clip(CircleShape).background(Lumi.colors.muted).size(40.dp)) {

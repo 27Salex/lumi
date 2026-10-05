@@ -6,4 +6,24 @@
     <string name="chat_history">Chats</string>
     <string name="chat_new">New chat</string>
     <string name="chat_rename">Rename</string>
+
+    <string name="chats_title">Chats</string>
+    <string name="chats_today">Today</string>
+    <string name="chats_yesterday">Yesterday</string>
+    <string name="chats_search">Search chats</string>
+    <string name="chats_no_match">No chats match your search.</string>
+    <string name="chats_empty_title">No chats yet</string>
+    <string name="chats_empty_sub">Start one with New chat. Every conversation with Lumi and your agents will be listed here.</string>
+    <string name="chats_no_messages">No messages yet</string>
+    <string name="chats_untitled">New chat</string>
+    <string name="chats_untitled_orbit">Orbit</string>
+    <string name="chats_badge_lumi">Lumi</string>
+    <string name="chats_badge_orbit">Orbit</string>
+    <string name="chats_badge_hub">Hub</string>
+    <string name="chats_new_lumi">Chat with Lumi</string>
+    <string name="chats_new_lumi_sub">Tasks, questions and everyday help</string>
+    <string name="chats_delete_title">Delete this chat?</string>
+    <string name="chats_delete_body">\"%1$s\" and its messages will be removed.</string>
+    <string name="orbit_manage_title">Manage agents</string>
+    <string name="orbit_manage_sub">Your agents, new Orbits and what Lumi learned. Chats live in the Chats screen.</string>
 </resources>

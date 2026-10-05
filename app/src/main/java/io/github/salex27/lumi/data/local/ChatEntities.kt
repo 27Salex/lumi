@@ -87,6 +87,14 @@ interface ChatDao {
     )
     fun observeSessions(kind: String): Flow<List<ChatSessionRow>>
 
+    /** Every conversation (assistant chats, Orbit threads, agent inboxes) for the Chats screen, newest first. */
+    @Query(
+        "SELECT s.*, (SELECT m.text FROM chat_messages m WHERE m.session_id = s.id ORDER BY m.id DESC LIMIT 1) AS preview, " +
+            "(SELECT COUNT(*) FROM chat_messages m WHERE m.session_id = s.id) AS message_count " +
+            "FROM chat_sessions s ORDER BY s.updated_at DESC"
+    )
+    fun observeAllSessions(): Flow<List<ChatSessionRow>>
+
     @Query("SELECT * FROM chat_sessions WHERE id = :id")
     suspend fun session(id: Long): ChatSessionEntity?
 

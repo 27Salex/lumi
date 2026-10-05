@@ -37,6 +37,8 @@ class OrbitViewModel(
 
     private fun <T> Flow<T>.state(initial: T) = stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), initial)
 
+    /** Every conversation, newest first (the Chats screen). */
+    val chats: StateFlow<List<ChatSessionRow>> = repo.observeAllChats().state(emptyList())
     val orbits: StateFlow<List<ChatSessionRow>> = repo.observeOrbits().state(emptyList())
     val inboxes: StateFlow<List<ChatSessionRow>> = repo.observeInboxes().state(emptyList())
     val agents: StateFlow<List<AgentEntity>> = repo.observeAgents().state(emptyList())

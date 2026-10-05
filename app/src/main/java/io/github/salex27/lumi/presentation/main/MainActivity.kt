@@ -247,6 +247,7 @@ class MainActivity : ComponentActivity() {
                     app.repository.getTask(id)?.let { showSettings = false; tab = Tab.TASKS; editing = it }
                 }
                 var showOrbit by rememberSaveable { mutableStateOf(false) }
+                var showManage by rememberSaveable { mutableStateOf(false) }
                 val hubRequest by pendingHubMessage.collectAsStateWithLifecycle()
                 LaunchedEffect(hubRequest) {
                     val id = hubRequest ?: return@LaunchedEffect
@@ -260,7 +261,18 @@ class MainActivity : ComponentActivity() {
 
                 Box(Modifier.fillMaxSize().background(Lumi.colors.background)) {
                     if (showOrbit) {
-                        io.github.salex27.lumi.presentation.orbit.OrbitScreen(orbitViewModel, onBack = { showOrbit = false })
+                        val openThread by orbitViewModel.open.collectAsStateWithLifecycle()
+                        if (openThread != null || showManage) {
+                            io.github.salex27.lumi.presentation.orbit.OrbitScreen(orbitViewModel, onBack = { showManage = false })
+                        } else {
+                            io.github.salex27.lumi.presentation.orbit.ChatsScreen(
+                                orbitViewModel, onBack = { showOrbit = false }, onManage = { showManage = true },
+                                onOpenAssistantChat = { id ->
+                                    if (id == null) app.chatStore.setActive(null) else app.chatStore.requestResume(id)
+                                    startActivity(AssistantActivity.intent(this@MainActivity))
+                                }
+                            )
+                        }
                     } else if (showSettings) {
                         val state by settingsViewModel.state.collectAsStateWithLifecycle()
                         SettingsScreen(
@@ -296,7 +308,7 @@ class MainActivity : ComponentActivity() {
                                         onDownloadGemma = viewModel::startGemmaDownload,
                                         onOpenAssistant = { listen, prompt -> startActivity(AssistantActivity.intent(this@MainActivity, listen, prompt)) },
                                         onOpenSettings = { showSettings = true },
-                                        onOpenOrbit = { showOrbit = true },
+                                        onOpenChats = { showOrbit = true },
                                         onOpenAgenda = { tab = Tab.AGENDA },
                                         onTaskClick = { editing = it },
                                         onStartTask = { viewModel.updateTaskStatus(it, io.github.salex27.lumi.domain.model.TaskStatus.IN_PROGRESS) },
