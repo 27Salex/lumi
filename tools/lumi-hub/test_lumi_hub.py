@@ -252,3 +252,23 @@ class HttpTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LumiAgentTest(unittest.TestCase):
+    def test_agent_file_loads_and_builds_flags(self):
+        flags = h.lumi_agent_args()
+        self.assertEqual(flags[0], "--agents")
+        self.assertEqual(flags[2:], ["--agent", "lumi"])
+        definition = json.loads(flags[1])["lumi"]
+        self.assertIn("prompt", definition)
+        self.assertIn("lumi_ask", definition["prompt"])
+
+    def test_missing_agent_file_adds_no_flags(self):
+        self.assertEqual(h.lumi_agent_args(Path("does-not-exist.md")), [])
+
+    def test_every_session_starts_with_the_agent(self):
+        agents = h.Agents(None, {}, lambda: None, ".", "claude")
+        args = agents.command_for("claude", "")
+        self.assertIn("--agent", args)
+        resumed = agents.command_for("claude", "11111111-1111-1111-1111-111111111111")
+        self.assertIn("--agent", resumed)

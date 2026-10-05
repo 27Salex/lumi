@@ -400,6 +400,40 @@ def parse_search_result(stdout):
     return hits[:4]
 
 
+AGENT_FILE = Path(__file__).resolve().parent / "agents" / "lumi.md"
+
+
+def load_agent_file(path):
+    """Reads a Claude Code agent file (--- frontmatter ---, then the prompt). Returns (name, definition) or None."""
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError:
+        return None
+    match = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n(.*)\Z", text, re.S)
+    if not match:
+        return None
+    meta = {}
+    for line in match.group(1).splitlines():
+        key, sep, value = line.partition(":")
+        if sep:
+            meta[key.strip()] = value.strip()
+    name, prompt = meta.get("name", ""), match.group(2).strip()
+    if not name or not prompt:
+        return None
+    definition = {"description": meta.get("description", name), "prompt": prompt}
+    return name, definition
+
+
+def lumi_agent_args(path=AGENT_FILE):
+    """Flags that start every Lumi session with the `lumi` agent (how to act, how to reply). Empty if the file is missing."""
+    loaded = load_agent_file(path)
+    if not loaded:
+        return []
+    name, definition = loaded
+    return ["--agents", json.dumps({name: definition}), "--agent", name]
+
+
+
 class Agents:
     """Runs agent turns. Only Claude Code for now; other CLIs plug in through [command_for]."""
 
@@ -421,6 +455,7 @@ class Agents:
             raise HubError(f"Agent not available on this PC: {agent}", 404)
         # The prompt goes through stdin, never through the argument list
         args = [self.claude, "-p", "--output-format", "stream-json", "--verbose"]
+        args += lumi_agent_args()
         if session:
             args += ["--resume", session]
         return args

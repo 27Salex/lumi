@@ -76,3 +76,9 @@ python -m unittest discover tools/lumi-hub
 - Files in `lumi_send` (only text + link for now).
 - Codex / Gemini CLI as wake-per-message agents (`Agents.command_for` is the extension point).
 - Push to Lumi itself while it is closed (UnifiedPush); today the optional ntfy ping goes to the ntfy app.
+
+## Lumi agent
+
+Every Claude session the hub starts (`claude -p`, new or resumed) uses the `lumi` agent defined in `agents/lumi.md`
+(`--agents` + `--agent lumi`): how to reply on a phone, when to ask first with `lumi_ask`, and the safety rules for
+untrusted text. Edit that file to change how Claude behaves in Lumi; if it is missing, the hub runs plain Claude Code.
