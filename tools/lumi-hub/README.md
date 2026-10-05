@@ -61,6 +61,7 @@ delete the file (or one client entry) and restart the hub.
 | phone | POST | `/answer` | `{ask_id, answer}` → unblocks `lumi_ask` (410 if no longer open) |
 | phone | POST | `/chat` | `{thread, agent, text}` → one agent turn, reply as `reply` events |
 | phone | POST | `/forget` | `{thread}` → the next message starts a new agent session |
+| phone | POST | `/search` | `{query}` → `{hits:[{title,url,snippet}]}`: Claude Code with only the WebSearch tool (Lumi's web search option) |
 | MCP client | POST | `/mcp` | JSON-RPC 2.0 (streamable HTTP, JSON responses) |
 
 ## Tests

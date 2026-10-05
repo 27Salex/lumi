@@ -301,7 +301,7 @@ private fun RowScope.CompactPillContent(
             when {
                 isListening && liveTranscript.isNotBlank() -> liveTranscript
                 isListening -> stringResource(R.string.voice_listening)
-                state.isThinking -> stringResource(R.string.thinking)
+                state.isThinking -> stringResource(if (state.searching) R.string.searching_web else R.string.thinking)
                 state.voiceError != null -> stringResource(R.string.voice_error_retry, state.voiceError)
                 else -> stringResource(R.string.compact_idle_hint)
             },
@@ -418,9 +418,10 @@ private fun FullAssistant(
                             Column {
                                 TypewriterText(msg.text, style = MaterialTheme.typography.bodyLarge, color = if (msg.isError) c.danger else c.textPrimary,
                                     animate = msg.id !in state.revealed, onFinished = { finished = true; onRevealed(msg.id) })
-                                AnimatedVisibility(finished && (msg.tasks.isNotEmpty() || msg.engine.isNotBlank())) {
+                                AnimatedVisibility(finished && (msg.tasks.isNotEmpty() || msg.engine.isNotBlank() || msg.sources.isNotEmpty())) {
                                     Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                         msg.tasks.take(6).forEach { TaskMiniChip(it) }
+                                        if (msg.sources.isNotEmpty()) SourceLinks(msg.sources)
                                         EngineBadge(msg.engine)
                                     }
                                 }
@@ -435,7 +436,7 @@ private fun FullAssistant(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         LumiMark(LumiState.THINKING, size = 22.dp)
                         Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.thinking), style = MaterialTheme.typography.bodyMedium, color = c.textSecondary)
+                        Text(stringResource(if (state.searching) R.string.searching_web else R.string.thinking), style = MaterialTheme.typography.bodyMedium, color = c.textSecondary)
                     }
                 }
             }
@@ -497,4 +498,28 @@ private fun Suggestion(label: String, onClick: () -> Unit) {
         label, style = MaterialTheme.typography.labelLarge, color = c.textPrimary,
         modifier = Modifier.clip(RoundedCornerShape(50)).background(c.muted).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 9.dp)
     )
+}
+
+/** Web sources of an answer (#7): numbered links that open in the browser (http(s) only, checked on the way in). */
+@Composable
+private fun SourceLinks(sources: List<io.github.salex27.lumi.domain.search.WebHit>) {
+    val c = Lumi.colors
+    val context = androidx.compose.ui.platform.LocalContext.current
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(stringResource(R.string.web_sources), style = MaterialTheme.typography.labelMedium, color = c.textTertiary)
+        sources.forEachIndexed { i, hit ->
+            Text(
+                "[${i + 1}] ${hit.title} · ${io.github.salex27.lumi.domain.search.WebAnswers.host(hit.url)}",
+                style = MaterialTheme.typography.bodySmall, color = c.accentText, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.clickable {
+                    runCatching {
+                        context.startActivity(
+                            android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(hit.url))
+                                .addCategory(android.content.Intent.CATEGORY_BROWSABLE).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    }
+                }.padding(vertical = 2.dp)
+            )
+        }
+    }
 }

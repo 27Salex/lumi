@@ -43,11 +43,15 @@ class AssistantActivity : ComponentActivity() {
 
     private val app get() = application as TaskManagerApplication
     private val viewModel: AssistantViewModel by viewModels {
-        AssistantViewModel.Factory(app.repository, app.assistant, { app.speaker.speak(it) }, app.chatStore, app.chatMemory) { request ->
-            // "… con Claude": the request goes to the 1:1 Orbit with Claude Code on the PC (#1 → #4)
-            if (!app.hubSettings.config.value.isConfigured) false
-            else { app.orbits.send(app.orbits.chatWithClaude(), request); true }
-        }
+        AssistantViewModel.Factory(
+            app.repository, app.assistant, { app.speaker.speak(it) }, app.chatStore, app.chatMemory,
+            handOff = { request ->
+                // "… con Claude": the request goes to the 1:1 Orbit with Claude Code on the PC (#1 → #4)
+                if (!app.hubSettings.config.value.isConfigured) false
+                else { app.orbits.send(app.orbits.chatWithClaude(), request); true }
+            },
+            searching = app.webSearch.searching
+        )
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

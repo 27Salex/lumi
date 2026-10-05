@@ -310,6 +310,9 @@ fun SettingsScreen(
         // ── Lumi Hub (agents on the PC) ───────────────────────────────────────
         HubSettingsSection()
 
+        // ── Web search (opt-in) ─────────────────────────────────────────────
+        WebSearchSettingsSection()
+
         // ── System assistant ────────────────────────────────────────────────
         SectionHeader(stringResource(R.string.open_anywhere), Modifier.padding(start = 4.dp, top = 12.dp))
         ListGroup {

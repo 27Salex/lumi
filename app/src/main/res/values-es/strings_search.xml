@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Búsqueda web (issue #7). -->
+<resources>
+    <string name="web_title">Búsqueda web</string>
+    <string name="web_sub">Para preguntas que Lumi no sabe con su propio modelo o sobre cosas recientes. Desactivada por defecto.</string>
+    <string name="web_enable">Buscar en la web</string>
+    <string name="web_enable_sub">Solo tu pregunta sale del móvil. Las respuestas muestran sus fuentes.</string>
+    <string name="web_wikipedia">Wikipedia (sin clave)</string>
+    <string name="web_wikipedia_sub">Cultura general. No noticias ni precios.</string>
+    <string name="web_searxng">SearXNG (sin clave)</string>
+    <string name="web_searxng_sub">Resultados web reales de un servidor SearXNG de confianza (el tuyo o uno público con JSON activado).</string>
+    <string name="web_brave">Brave Search (tu clave)</string>
+    <string name="web_brave_sub">Resultados web reales con tu clave de la API de Brave Search.</string>
+    <string name="web_hub">A través de tu PC (Claude)</string>
+    <string name="web_hub_sub">Claude Code en tu PC busca en la web (usa tu plan de Claude; más lento).</string>
+    <string name="web_searxng_url">Dirección de SearXNG (https://…)</string>
+    <string name="web_brave_key">Clave de la API de Brave Search</string>
+    <string name="web_privacy">Lumi resume los resultados con su modelo y los trata como texto: nunca se ejecuta nada de ellos.</string>
+    <string name="searching_web">Buscando en la web…</string>
+    <string name="web_sources">Fuentes</string>
+</resources>

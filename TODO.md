@@ -29,6 +29,10 @@ Pending work. Finished items are removed; their history is in `MEMORY.md` and gi
 - [ ] Run `tools/intent_eval.sh` with Gemma on the S25 and with the cloud engine; grow the set from real logcat
 - [ ] Show Claude's answer inside the assistant chat (today it lands in Orbit); remember "task or Claude?" preferences
 
+## Web search (#7) follow-ups
+- [ ] Fetch the page of the top result when snippets are too thin; news-specific backend
+- [ ] Spoken answers: keep them even shorter than the chat text
+
 ## To test on the Galaxy S25
 - [ ] Lumi Hub through real Tailscale (`tailscale serve`, owner check) and notifications while using other apps
 - [ ] Now Bar: One UI promoting the notification (Android 16 + One UI 8)

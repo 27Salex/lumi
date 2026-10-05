@@ -96,6 +96,9 @@ class TaskManagerApplication : Application() {
     /** The event stream is open only while a Lumi screen is visible (see [onCreate]). */
     val hubConnection by lazy { io.github.salex27.lumi.data.hub.HubConnection(hubSettings, hubClient, hubInbox, appScope) }
 
+    /** Web search for general questions (#7, opt-in; key-less by default). */
+    val webSearch by lazy { io.github.salex27.lumi.data.search.WebSearchService(this, hubClient) }
+
     /** Orbit: group chats with AI agents (Lumi's brain, Claude Code through the Hub). */
     val orbits by lazy {
         io.github.salex27.lumi.data.orbit.OrbitRepository(
@@ -189,6 +192,7 @@ class TaskManagerApplication : Application() {
                     val listener = io.github.salex27.lumi.service.notify.LumiNotificationListener
                     if (listener.isEnabled(this)) listener.unread() else null
                 },
+                webSearch = { question, lang -> webSearch.search(question, lang) },
                 describeAction = { task ->
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         io.github.salex27.lumi.presentation.agent.ActionPreview.resolve(this@TaskManagerApplication, contactAliases, task)

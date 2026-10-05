@@ -231,6 +231,11 @@ sealed interface AIProcessingResult {
     /** Information answer (weather, general question, day summary, messages). */
     data class Answer(override val reply: String, override val engine: String) : AIProcessingResult
 
+    /** An answer built from web results (#7): [sources] are shown as links under it (never read aloud). */
+    data class WebAnswer(
+        override val reply: String, val sources: List<io.github.salex27.lumi.domain.search.WebHit>, override val engine: String
+    ) : AIProcessingResult
+
     /** The request is for an AI agent ([agent], e.g. "claude"): the assistant hands [request] over through Lumi Hub. */
     data class Agent(val agent: String, val request: String, override val reply: String, override val engine: String) : AIProcessingResult
 

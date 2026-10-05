@@ -31,6 +31,7 @@ import io.github.salex27.lumi.domain.assistant.Lang
 import io.github.salex27.lumi.domain.assistant.IntentRoute
 import io.github.salex27.lumi.domain.assistant.LanguageDetector
 import io.github.salex27.lumi.data.ai.IntentRouter
+import io.github.salex27.lumi.domain.search.WebAnswers
 import io.github.salex27.lumi.domain.assistant.MemoryRetriever
 import io.github.salex27.lumi.domain.assistant.MessageDigest
 import io.github.salex27.lumi.domain.assistant.RenameSplitter
@@ -98,7 +99,9 @@ class TaskRepositoryImpl(
         /** An unsaved place ("the Mercadona", "the pharmacy") → the nearest one with coordinates, or null. */
         val resolvePlace: suspend (String) -> PlaceTrigger? = { null },
         /** "Then you'll get a button to send Roberto Pérez a WhatsApp…" (contact already looked up). */
-        val describeAction: suspend (Task) -> String = { "" }
+        val describeAction: suspend (Task) -> String = { "" },
+        /** Web search (#7, opt-in): results for a question, or null when it is off. */
+        val webSearch: suspend (String, io.github.salex27.lumi.domain.assistant.Lang) -> List<io.github.salex27.lumi.domain.search.WebHit>? = { _, _ -> null }
     )
 
     private val zone: ZoneId get() = ZoneId.systemDefault()
@@ -631,16 +634,34 @@ class TaskRepositoryImpl(
         val history = conversation.recent().filter { it.action == TaskAICommand.ASK || it.action == TaskAICommand.RECALL }.takeLast(2)
             .joinToString(" | ") { "Q: ${it.user.take(150)} A: ${it.reply.take(200)}" }
             .let { if (it.isBlank()) "" else "RECENT Q&A (for follow-up questions): $it" }
-        val result = assistant.answer(AssistantPrompts.generalSystem(now, context, history), question, web = AssistantIntents.needsFreshData(question))
+        val fresh = AssistantIntents.needsFreshData(question)
+        // Recent facts (news, prices, results…) go to the web first when web search is on: a small model would guess
+        if (fresh) webAnswer(question)?.let { return it }
+        val result = assistant.answer(AssistantPrompts.generalSystem(now, context, history), question, web = fresh)
         val text = result?.first?.let(AssistantPrompts::cleanReply)
         android.util.Log.i("LumiInterpret", "Answer to «$question» (${result?.second}): ${text?.take(200)}")
         if (text == null || text.contains("NO_LO_SE")) {
+            if (!fresh) webAnswer(question)?.let { return it }
             val query = question.trim().trimEnd('?', '.').replace(Regex("^¿"), "")
             val why = if (result == null) t("No tengo un modelo de IA activo para responder eso", "I don't have an AI model on to answer that")
             else t("No lo sé con seguridad", "I'm not sure")
             return AIProcessingResult.Device(DeviceCommand.WebSearch(query), why + t("; te lo busco en Google.", "; I'll search Google for you."), result?.second ?: engine)
         }
         return AIProcessingResult.Answer(text, result.second)
+    }
+
+    /**
+     * Searches the web and answers from the results (#7). Null when web search is off or found nothing (the caller
+     * falls back to its old behaviour). The results are untrusted data: the prompt says so and only text comes out.
+     */
+    private suspend fun webAnswer(question: String): AIProcessingResult? {
+        val hits = extras.webSearch(question, ReplyLanguage.current)?.takeIf { it.isNotEmpty() } ?: return null
+        val sources = hits.take(3)
+        val llm = assistant.answer(WebAnswers.SYSTEM, WebAnswers.prompt(question, sources), web = false)
+        val text = llm?.first?.let(AssistantPrompts::cleanReply)?.takeIf { !it.contains("NO_LO_SE") && it.isNotBlank() }
+        android.util.Log.i("LumiInterpret", "Web answer to «$question» (${sources.size} results, ${llm?.second}): ${text?.take(200)}")
+        val reply = text ?: WebAnswers.fallback(sources)?.let { t("Según la web: ", "From the web: ") + it } ?: return null
+        return AIProcessingResult.WebAnswer(reply, sources, llm?.second ?: assistant.rulesName)
     }
 
     override suspend fun dayBrief(date: LocalDate): AIProcessingResult {

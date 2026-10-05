@@ -58,6 +58,7 @@ ASK_DEFAULT_TIMEOUT = 600
 ASK_MAX_TIMEOUT = 3_600
 EVENTS_PER_MINUTE = 30
 TURN_TIMEOUT = 15 * 60
+SEARCH_TIMEOUT = 140
 MAX_TURNS_RUNNING = 2
 SESSION_ID = re.compile(r"^[A-Za-z0-9_-]{8,80}$")
 THREAD_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,80}$")
@@ -368,6 +369,37 @@ def parse_stream_line(line):
     return None
 
 
+def parse_search_result(stdout):
+    """`claude -p --output-format json` output → cleaned hits (the JSON array inside the result text)."""
+    try:
+        text = json.loads(stdout).get("result", "")
+    except (ValueError, AttributeError):
+        text = stdout or ""
+    start, end = text.find("["), text.rfind("]")
+    if start < 0 or end <= start:
+        return []
+    try:
+        items = json.loads(text[start:end + 1])
+    except ValueError:
+        return []
+    hits = []
+    for item in items if isinstance(items, list) else []:
+        if not isinstance(item, dict):
+            continue
+        try:
+            link = clean_link(item.get("url"))
+        except HubError:
+            continue
+        if not link:
+            continue
+        hits.append({
+            "title": clean_text(item.get("title") or link, MAX_OPTION * 2, "title", required=False) or link,
+            "url": link,
+            "snippet": clean_text(item.get("snippet") or "", 600, "snippet", required=False) or "",
+        })
+    return hits[:4]
+
+
 class Agents:
     """Runs agent turns. Only Claude Code for now; other CLIs plug in through [command_for]."""
 
@@ -379,6 +411,7 @@ class Agents:
         self.claude = claude_path
         self.running = {}
         self.lock = threading.Lock()
+        self.search_slot = threading.Semaphore(1)
 
     def available(self):
         return [{"id": "claude", "name": "Claude Code", "host": socket.gethostname()}] if self.claude else []
@@ -458,6 +491,29 @@ class Agents:
                 self.running.pop(thread, None)
             self.hub.publish({"type": "reply", "thread": thread, "agent": agent, "turn": turn,
                               "text": reply[-MAX_TEXT * 4:], "done": True, "error": error})
+
+    def search(self, query):
+        """Web search by Claude Code (WebSearch tool only), for Lumi's general questions. Returns [{title,url,snippet}]."""
+        query = clean_text(query, 200, "query")
+        if not self.claude:
+            raise HubError("Claude Code is not available on this PC", 404)
+        if not self.search_slot.acquire(blocking=False):
+            raise HubError("A search is already running", 429)
+        try:
+            flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+            prompt = ("Search the web for the query below and reply ONLY with a JSON array of up to 4 objects "
+                      '{"title": ..., "url": ..., "snippet": ...} (snippet = 1-3 factual sentences from the page that '
+                      "answer the query). No prose.\n\nQUERY: " + query)
+            proc = subprocess.run(
+                [self.claude, "-p", "--output-format", "json", "--allowedTools", "WebSearch"],
+                input=prompt, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                cwd=self.workdir, timeout=SEARCH_TIMEOUT, creationflags=flags,
+            )
+            return parse_search_result(proc.stdout)
+        except subprocess.TimeoutExpired:
+            raise HubError("The search took too long", 504)
+        finally:
+            self.search_slot.release()
 
     def forget(self, thread):
         """Starts the thread over (a new Claude session on the next message)."""
@@ -580,7 +636,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if self.path == "/mcp":
                 return self.mcp()
-            if self.path not in ("/answer", "/chat", "/forget"):
+            if self.path not in ("/answer", "/chat", "/forget", "/search"):
                 return self.send_json(404, {"error": "not_found"})
             if not self.phone():
                 return
@@ -589,6 +645,8 @@ class Handler(BaseHTTPRequestHandler):
                 answer = clean_text(body.get("answer"), MAX_OPTION * 4, "answer")
                 ok = self.hub.answer(str(body.get("ask_id", "")), answer)
                 return self.send_json(200 if ok else 410, {"ok": ok})
+            if self.path == "/search":
+                return self.send_json(200, {"hits": self.agents.search(body.get("query"))})
             if self.path == "/chat":
                 turn = self.agents.start_turn(str(body.get("thread", "")), str(body.get("agent", "claude")), body.get("text"))
                 return self.send_json(202, {"ok": True, "turn": turn})

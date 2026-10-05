@@ -89,6 +89,13 @@ class HubClient(private val settings: HubSettings) {
         json.parseToJsonElement(request("POST", "/chat", body.toString())).jsonObject["turn"]?.jsonPrimitive?.contentOrNull.orEmpty()
     }
 
+    /** Web search done by Claude Code on the PC (#7): only the query is sent. Slow (up to ~2 min). */
+    suspend fun search(query: String): List<io.github.salex27.lumi.domain.search.WebHit> = withContext(Dispatchers.IO) {
+        io.github.salex27.lumi.data.search.SearchParsers.hub(
+            request("POST", "/search", JsonObject(mapOf("query" to JsonPrimitive(query))).toString(), readTimeoutMs = 150_000)
+        )
+    }
+
     /** The agent forgets this thread's session (the next message starts a fresh one). */
     suspend fun forget(thread: String) = withContext(Dispatchers.IO) {
         request("POST", "/forget", JsonObject(mapOf("thread" to JsonPrimitive(thread))).toString()); Unit
@@ -144,8 +151,8 @@ class HubClient(private val settings: HubSettings) {
         if (code !in 200..299) throw HubException(code, "HTTP $code")
     }
 
-    private fun request(method: String, path: String, body: String?): String {
-        val conn = open(method, path)
+    private fun request(method: String, path: String, body: String?, readTimeoutMs: Int = 20_000): String {
+        val conn = open(method, path, readTimeoutMs)
         try {
             if (body != null) {
                 conn.doOutput = true

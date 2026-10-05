@@ -44,6 +44,7 @@ data/
   chat/                        # ChatStore (sessions shared by pill and app), ChatMemory (rolling summary for the LLM)
   hub/                         # Lumi Hub client: HubProtocol (events, SSE, safety; pure, tested), HubClient, HubConnection
                                # (SSE only while a screen is visible), HubInbox (HUB chat sessions + notifications)
+  search/WebSearchService      # Opt-in web search (#7): Wikipedia / SearXNG / Brave / Lumi Hub + SearchParsers (tested)
   orbit/                       # OrbitRepository (threads = chat sessions of kind ORBIT, members, streamed agent turns),
                                # AgentBackends (extension point: LumiBrainBackend, ClaudePcBackend)
   backup/BackupManager.kt      # Export / import everything to a JSON file (phone change, reinstall)

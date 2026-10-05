@@ -6,6 +6,24 @@ translated when the project went public; version numbers before 1.0.0 refer to t
 
 ---
 
+## 2026-10-05 — General questions with web search, key-less by default (issue #7)
+
+- **Opt-in** (Settings → Web search, off by default; prefs `web_search`, not in the backup because of the Brave key).
+  Backends: **Wikipedia API** (default, no key, general knowledge), **SearXNG** (no key, user's trusted instance),
+  **Brave Search** (user's key), **through Lumi Hub** (`POST /search`: `claude -p --output-format json --allowedTools
+  WebSearch`, prompt via stdin, one at a time, 140 s cap; uses the user's Claude plan; ~14 s in a test).
+  DuckDuckGo scraping was rejected (no official API, fragile).
+- **When:** in the ASK path, fresh-data questions (`needsFreshData`: years, news, prices, results…) search first;
+  other questions search only when the model can't answer (NO_LO_SE or no LLM). The old "search Google" hand-off
+  remains the last resort. Only the query leaves the phone.
+- **Answer:** top 3 cleaned results (http(s) only, tags/bidi stripped, 500-char snippets) → the active LLM with
+  `WebAnswers.SYSTEM` (results are data, not instructions; cite [n]; NO_LO_SE if not answered) → without an LLM, the
+  best snippet with its citation. New result `AIProcessingResult.WebAnswer(reply, sources)`; the chat shows numbered
+  source links (stored in the message payload, so resumed chats keep them); the voice reply drops "[n]". The thinking
+  line says "Searching the web…" while a search runs.
+- Verified: emulator + Wikipedia: "who won the 2025 Tour de France?" → Gemma answered from 3 results with sources;
+  hub search with real Claude Code returned 3 kotlinlang.org hits.
+
 ## 2026-10-05 — Top-level intent routing: task / agent / question / opinion, ask when unsure (issue #1)
 
 - **`IntentRouter` (data/ai, pure) runs first** in `processNaturalLanguageCommand` (after routines, before the

@@ -35,7 +35,9 @@ sealed interface ChatMessage {
         val text: String,
         val engine: String = "",
         val tasks: List<Task> = emptyList(),
-        val isError: Boolean = false
+        val isError: Boolean = false,
+        /** Web results the answer came from (#7), shown as links. */
+        val sources: List<io.github.salex27.lumi.domain.search.WebHit> = emptyList()
     ) : ChatMessage
 }
 
@@ -74,7 +76,9 @@ data class AssistantUiState(
     val sessionTitle: String = "",
     val sessions: List<SessionItem> = emptyList(),
     /** "Task or Claude?": Lumi wasn't sure what kind of request it was (#1). */
-    val clarify: AIProcessingResult.Clarify? = null
+    val clarify: AIProcessingResult.Clarify? = null,
+    /** A web search is running (#7): the thinking line says so. */
+    val searching: Boolean = false
 ) {
     /** Texts of the options to choose from (tasks, contacts or the kind of request). */
     val optionLabels: List<String>
@@ -92,6 +96,17 @@ internal fun routeLabel(route: io.github.salex27.lumi.domain.assistant.IntentRou
 }
 
 data class ContactChoice(val command: DeviceCommand, val options: List<DeviceActions.Contact>)
+
+/** Web sources stored with an assistant message (JSON payload), so a resumed chat still shows them. */
+internal object MessagePayload {
+    @kotlinx.serialization.Serializable
+    private data class Payload(val sources: List<io.github.salex27.lumi.domain.search.WebHit> = emptyList())
+    private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+
+    fun of(sources: List<io.github.salex27.lumi.domain.search.WebHit>): String? = if (sources.isEmpty()) null else json.encodeToString(Payload(sources))
+    fun sources(payload: String?): List<io.github.salex27.lumi.domain.search.WebHit> =
+        payload?.let { runCatching { json.decodeFromString<Payload>(it).sources }.getOrNull() }.orEmpty()
+}
 
 /** A saved chat in the session list. */
 data class SessionItem(val id: Long, val title: String, val preview: String, val updatedAt: Long, val messageCount: Int)
@@ -130,7 +145,8 @@ class AssistantViewModel(
     private val chatStore: ChatStore? = null,
     private val chatMemory: ChatMemory? = null,
     /** Hands a request to Claude on the PC (Orbit 1:1 through Lumi Hub); false when the Hub isn't set up. */
-    private val handOff: suspend (String) -> Boolean = { false }
+    private val handOff: suspend (String) -> Boolean = { false },
+    searchingFlow: StateFlow<Boolean> = MutableStateFlow(false)
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AssistantUiState())
@@ -149,6 +165,7 @@ class AssistantViewModel(
     init {
         _state.update { it.copy(messages = listOf(greeting())) }
         viewModelScope.launch { orchestrator.refreshActiveEngine() }
+        viewModelScope.launch { searchingFlow.collect { s -> _state.update { it.copy(searching = s) } } }
         val store = chatStore
         if (store == null) ready.complete(Unit) else {
             viewModelScope.launch { store.observeSessions().collect { rows -> _state.update { it.copy(sessions = rows.map(::toItem)) } } }
@@ -204,7 +221,10 @@ class AssistantViewModel(
 
     private suspend fun toUi(m: ChatMessageEntity, id: Long): ChatMessage =
         if (m.role == ChatMessageEntity.ROLE_USER) ChatMessage.User(id, m.text)
-        else ChatMessage.Assistant(id, m.text, m.engine, m.taskIdList.take(6).mapNotNull { runCatching { repository.getTask(it) }.getOrNull() }, m.isError)
+        else ChatMessage.Assistant(
+            id, m.text, m.engine, m.taskIdList.take(6).mapNotNull { runCatching { repository.getTask(it) }.getOrNull() }, m.isError,
+            MessagePayload.sources(m.payload)
+        )
 
     // ── Sessions ──────────────────────────────────────────────────────────────
 
@@ -494,7 +514,8 @@ class AssistantViewModel(
                     text = result.reply,
                     engine = result.engine,
                     tasks = tasks,
-                    isError = result is AIProcessingResult.Error
+                    isError = result is AIProcessingResult.Error,
+                    sources = (result as? AIProcessingResult.WebAnswer)?.sources.orEmpty()
                 ),
                 action
             )
@@ -519,7 +540,8 @@ class AssistantViewModel(
                 }
             }
             routineActive = result is AIProcessingResult.Routine
-            if (voiceTurn) speak(result.reply)
+            // Citation marks ("[1]") are for the screen, not for the voice
+            if (voiceTurn) speak(result.reply.replace(Regex("\\s*\\[\\d+]"), ""))
             // Continuous conversation: after answering by voice, listen again (unless Lumi goes to another app)
             val leaves = result is AIProcessingResult.Navigate || result is AIProcessingResult.OpenTask ||
                 (result is AIProcessingResult.Device && !result.command.staysInLumi) ||
@@ -549,7 +571,8 @@ class AssistantViewModel(
             is ChatMessage.Assistant -> ChatMessageEntity(
                 sessionId = 0, role = ChatMessageEntity.ROLE_ASSISTANT, text = message.text, createdAt = store.stamp(),
                 engine = message.engine, isError = message.isError, action = action,
-                taskIds = ChatMessageEntity.joinIds(message.tasks.map { it.id })
+                taskIds = ChatMessageEntity.joinIds(message.tasks.map { it.id }),
+                payload = MessagePayload.of(message.sources)
             )
         }
         synchronized(pendingWrites) {
@@ -565,10 +588,11 @@ class AssistantViewModel(
         private val speak: (String) -> Unit = {},
         private val chatStore: ChatStore? = null,
         private val chatMemory: ChatMemory? = null,
-        private val handOff: suspend (String) -> Boolean = { false }
+        private val handOff: suspend (String) -> Boolean = { false },
+        private val searching: StateFlow<Boolean> = MutableStateFlow(false)
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T = AssistantViewModel(repository, orchestrator, speak, chatStore, chatMemory, handOff) as T
+        override fun <T : ViewModel> create(modelClass: Class<T>): T = AssistantViewModel(repository, orchestrator, speak, chatStore, chatMemory, handOff, searching) as T
     }
 }
 

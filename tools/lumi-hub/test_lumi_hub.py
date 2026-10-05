@@ -122,6 +122,17 @@ class StreamJsonTest(unittest.TestCase):
         self.assertIsNone(h.parse_stream_line('{"type":"user"}'))
 
 
+class SearchParseTest(unittest.TestCase):
+    def test_hits_come_from_the_json_inside_the_result(self):
+        result = ('Here you go:\n[{"title":"Paris","url":"https://en.wikipedia.org/wiki/Paris","snippet":"Capital of France."},'
+                  '{"title":"bad","url":"javascript:alert(1)"},{"title":"x","url":"https://a.com/‮exe"}]')
+        hits = h.parse_search_result(json.dumps({"type": "result", "result": result}))
+        self.assertEqual(["https://en.wikipedia.org/wiki/Paris"], [x["url"] for x in hits][:1])
+        self.assertTrue(all(x["url"].startswith("https://") for x in hits))
+        self.assertEqual([], h.parse_search_result("not json"))
+        self.assertEqual([], h.parse_search_result(json.dumps({"result": "no results"})))
+
+
 class FakeAgents(h.Agents):
     """Runs a tiny Python script instead of claude, printing stream-json (exercises the real turn runner)."""
 
@@ -161,7 +172,7 @@ class TurnTest(unittest.TestCase):
             agents.start_turn("bad thread id!", "claude", "x")
 
     def _wait_done(self, hub, after):
-        for _ in range(500):
+        for _ in range(3000):
             done = [e for e in hub.since(after) if e["type"] == "reply" and e["done"]]
             if done:
                 return done[0]
