@@ -1,0 +1,46 @@
+package io.github.salex27.lumi.data.ai
+
+/**
+ * "Claude, fix the build" / «dile a Claude que arregle el build»: a task for a Claude Code session on the user's PC
+ * (see ClaudeBridge and docs/CLAUDE_BRIDGE_SETUP.md). Both languages in one place because it's checked before the
+ * language split and before CommandSplitter (the task itself may contain "y"/"and"). Pure Kotlin and tested.
+ */
+object ClaudeIntent {
+
+    private const val I = "(?iu)"
+    private const val PC = "(?:\\s+(?:en|on)\\s+(?:el\\s+|mi\\s+|my\\s+|the\\s+)?(?:pc|ordenador|port[aá]til|computer|laptop))?"
+
+    private val PATTERNS = listOf(
+        // «Claude, …» / «Oye Claude: …» / "Hey Claude, …"
+        Regex("$I^(?:oye\\s+|hey\\s+|ok\\s+)?claude\\s*[,:]\\s*(.+)$"),
+        // «dile/pídele/encárgale a Claude (que) …»
+        Regex("$I^(?:dile|p[ií]dele|enc[aá]rgale|preg[uú]ntale)\\s+a\\s+claude$PC\\s*(?:que\\s+|:\\s*|,\\s*)?(.+)$"),
+        // «manda/envía/pasa a Claude (la tarea de / que) …»
+        Regex("$I^(?:m[aá]ndale|manda|env[ií]ale|env[ií]a|p[aá]sale|pasa)\\s+(?:esto\\s+|una\\s+tarea\\s+)?a\\s+claude$PC\\s*(?:la\\s+tarea\\s+(?:de\\s+)?|que\\s+|:\\s*|,\\s*)?(.+)$"),
+        // «abre/crea/inicia una (nueva) sesión de Claude (en el PC) (para/y/:) …»; the task is optional
+        Regex("$I^(?:abre(?:me)?|crea(?:me)?|inicia|empieza|l[aá]nza(?:me)?|arranca)\\s+(?:una\\s+)?(?:nueva\\s+)?sesi[oó]n\\s+(?:de|con|en)\\s+claude(?:\\s+code)?$PC(?:\\s*(?:para\\s+(?:que\\s+)?|y\\s+|que\\s+|:\\s*|,\\s*)(.+))?$"),
+        // "tell/ask/have Claude (on my PC) (to) …"
+        Regex("$I^(?:tell|ask|have|get)\\s+claude$PC\\s*(?:to\\s+|:\\s*|,\\s*)?(.+)$"),
+        // "send (this / a task) to Claude: …"
+        Regex("$I^(?:send|give|pass)\\s+(?:this\\s+|a\\s+task\\s+|it\\s+)?(?:to\\s+)?claude$PC\\s*(?::\\s*|,\\s*|to\\s+)?(.+)$"),
+        // "open/start a (new) Claude (Code) session (on my PC) (to/and/: …)"
+        Regex("$I^(?:open|start|create|launch|spin\\s+up)\\s+(?:a\\s+)?(?:new\\s+)?(?:claude(?:\\s+code)?\\s+session|session\\s+(?:with|in|on)\\s+claude(?:\\s+code)?)$PC(?:\\s*(?:to\\s+|and\\s+|for\\s+|:\\s*|,\\s*)(.+))?$")
+    )
+
+    /** The task for Claude ("" = just open a session), or null when the sentence isn't for Claude. */
+    fun parse(text: String): String? {
+        val t = text.trim()
+        for (p in PATTERNS) {
+            val m = p.find(t) ?: continue
+            return m.groupValues.getOrNull(1).orEmpty().trim().trimEnd('.').trim()
+        }
+        return null
+    }
+
+    /** Session name shown in the Claude app: "Lumi · fix the failing build". */
+    fun sessionName(task: String): String {
+        val short = task.replace(Regex("\\s+"), " ").trim()
+        if (short.isEmpty()) return "Lumi"
+        return "Lumi · " + if (short.length <= 40) short else short.take(40).substringBeforeLast(' ').ifBlank { short.take(40) } + "…"
+    }
+}

@@ -1,0 +1,104 @@
+package io.github.salex27.lumi.data.claude
+
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import io.github.salex27.lumi.data.settings.SettingsRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+
+/**
+ * Starts a Claude Code session with Remote Control on the user's PC, through the bridge in
+ * tools/claude-bridge (docs/CLAUDE_BRIDGE_SETUP.md). Only works while Tailscale is connected on the phone: the bridge
+ * lives at a *.ts.net HTTPS address that only resolves and routes inside the tailnet, and the bridge itself only
+ * accepts the owner's Tailscale login plus the token.
+ */
+class ClaudeBridge(private val context: Context, private val settings: SettingsRepository) {
+
+    sealed interface Outcome {
+        /** [host] = PC name, [name] = session name to look for in the Claude app. */
+        data class Started(val host: String, val name: String) : Outcome
+        data object Disabled : Outcome
+        data object TailscaleOff : Outcome
+        /** Tailscale is on but the PC doesn't answer (off, asleep, bridge not running). */
+        data object Unreachable : Outcome
+        data object Unauthorized : Outcome
+        data object TooMany : Outcome
+        data class Failed(val detail: String) : Outcome
+    }
+
+    /** Some VPN is up. Tailscale on Android is a VPN; which one it is can't be asked, the *.ts.net address decides. */
+    fun vpnConnected(): Boolean {
+        val cm = context.getSystemService(ConnectivityManager::class.java) ?: return false
+        return cm.allNetworks.any { cm.getNetworkCapabilities(it)?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true }
+    }
+
+    /** Checks the address and token without starting anything. Null = OK. */
+    suspend fun test(): Outcome? = withContext(Dispatchers.IO) {
+        precheck()?.let { return@withContext it }
+        runCatching { call("GET", "/health", null) }.fold(
+            { (code, _) -> if (code == 200) null else codeOutcome(code, "") },
+            { Outcome.Unreachable }
+        )
+    }
+
+    suspend fun startSession(task: String, name: String): Outcome = withContext(Dispatchers.IO) {
+        precheck()?.let { return@withContext it }
+        val body = JSONObject().put("prompt", task).put("name", name).toString()
+        runCatching { call("POST", "/session", body) }.fold(
+            { (code, text) ->
+                if (code == 200) {
+                    val json = runCatching { JSONObject(text) }.getOrNull()
+                    Outcome.Started(json?.optString("host").orEmpty().ifBlank { "PC" }, json?.optString("name").orEmpty().ifBlank { name })
+                } else codeOutcome(code, text)
+            },
+            { Outcome.Unreachable }
+        )
+    }
+
+    private fun precheck(): Outcome? {
+        val s = settings.current
+        if (!s.claudeBridgeReady) return Outcome.Disabled
+        if (!vpnConnected()) return Outcome.TailscaleOff
+        return null
+    }
+
+    private fun codeOutcome(code: Int, text: String): Outcome = when (code) {
+        401, 403 -> Outcome.Unauthorized
+        429 -> Outcome.TooMany
+        else -> Outcome.Failed("HTTP $code ${text.take(120)}".trim())
+    }
+
+    private fun call(method: String, path: String, body: String?): Pair<Int, String> {
+        val s = settings.current
+        val conn = (URL(baseUrl(s.claudeBridgeUrl) + path).openConnection() as HttpURLConnection).apply {
+            requestMethod = method
+            connectTimeout = 5_000
+            readTimeout = 10_000
+            setRequestProperty("Authorization", "Bearer ${s.claudeBridgeToken}")
+            if (body != null) {
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            }
+        }
+        try {
+            if (body != null) conn.outputStream.use { it.write(body.toByteArray()) }
+            val code = conn.responseCode
+            val text = (if (code in 200..299) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
+            return code to text
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    companion object {
+        /** "laptop.tailnet.ts.net:8443" → "https://laptop.tailnet.ts.net:8443" (always HTTPS, no trailing slash). */
+        fun baseUrl(address: String): String {
+            val a = address.trim().trimEnd('/')
+            return if (a.startsWith("https://", ignoreCase = true)) a else "https://" + a.removePrefix("http://")
+        }
+    }
+}

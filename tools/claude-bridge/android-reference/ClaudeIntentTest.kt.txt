@@ -1,0 +1,62 @@
+package io.github.salex27.lumi.data.ai
+
+import io.github.salex27.lumi.domain.model.TaskAICommand
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
+import java.time.LocalDateTime
+import kotlin.random.Random
+
+/** "Claude, …": tasks for a Claude Code session on the PC (through Tailscale). */
+class ClaudeIntentTest {
+
+    private val engine = RuleBasedEngine(Random(3))
+    private val now = LocalDateTime.of(2026, 10, 1, 10, 0)
+
+    @Test
+    fun `spanish phrasings give the whole task`() {
+        assertEquals("arregla el build y sube los cambios", ClaudeIntent.parse("Claude, arregla el build y sube los cambios"))
+        assertEquals("revise los tests de Lumi", ClaudeIntent.parse("Dile a Claude que revise los tests de Lumi."))
+        assertEquals("prepare el changelog", ClaudeIntent.parse("pídele a Claude en el PC que prepare el changelog"))
+        assertEquals("actualizar el README", ClaudeIntent.parse("Manda a Claude la tarea de actualizar el README"))
+        assertEquals("mire por qué falla la app", ClaudeIntent.parse("abre una sesión de Claude para que mire por qué falla la app"))
+        assertEquals("", ClaudeIntent.parse("Abre una nueva sesión de Claude en el ordenador"))
+    }
+
+    @Test
+    fun `english phrasings give the whole task`() {
+        assertEquals("fix the failing build and push", ClaudeIntent.parse("Hey Claude, fix the failing build and push"))
+        assertEquals("review the open PR", ClaudeIntent.parse("tell Claude to review the open PR"))
+        assertEquals("write release notes", ClaudeIntent.parse("ask Claude on my PC to write release notes"))
+        assertEquals("bump the version", ClaudeIntent.parse("send this to Claude: bump the version"))
+        assertEquals("look at the crash", ClaudeIntent.parse("start a new Claude Code session on my laptop and look at the crash"))
+        assertEquals("", ClaudeIntent.parse("open a Claude session"))
+    }
+
+    @Test
+    fun `sentences that only mention Claude are not for the bridge`() {
+        assertNull(ClaudeIntent.parse("recuérdame decirle a Claude que revise el PR"))
+        assertNull(ClaudeIntent.parse("remind me to ask Claude about the API"))
+        assertNull(ClaudeIntent.parse("llamar a Claudia mañana"))
+        assertNotEquals(TaskAICommand.CLAUDE, engine.parse("recuérdame decirle a Claude que revise el PR", now).action)
+    }
+
+    @Test
+    fun `the rules route both languages to CLAUDE`() {
+        val es = engine.parse("Claude, añade tests al parser", now)
+        assertEquals(TaskAICommand.CLAUDE, es.action)
+        assertEquals("añade tests al parser", es.targetTitle)
+        val en = engine.parse("tell Claude to add tests to the parser", now)
+        assertEquals(TaskAICommand.CLAUDE, en.action)
+        assertEquals("add tests to the parser", en.targetTitle)
+    }
+
+    @Test
+    fun `session names are short`() {
+        assertEquals("Lumi", ClaudeIntent.sessionName(""))
+        assertEquals("Lumi · fix the build", ClaudeIntent.sessionName("fix the build"))
+        assertEquals("Lumi · revisa todos los tests del parser de…",
+            ClaudeIntent.sessionName("revisa todos los tests del parser de fechas en español y en inglés"))
+    }
+}
