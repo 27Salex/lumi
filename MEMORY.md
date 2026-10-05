@@ -22,6 +22,106 @@ translated when the project went public; version numbers before 1.0.0 refer to t
 - Backup format 2 adds `chats` (task ids not exported: tasks get new ids on import; dedupe by kind + createdAt).
 - Fixed on the way: the "What should I do now?" / "How am I doing?" chips in the chat added the user bubble but never
   ran the request (`quick` didn't call `run`).
+## 2026-10-05 — Voice Match as the media gate, per-phrase training, adaptive print (issue #6)
+
+- **Why:** the 0.80 × 2 media bump kept only 26 % of "Oye Lumi" / 50 % of "Hey Lumi" (Bluetooth 0.85 × 3: 7 % / 24 %),
+  and retraining didn't help (entry below). The Vosk print already ran on every detection when a voice is trained.
+- **Measured** (scratch `vm_eval.py`: Vosk small-es + spk-0.4 on 10 multilingual edge-tts voices × 14 "Hey Lumi" + 14
+  "Oye Lumi", 2 s wake windows like the service's ring buffer, TV episodes / MUSAN music mixed in). Against the user's
+  phrase print: own voice in quiet 0.70 average (5th pct 0.49); with TV at +10 dB 62 % ≥ 0.37 (54 % ≥ 0.40); TV at
+  +5 dB 26 %; **TV audio alone max 0.37, 1 of 195 windows ≥ 0.35**; another TTS voice 0.29 average, 16 % ≥ 0.42 (the
+  earlier "another person 0.03" was optimistic; TTS voices may be closer to each other than real people). On-device
+  self-test (emulator) gave the same transcripts and prints as Python (parity).
+- **Vosk gives no print for short clips:** it needs ~50 frames aligned to words, and a short "Hey Lumi" often has
+  fewer (no print for ~40 % of wake windows, even in quiet). The print is a mean over frames, so `VoicePrinter`
+  decodes the clip again repeated twice when none came out (only then): user's wakes without a print 39 % → 9 % in
+  quiet, 59 % → 24 % with TV at +10 dB; TV-alone and other-voice similarities stayed in the same range. Training allows 3 repeats (not time-critical).
+  A closed grammar made it worse (more empty results).
+- **Policy (`WakeGate`):** with a trained voice + media on speaker/Bluetooth: the user's own detector bar, 1 window,
+  Voice Match REQUIRED; a match skips the confirmation; the similarity bar is 0.05 lower (voice mixed with the TV)
+  but never below 0.35 during media (so on Relaxed the media bar is stricter than in quiet). No print during media →
+  only a score ≥ 0.80 goes on, and it is confirmed. Bluetooth route without playback + voice: voice required, no relax,
+  no-print falls back to the old idle policy. Without a trained voice: media → 0.50 (= Strict), 1 window, always
+  confirm (measured v2 at 0.50: phone-speaker media 7/h, car 1/h, all confirmed instead of acted on).
+- **Training:** 12 samples PER PHRASE ("Hey Lumi" / "Oye Lumi" trained separately; the app language's phrase listed
+  first): close ×3, far ×2, soft ×2, louder ×2, music ×3 (skippable after 9). Own recorder + Vosk utterance split;
+  each print via `VoicePrinter` on the last 2.5 s (same code as the wake check). LOO outliers < 0.12 dropped (≤ 2).
+  Bar per phrase = LOO mean − 1.5 sd (≈ the fixed Normal bar 0.42 for a typical spread), shifted by the sensitivity's
+  distance from Normal and kept within ±0.08 of the fixed bar. Fewer than 6 samples or a legacy print → fixed bar.
+- **Phrase at wake time:** from the Vosk transcript of the same 2 s ("hoy/oye/uy…" → Oye; "el/eh/en/ay/ahí/hay/
+  ilumin…/ayud…" → Hey). Never confused in 80 windows, but about half can't be told → best of both prints.
+- **Storage:** prints only (never audio) in `files/voice_profile.txt` (plain text, version=2). The 1.0.x profile
+  (one averaged print in SharedPreferences) is migrated on load and works for both phrases with the fixed bar until
+  each phrase is retrained; Settings says "older training (3 samples)".
+- **Adaptive print:** a wake with a print opens the assistant with a wake id. Voice command sent directly, or "yes" to
+  the confirmation → confirmed: the print is learned for that phrase only if score ≥ 0.50 and similarity ≥ bar + 0.08
+  (+0.15 during media); 10 per phrase, rolling; the centroid = mean of enrolled + learned. Closed/cancelled/silent
+  within 30 s without a request → negative (20 rolling), used ONLY to raise the bar to just above the second highest
+  dismissed similarity + 0.03, by ≤ 0.10 and never above the 20th percentile of the user's own similarities (so the
+  user dismissing their own wake teaches nothing). "Open app" from the pill counts as neither. "Reset learned voice
+  data" in Settings → My voice keeps the training.
+- **Latency** (emulator x86_64, print only after a detection; nothing new per 80 ms chunk): print 200-900 ms, up to
+  ~1.3 s when the doubled retry runs; model preload at service start 330-550 ms (it used to load on the first wake,
+  1-2 s). A rejected sound isn't checked again for 1 s (the same TV line fires several windows).
+- **Not verified yet (needs the S25):** real-voice similarities (TTS only so far), real microphone training, print
+  latency on the phone, the echo-cancelled mix in a real car.
+
+## 2026-10-04 — Wake word retrain with media / car / sound-alike hard negatives: tried, NOT shipped (issue #6)
+
+- **Kept model v2** (`oye_lumi.bin` and the thresholds unchanged). No retrained model beat it clearly at the same
+  true-wake recall: every candidate that cut media false wakes raised false wakes on real everyday audio.
+- **New data (outside the repo, licence-clean):** MUSAN (CC BY 4.0: 16 h music, 10 h speech, 6 h noise);
+  22 public-domain US TV episodes from archive.org (11 of *The Lucy Show*, which says "Lucy" constantly, plus Andy
+  Griffith, Beverly Hillbillies, etc.); 8 LibriVox Spanish audiobooks (public domain); Blender's *Tears of Steel* mix
+  (CC BY, test only). Plus 2,408 edge-tts clips: 48 English and 46 Spanish sound-alikes ("Hey Lucy", "Hey Louie",
+  "Oye Luis", "Oye Lucía"…) and TV-style lines. These were played through simulated channels: the phone's own
+  speaker (small-speaker EQ, clipping, sometimes an echo-canceller residual), car Bluetooth (cabin reverb + synthetic
+  road/engine/wind noise), and a TV in the room. Train and test are split by episode, book, file and TTS voice; the
+  test voices are the same ones v2 was measured on.
+- **New scenario tests:** false wakes/h on held-out media through the phone speaker (2.4 h), car (2.0 h) and room
+  (1.5 h); sound-alikes from held-out voices.
+- **Baseline v2 per threshold.** Strict 0.50: phone 7.0/h, car 1.0/h, room 7.5/h. Normal 0.35: phone 14.8/h,
+  car 5.1/h, room 13.0/h, real audio 0/h; "Hey Lucy"-type 47 %, "Oye Luis"-type 25 %. Relaxed 0.25: phone 25/h,
+  car 11/h, room 22/h. So media on the speaker really does wake v2 about every 4 minutes on Normal.
+- **WakeGate's raised bar is costly.** It does stop media: speaker 0.80 × 2 windows → 0.8/h; Bluetooth 0.85 × 3 →
+  0/h. But only 26 % of held-out "Oye Lumi" and 50 % of "Hey Lumi" pass 0.80 × 2 (Bluetooth 0.85 × 3: 7 % / 24 %),
+  even in clean conditions. Calling Lumi over media mostly won't work.
+- **Retrain results** (`train_v3.py`; compared at the threshold that gives the SAME recall as v2, since retraining
+  shifts the score scale):
+  - Positives mixed with media/car audio made everything worse: their background could hold TV lines or
+    sound-alikes, which contradicts the negatives (real audio 5–22/h at v2's Normal recall).
+  - Fine-tuning v2 and a wider MLP (256/128) were also worse.
+  - Dropping near-homophones ("Hey Lumina", "Hey Lou, me too", "Oye Lumen"…) from the negatives didn't help.
+  - Best runs at Normal-equivalent recall: media false wakes about halved (phone 7–11/h, room 5–8/h, car 3–3.6/h),
+    "Hey Lucy" 47 % → 39–44 %. But real audio went 0 → 0.19–1.1/h, and a control run with no new data
+    landed in the same range, so run-to-run spread is as large as the data effect.
+  - At Strict-equivalent recall, run v3c reached phone 3.3/h and room 1.4/h, but real audio 0.19/h.
+- **Why not shipped:** none is clearly better without losing something, and real-audio false wakes matter most. Next
+  step for training: real phone recordings (accepted/rejected wakes) as hard negatives, not more synthetic media.
+  App-side options being discussed instead: Voice Match as the media gate in place of the 0.80 bump, and a Vosk
+  transcript veto only on names that clearly aren't Lumi. The Spanish small model can't transcribe "lumi" or
+  English, so it can't confirm a wake.
+- Scripts and data stayed in the session scratchpad (`oww3/`: `dl_musan.py`, `dl_media.py`, `gen_v3.py`,
+  `feat_v3.py`, `train_v3.py`, `evalset.py`, `compare.py`), not in the repo.
+
+## 2026-10-04 — Wake word: fewer false wakes from media and car Bluetooth (issue #6)
+
+- **Context-aware gate (`WakeGate`, pure + tested; `AudioEnvironment` reads the system state).** While another app
+  plays media (`isMusicActive`, refreshed by an `AudioPlaybackCallback`, held 2 s after it stops because the detector
+  looks at the last ~1.3 s) the detector needs ≥ 0.80 for 2 windows in a row on the speaker and ≥ 0.85 for 3 windows
+  over Bluetooth (car); a Bluetooth route with nothing playing adds +0.10; headphones keep the bar; calls
+  (`MODE_IN_CALL`/`IN_COMMUNICATION`) pause detection; a ringing phone counts as media. In silence nothing changes,
+  so the measured true-wake rates per sensitivity still hold. Why not a full pause during media: the user may still
+  want to call Lumi over music; a true "Hey Lumi" scored 0.95–0.99 in the self-test.
+- **Confirmation as the gate:** after a wake with media playing or a borderline score (< threshold + 0.15) and no
+  Voice Match, the first voice request is always confirmed ("Should I note it down?"), even if it looks like a
+  command (a series line "remind me…" passes `CommandLikeness`). Voice Match passing skips it.
+- **Echo cancellation:** `AcousticEchoCanceler` + `NoiseSuppressor` on the `AudioRecord` session, enabled only while
+  media plays (the model was trained on unprocessed audio, so quiet-room capture stays identical). Source stays
+  `VOICE_RECOGNITION`.
+- **Diagnostics:** wakes log score/policy/media/route; a score the user's sensitivity would accept but the raised bar
+  rejected shows "Ignored: other audio was playing" in Settings → My voice. Retraining with TV/music/car hard
+  negatives was tried afterwards and not shipped (see the entry above).
 
 ## 2026-09-30 — 1.0.0 (same version): "Hey Lumi", better wake word, lock screen and a recognizer loop
 
@@ -529,6 +629,8 @@ Plan approved by the user ("Lumi — Plan v3.1"). Decisions:
   with the real microphone, Gemma on GPU after the OpenCL fix, replying from a notification, real Google Calendar meetings.
 - The wake word was trained on synthetic (TTS) voices with simulated phone-mic effects; real voices may score lower.
   English sound-alike names ("Hey Lucy") can wake it. If it misses you, use "Relaxed" + "Train my voice".
+- Voice Match thresholds were set on TTS voices; Vosk gives no print for some short wakes even after the doubled retry
+  (then media wakes need 0.80 + confirmation).
 - Google Tasks only has a date (no time) → the time lives only on the phone.
 - The Agenda view doesn't allow dragging blocks to change the time (edit from the sheet).
 - The APK is debug-signed (no release keystore): an app signed with another key can't update over it.

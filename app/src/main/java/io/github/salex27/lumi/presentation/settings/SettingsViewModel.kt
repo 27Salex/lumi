@@ -18,6 +18,7 @@ import io.github.salex27.lumi.data.settings.AppSettings
 import io.github.salex27.lumi.data.sync.DeviceCalendar
 import io.github.salex27.lumi.data.sync.GoogleTasksSync
 import io.github.salex27.lumi.service.wakeword.VoiceEnroller
+import io.github.salex27.lumi.service.wakeword.WakePhrase
 import io.github.salex27.lumi.service.wakeword.VoskModelManager
 import io.github.salex27.lumi.service.wakeword.WakePhrases
 import io.github.salex27.lumi.service.wakeword.WakeWordService
@@ -77,9 +78,16 @@ data class PlacesUi(
     val error: String? = null
 )
 
-/** "Train my voice": saved profile, sensitivity and training progress. */
+/** One phrase's training: how many samples its print has, and whether it is the old 3-sample training. */
+data class PhraseVoice(val samples: Int, val legacy: Boolean)
+
+/** "Train my voice": saved profile (per phrase), sensitivity and training progress. */
 data class VoiceUi(
     val trained: Boolean = false,
+    val phrases: Map<WakePhrase, PhraseVoice> = emptyMap(),
+    /** Prints learned from confirmed wakes and dismissed wakes kept for calibration (adaptive Voice Match). */
+    val learned: Int = 0,
+    val dismissed: Int = 0,
     val sensitivity: WakePhrases.Sensitivity = WakePhrases.Sensitivity.NORMAL,
     val training: VoiceEnroller.State = VoiceEnroller.State.Idle,
     /** The last short phrase "Oye Lumi" heard and why it was accepted or not. */
@@ -121,7 +129,9 @@ interface SettingsActions {
     fun setThemeMode(mode: String)
     fun disableWakeWord()
     fun setWakeWordScreenOnly(enabled: Boolean)
-    fun startVoiceTraining()
+    fun startVoiceTraining(phrase: WakePhrase)
+    fun skipVoiceRound()
+    fun resetLearnedVoice()
     fun cancelVoiceTraining()
     fun deleteVoiceProfile()
     fun setVoiceSensitivity(level: WakePhrases.Sensitivity)
@@ -150,9 +160,14 @@ class SettingsViewModel(private val app: TaskManagerApplication) : ViewModel(), 
     private val enrollState = MutableStateFlow<VoiceEnroller.State>(VoiceEnroller.State.Idle)
 
     private val voice = combine(
-        app.voiceProfile.profile, app.voiceProfile.sensitivityFlow, enrollState, WakeWordService.lastHeard, WakeWordService.lastScore
-    ) { profile, sens, training, heard, score ->
-        VoiceUi(trained = profile != null, sensitivity = sens, training = training, lastHeard = heard, lastScore = score)
+        app.voiceProfile.data, app.voiceProfile.sensitivityFlow, enrollState, WakeWordService.lastHeard, WakeWordService.lastScore
+    ) { data, sens, training, heard, score ->
+        VoiceUi(
+            trained = data?.trained == true,
+            phrases = data?.phrases.orEmpty().mapValues { (_, p) -> PhraseVoice(p.enrolled.size, p.legacy) },
+            learned = data?.phrases?.values?.sumOf { it.learned.size } ?: 0, dismissed = data?.negatives?.size ?: 0,
+            sensitivity = sens, training = training, lastHeard = heard, lastScore = score
+        )
     }
 
     private val extras = combine(wakeStatus, app.gemmaEngine.diagnostics, app.googleTasksSync.status, app.wakeWordModel.state, voice) { sys, diag, gt, wake, v ->
@@ -298,25 +313,36 @@ class SettingsViewModel(private val app: TaskManagerApplication) : ViewModel(), 
     // ── "Train my voice" ────────────────────────────────────────────────────
 
     /** Needs the downloaded model and the microphone permission. "Oye Lumi" is paused to free the microphone. */
-    override fun startVoiceTraining() {
+    override fun startVoiceTraining(phrase: WakePhrase) {
         if (!app.wakeWordModel.isReady()) {
             enrollState.value = VoiceEnroller.State.Failed(app.getString(io.github.salex27.lumi.R.string.wake_first_turn_on))
             return
         }
         WakeWordService.pause(app)
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
-            val job = launch { enroller.state.collect { enrollState.value = it } }
-            enroller.start { embedding, names ->
-                app.voiceProfile.save(embedding, names)
+        enrollJob?.cancel()
+        enrollJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            launch {
+                enroller.state.collect {
+                    enrollState.value = it
+                    if (it is VoiceEnroller.State.Failed) WakeWordService.resume(app)
+                }
+            }
+            enroller.start(phrase) { prints, names ->
+                app.voiceProfile.savePhrase(phrase, prints, names)
                 WakeWordService.resume(app)
-                job.cancel()
-                enrollState.value = VoiceEnroller.State.Done
             }
         }
     }
 
+    private var enrollJob: kotlinx.coroutines.Job? = null
+
+    override fun skipVoiceRound() = enroller.skipCondition()
+
+    override fun resetLearnedVoice() = app.voiceProfile.resetLearned()
+
     override fun cancelVoiceTraining() {
         enroller.stop()
+        enrollJob?.cancel()
         enrollState.value = VoiceEnroller.State.Idle
         WakeWordService.resume(app)
     }

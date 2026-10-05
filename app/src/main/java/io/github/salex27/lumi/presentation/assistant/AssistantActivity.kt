@@ -76,6 +76,15 @@ class AssistantActivity : ComponentActivity() {
         val compact = intent.getBooleanExtra(EXTRA_COMPACT, intent.action == Intent.ACTION_ASSIST || intent.action == Intent.ACTION_VOICE_COMMAND)
         // Opened on its own by "Oye Lumi": more caution (confirmation and auto-close if there is no clear command)
         val fromWakeWord = intent.getBooleanExtra(EXTRA_FROM_WAKE_WORD, false)
+        // Borderline score or other audio playing when it woke: the first voice request is always confirmed (issue #6)
+        if (firstLaunch && fromWakeWord && intent.getBooleanExtra(EXTRA_WAKE_CONFIRM, false)) viewModel.confirmNextWakeRequest()
+        // Adaptive Voice Match: what the user does next tells whether the wake was really them
+        val wakeId = intent.getLongExtra(EXTRA_WAKE_ID, 0L)
+        wokeByVoice = fromWakeWord
+        if (firstLaunch && fromWakeWord && wakeId != 0L) {
+            val profile = app.voiceProfile
+            viewModel.onWakeOutcome = { confirmed -> profile.wakeOutcome(wakeId, confirmed) }
+        }
 
         setContent {
             val theme by app.settings.settings.collectAsStateWithLifecycle()
@@ -234,12 +243,16 @@ class AssistantActivity : ComponentActivity() {
                 if (fromWakeWord) {
                     LaunchedEffect(state.voiceError, state.messages.size) {
                         // Only messages of this opening count (a resumed chat brings its history)
-                        if (state.voiceError != null && state.messages.none { it.id >= LIVE_ID_BASE }) { kotlinx.coroutines.delay(2_500); finish() }
+                        if (state.voiceError != null && state.messages.none { it.id >= LIVE_ID_BASE }) {
+                            kotlinx.coroutines.delay(2_500)
+                            viewModel.reportWake(confirmed = false) // nobody spoke to Lumi
+                            finish()
+                        }
                     }
                     LaunchedEffect(state.pendingConfirmation) {
                         if (state.pendingConfirmation != null) {
                             kotlinx.coroutines.delay(8_000)
-                            if (viewModel.state.value.pendingConfirmation != null) finish()
+                            if (viewModel.state.value.pendingConfirmation != null) { viewModel.reportWake(confirmed = false); finish() }
                         }
                     }
                 }
@@ -268,10 +281,11 @@ class AssistantActivity : ComponentActivity() {
                     onConfirmPending = viewModel::confirmPending,
                     onDiscardPending = { viewModel.discardPending(); if (fromWakeWord) finish() },
                     onOpenApp = {
+                        viewModel.onWakeOutcome = null // the user wanted Lumi: not a dismissal, but no voice proof either
                         startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
                         finish()
                     },
-                    onDismiss = { finish() },
+                    onDismiss = { if (state.messages.none { it.id >= LIVE_ID_BASE }) viewModel.reportWake(confirmed = false); finish() },
                     onPickOption = viewModel::pick,
                     onPickNone = viewModel::pickNone,
                     sessionActions = SessionActions(
@@ -318,7 +332,12 @@ class AssistantActivity : ComponentActivity() {
         WakeWordService.resume(this)
     }
 
+    /** Opened by the wake word and closed before anything was asked (silence, dismissed, timed out). */
+    private var wokeByVoice = false
+
     override fun finish() {
+        // Adaptive Voice Match: closing a wake without asking anything counts as dismissed (only the first outcome counts)
+        if (wokeByVoice && viewModel.state.value.messages.none { it.id >= LIVE_ID_BASE }) viewModel.reportWake(confirmed = false)
         super.finish()
         @Suppress("DEPRECATION")
         overridePendingTransition(0, android.R.anim.fade_out)
@@ -349,6 +368,9 @@ class AssistantActivity : ComponentActivity() {
 
         const val EXTRA_COMPACT = "compact"
         const val EXTRA_FROM_WAKE_WORD = "from_wake_word"
+        const val EXTRA_WAKE_CONFIRM = "wake_confirm"
+        /** The wake word's pending sample ([io.github.salex27.lumi.service.wakeword.VoiceProfileStore.beginWake]). */
+        const val EXTRA_WAKE_ID = "wake_id"
         /** Read the reply to [EXTRA_PROMPT] aloud (e.g. "Listen" in the morning summary). */
         const val EXTRA_SPEAK = "speak"
         /** Phone action to run right after opening (a reminder's button) and the task to mark done. */
@@ -361,12 +383,17 @@ class AssistantActivity : ComponentActivity() {
             android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
         )
 
-        fun intent(context: Context, startListening: Boolean = false, prompt: String? = null, compact: Boolean = false, fromWakeWord: Boolean = false) =
+        fun intent(
+            context: Context, startListening: Boolean = false, prompt: String? = null, compact: Boolean = false,
+            fromWakeWord: Boolean = false, wakeConfirm: Boolean = false, wakeId: Long = 0L
+        ) =
             Intent(context, AssistantActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 .putExtra(EXTRA_START_LISTENING, startListening)
                 .putExtra(EXTRA_COMPACT, compact)
                 .putExtra(EXTRA_FROM_WAKE_WORD, fromWakeWord)
+                .putExtra(EXTRA_WAKE_CONFIRM, wakeConfirm)
+                .putExtra(EXTRA_WAKE_ID, wakeId)
                 .apply { prompt?.let { putExtra(EXTRA_PROMPT, it) } }
     }
 }

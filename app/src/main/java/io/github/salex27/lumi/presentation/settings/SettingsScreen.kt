@@ -72,6 +72,7 @@ import io.github.salex27.lumi.presentation.theme.Lumi
 import io.github.salex27.lumi.service.wakeword.VoiceEnroller
 import io.github.salex27.lumi.service.wakeword.VoskModelManager
 import io.github.salex27.lumi.service.wakeword.WakePhrases
+import io.github.salex27.lumi.service.wakeword.WakePhrase
 
 @Composable
 fun SettingsScreen(
@@ -397,7 +398,7 @@ fun SettingsScreen(
 }
 
 /**
- * "Train my voice" (like Google's Voice Match): "Oye Lumi" 3 times. After that Lumi only wakes up for your voice.
+ * "Train my voice" (like Google's Voice Match): 12 samples of each phrase you use, in varied conditions. After that Lumi only wakes up for your voice.
  * The voice print stays on the phone.
  */
 @Composable
@@ -421,24 +422,64 @@ private fun VoiceTraining(voice: VoiceUi, actions: SettingsActions) {
             val sim = h.similarity?.let { stringResource(R.string.voice_similarity, (it * 100).toInt()) }.orEmpty()
             StatusText(stringResource(R.string.voice_last_heard, h.text, sim, h.reason), if (h.accepted) c.success else c.warning)
         }
+        // The app language's phrase first ("Oye Lumi" in Spanish, "Hey Lumi" otherwise)
+        val order = if (io.github.salex27.lumi.domain.assistant.ReplyLanguage.app == io.github.salex27.lumi.domain.assistant.Lang.ES) listOf(WakePhrase.OYE, WakePhrase.HEY)
+            else listOf(WakePhrase.HEY, WakePhrase.OYE)
+        var lastPhrase by remember { mutableStateOf(order.first()) }
         when (val t = voice.training) {
             VoiceEnroller.State.Loading -> StatusText(stringResource(R.string.voice_preparing), c.warning)
             is VoiceEnroller.State.Listening, is VoiceEnroller.State.Retry -> {
-                val collected = if (t is VoiceEnroller.State.Listening) t.collected else (t as VoiceEnroller.State.Retry).collected
-                Text(stringResource(R.string.voice_say_it, collected + 1, VoiceEnroller.SAMPLES),
+                val (phrase, collected, condition) = when (t) {
+                    is VoiceEnroller.State.Listening -> Triple(t.phrase, t.collected, t.condition)
+                    else -> (t as VoiceEnroller.State.Retry).let { Triple(it.phrase, it.collected, it.condition) }
+                }
+                val name = phraseName(phrase)
+                Text(stringResource(R.string.voice_say_it, name, collected + 1, VoiceEnroller.SAMPLES),
                     style = MaterialTheme.typography.titleMedium, color = c.textPrimary)
+                Text(stringResource(conditionText(condition)), style = MaterialTheme.typography.bodyMedium, color = c.textSecondary)
                 Progress(collected / VoiceEnroller.SAMPLES.toFloat())
-                if (t is VoiceEnroller.State.Retry) StatusText(stringResource(R.string.voice_heard_repeat, t.heard), c.warning)
-                PillButton(stringResource(R.string.cancel), style = PillStyle.GHOST, onClick = actions::cancelVoiceTraining)
+                if (t is VoiceEnroller.State.Retry) StatusText(stringResource(R.string.voice_heard_repeat, t.heard, name), c.warning)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (condition == VoiceEnroller.Condition.MUSIC && collected >= VoiceEnroller.MIN_SAMPLES) {
+                        PillButton(stringResource(R.string.voice_skip_music), style = PillStyle.SECONDARY, onClick = actions::skipVoiceRound)
+                    }
+                    PillButton(stringResource(R.string.cancel), style = PillStyle.GHOST, onClick = actions::cancelVoiceTraining)
+                }
             }
             is VoiceEnroller.State.Failed -> {
                 StatusText(t.reason, c.danger)
-                PillButton(stringResource(R.string.retry), style = PillStyle.SECONDARY, onClick = actions::startVoiceTraining)
+                PillButton(stringResource(R.string.retry), style = PillStyle.SECONDARY, onClick = { actions.startVoiceTraining(lastPhrase) })
             }
-            else -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PillButton(stringResource(if (voice.trained) R.string.voice_retrain else R.string.voice_train),
-                    style = if (voice.trained) PillStyle.SECONDARY else PillStyle.PRIMARY, onClick = actions::startVoiceTraining)
-                if (voice.trained) PillButton(stringResource(R.string.delete), style = PillStyle.GHOST, onClick = actions::deleteVoiceProfile)
+            else -> {
+                if (t is VoiceEnroller.State.Done) StatusText(stringResource(R.string.voice_phrase_done, phraseName(t.phrase), t.samples), c.success)
+                Text(stringResource(R.string.voice_train_intro), style = MaterialTheme.typography.bodySmall, color = c.textTertiary)
+                order.forEach { phrase ->
+                    val p = voice.phrases[phrase]
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            when {
+                                p == null -> stringResource(R.string.voice_phrase_untrained, phraseName(phrase))
+                                p.legacy -> stringResource(R.string.voice_phrase_legacy, phraseName(phrase))
+                                else -> stringResource(R.string.voice_phrase_trained, phraseName(phrase), p.samples)
+                            },
+                            style = MaterialTheme.typography.bodyMedium, color = c.textPrimary, modifier = Modifier.weight(1f)
+                        )
+                        PillButton(stringResource(if (p == null) R.string.voice_train else R.string.voice_retrain),
+                            style = if (p == null) PillStyle.PRIMARY else PillStyle.SECONDARY,
+                            onClick = { lastPhrase = phrase; actions.startVoiceTraining(phrase) })
+                    }
+                }
+                if (voice.trained) {
+                    // Adaptive Voice Match: what it learned from your confirmed wakes (prints only, no audio)
+                    Text(stringResource(R.string.voice_learned, voice.learned, voice.dismissed),
+                        style = MaterialTheme.typography.bodySmall, color = c.textTertiary)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (voice.learned + voice.dismissed > 0) {
+                            PillButton(stringResource(R.string.voice_reset_learned), style = PillStyle.SECONDARY, onClick = actions::resetLearnedVoice)
+                        }
+                        PillButton(stringResource(R.string.voice_delete_all), style = PillStyle.GHOST, onClick = actions::deleteVoiceProfile)
+                    }
+                }
             }
         }
         if (voice.trained) {
@@ -456,6 +497,16 @@ private fun VoiceTraining(voice: VoiceUi, actions: SettingsActions) {
                 style = MaterialTheme.typography.bodySmall, color = c.textTertiary)
         }
     }
+}
+
+private fun phraseName(phrase: WakePhrase) = if (phrase == WakePhrase.HEY) "Hey Lumi" else "Oye Lumi"
+
+private fun conditionText(condition: VoiceEnroller.Condition) = when (condition) {
+    VoiceEnroller.Condition.CLOSE -> R.string.voice_cond_close
+    VoiceEnroller.Condition.FAR -> R.string.voice_cond_far
+    VoiceEnroller.Condition.SOFT -> R.string.voice_cond_soft
+    VoiceEnroller.Condition.LOUD -> R.string.voice_cond_loud
+    VoiceEnroller.Condition.MUSIC -> R.string.voice_cond_music
 }
 
 /** "Add by searching the address": name + search (Geocoder) → choose a result. */

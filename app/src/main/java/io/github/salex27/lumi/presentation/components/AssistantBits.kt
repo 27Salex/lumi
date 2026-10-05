@@ -125,7 +125,8 @@ fun CategoryLabel(category: TaskCategory, modifier: Modifier = Modifier) {
 fun EngineBadge(engine: String, modifier: Modifier = Modifier) {
     if (engine.isBlank()) return
     Text(
-        engine, style = MaterialTheme.typography.labelMedium, color = Lumi.colors.textTertiary, maxLines = 1,
+        engine, style = MaterialTheme.typography.labelMedium, color = Lumi.colors.textTertiary,
+        maxLines = 1, overflow = TextOverflow.Ellipsis,
         modifier = modifier.clip(RoundedCornerShape(50)).background(Lumi.colors.muted).padding(horizontal = 10.dp, vertical = 4.dp)
     )
 }

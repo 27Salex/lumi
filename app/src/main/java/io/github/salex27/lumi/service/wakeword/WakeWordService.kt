@@ -24,10 +24,6 @@ import io.github.salex27.lumi.presentation.assistant.AssistantActivity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import org.json.JSONObject
-import org.vosk.Model
-import org.vosk.Recognizer
-import org.vosk.SpeakerModel
 import android.annotation.SuppressLint
 import android.media.AudioFormat
 import android.media.AudioRecord
@@ -42,6 +38,9 @@ import kotlin.concurrent.thread
  *
  * - A microphone-type foreground service (Android requires it and shows the mic indicator).
  * - Paused while the assistant uses the microphone and, if the user chooses, with the screen off.
+ * - While other audio plays (series/music, car Bluetooth) echo cancellation is switched on and, with a trained voice,
+ *   Voice Match decides; without one the bar goes up a little and the assistant confirms before acting; paused during
+ *   calls ([WakeGate], [AudioEnvironment], issue #6).
  * - Can only be started with the app in the foreground (Android 14 microphone restriction).
  * - Opening the assistant over other apps needs "Display over other apps"; without it, a tappable notification is shown.
  */
@@ -56,10 +55,16 @@ class WakeWordService : Service() {
     private val history = ShortArray(HISTORY)
     private var historyPos = 0
     // Voice print (Vosk), only if the user trained their voice
-    private var voskModel: Model? = null
-    private var speakerModel: SpeakerModel? = null
+    private val printer by lazy { (application as TaskManagerApplication).let { VoicePrinter(it.wakeWordModel.modelPath, it.wakeWordModel.speakerModelPath) } }
+    @Volatile private var modelReady = false
+    @Volatile private var modelCheckedAt = 0L
     private var lastTrigger = 0L
+    private var lastRejected = 0L
+    private var lastSuppressed = 0L
     private var screenReceiver: BroadcastReceiver? = null
+    /** Media playing / Bluetooth route / calls: raises the bar or pauses detection (issue #6). */
+    private var audioEnv: AudioEnvironment? = null
+    private var currentPolicy: WakePolicy? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -69,6 +74,7 @@ class WakeWordService : Service() {
         ServiceCompat.startForeground(this, NOTIF_ID, listeningNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
         _running.value = true
         registerScreenReceiver()
+        audioEnv = AudioEnvironment(this)
         worker = thread(name = "oye-lumi") { loop() }
     }
 
@@ -98,6 +104,9 @@ class WakeWordService : Service() {
             stopSelf(); return
         }
         val chunk = ShortArray(OyeLumiDetector.CHUNK)
+        val env = audioEnv ?: return
+        // With a trained voice, the voice print model is loaded now (1-2 s, once) instead of on the first wake
+        if (app.voiceProfile.data.value != null && app.wakeWordModel.isReady()) thread(name = "voice-print-load") { printer.preload() }
         listening = !screenOffPaused()
         while (alive) {
             if (!listening) { Thread.sleep(200); continue }
@@ -107,9 +116,12 @@ class WakeWordService : Service() {
                 AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(minBuf, OyeLumiDetector.CHUNK * 4)
             )
             if (record.state != AudioRecord.STATE_INITIALIZED) { record.release(); Thread.sleep(1000); continue }
+            // Echo cancellation + noise suppression, only switched on while other audio plays (issue #6)
+            val effects = CaptureEffects(record.audioSessionId)
             record.startRecording()
             detector?.reset(); trigger.reset()
-            Log.i(TAG, "Listening for the wake phrase")
+            var paused = false
+            Log.i(TAG, "Listening for the wake phrase (echo cancellation available: ${effects.available})")
             while (alive && listening) {
                 var read = 0
                 while (read < chunk.size && alive && listening) {
@@ -120,13 +132,25 @@ class WakeWordService : Service() {
                 if (read < chunk.size) continue
                 remember(chunk)
                 val sensitivity = app.voiceProfile.sensitivity
-                trigger.threshold = sensitivity.detectorThreshold
-                trigger.patience = sensitivity.patience
+                val ctx = env.current()
+                val policy = WakeGate.policy(sensitivity, ctx, voiceMatchAvailable())
+                if (policy != currentPolicy) {
+                    Log.i(TAG, "Wake policy: ${policy.reason} (threshold ${policy.threshold}, patience ${policy.patience}, $ctx)")
+                    currentPolicy = policy
+                }
+                effects.setActive(ctx.mediaPlaying)
+                // During a call nothing is scored; the stale windows are dropped when it ends
+                if (!policy.listen) { if (!paused) { paused = true; detector?.reset(); trigger.reset() }; continue }
+                paused = false
+                trigger.threshold = policy.threshold
+                trigger.patience = policy.patience
                 val score = detector?.process(chunk)
                 if (score != null && score >= 0.2f) lastScore.value = score
-                if (trigger.update(score)) onDetected(score ?: 0f)
+                if (trigger.update(score)) onDetected(score ?: 0f, policy, ctx)
+                else if (WakeGate.suppressedByAudio(score, sensitivity.detectorThreshold, policy)) onSuppressed(score ?: 0f, policy, ctx)
             }
             runCatching { record.stop() }
+            effects.close()
             record.release()
         }
     }
@@ -137,43 +161,67 @@ class WakeWordService : Service() {
 
     private fun lastAudio(): ShortArray = ShortArray(HISTORY) { history[(historyPos + it) % HISTORY] }
 
-    private fun onDetected(score: Float) {
+    private fun onDetected(score: Float, policy: WakePolicy, ctx: AudioContext) {
         val app = application as TaskManagerApplication
         val voice = app.voiceProfile
-        val profile = voice.profile.value
+        val now = SystemClock.elapsedRealtime()
+        // Right after a wake, or while the same sound keeps firing after a rejection, nothing is checked again
+        if (now - lastTrigger < COOLDOWN_MS || now - lastRejected < REJECT_HOLD_MS) return
         val label = "«Lumi» (${(score * 100).toInt()} %)"
-        // If the user trained their voice, it has to be their voice (Vosk print over the last 2 s)
-        var similarity: Float? = null
-        if (profile != null) {
-            val vec = speakerVector(lastAudio())
-            if (vec != null) {
-                similarity = WakePhrases.cosine(vec, profile.embedding)
-                if (similarity < voice.sensitivity.threshold) { report(label, similarity, false, getString(io.github.salex27.lumi.R.string.wake_voice_mismatch)); return }
+        // If the user trained their voice, it has to be their voice (Vosk print over the last 2 s; ran on every
+        // detection with a profile before too, so Voice Match as the media gate adds no work while listening)
+        val profile = voice.data.value?.takeIf { voiceMatchAvailable() }
+        val started = SystemClock.elapsedRealtime()
+        val heard = profile?.let { printer.print(lastAudio()) }
+        // Matched against the print of the phrase it heard ("hoy…" → "Oye Lumi"), or the best of both
+        val phrase = heard?.let { WakePhrase.fromTranscript(it.text) }
+        val match = profile?.let { p -> heard?.print?.let { VoiceMatch.score(it, p, phrase) } }
+        val similarity = match?.similarity
+        val bar = match?.let { voice.bar(it.phrase) } ?: voice.sensitivity.threshold
+        val checkMs = SystemClock.elapsedRealtime() - started
+        val verdict = WakeGate.verdict(score, policy, profile != null, similarity, bar)
+        // Debug log to tune thresholds from real false wakes (issue #6)
+        Log.i(TAG, "Wake: score=$score policy=${policy.reason} threshold=${policy.threshold} media=${ctx.mediaPlaying} " +
+            "route=${ctx.route} voice=$similarity bar=$bar phrase=${match?.phrase}/${phrase} heard=«${heard?.text}» (${checkMs} ms) → $verdict")
+        when (verdict) {
+            is WakeVerdict.RejectVoice -> {
+                lastRejected = SystemClock.elapsedRealtime()
+                report(label, similarity, false, getString(io.github.salex27.lumi.R.string.wake_voice_mismatch))
+            }
+            WakeVerdict.RejectNoPrint -> {
+                lastRejected = SystemClock.elapsedRealtime()
+                report(label, null, false, getString(io.github.salex27.lumi.R.string.wake_no_print))
+            }
+            is WakeVerdict.Accept -> {
+                lastTrigger = SystemClock.elapsedRealtime()
+                // Borderline score or other audio playing without a voice match → the assistant confirms first
+                report(label, similarity, true, getString(if (verdict.confirm) io.github.salex27.lumi.R.string.wake_accepted_confirm else io.github.salex27.lumi.R.string.wake_accepted))
+                releaseMic() // the assistant needs the microphone; resumed when it closes (the assistant's onStop)
+                // Adaptive print: the assistant reports whether the user really called Lumi (prints only, no audio)
+                val wakeId = heard?.print?.let { print ->
+                    match?.let { voice.beginWake(VoiceMatch.WakeSample(print, it.phrase, score, it.similarity, bar, policy.voiceRelax > 0f)) }
+                } ?: 0L
+                openAssistant(verdict.confirm, wakeId)
             }
         }
-        val now = SystemClock.elapsedRealtime()
-        if (now - lastTrigger < COOLDOWN_MS) return
-        lastTrigger = now
-        report(label, similarity, true, getString(io.github.salex27.lumi.R.string.wake_accepted))
-        releaseMic() // the assistant needs the microphone; resumed when it closes (the assistant's onStop)
-        openAssistant()
     }
 
-    /** Voice print (x-vector) of a clip, with the Vosk model. Null without a model or if no print comes out. */
-    private fun speakerVector(audio: ShortArray): FloatArray? {
+    /** Voice Match can run: the user trained their voice and the print model is installed (checked every few s). */
+    private fun voiceMatchAvailable(): Boolean {
         val app = application as TaskManagerApplication
-        if (!app.wakeWordModel.isReady()) return null
-        return runCatching {
-            val m = voskModel ?: Model(app.wakeWordModel.modelPath).also { voskModel = it }
-            val spk = speakerModel ?: SpeakerModel(app.wakeWordModel.speakerModelPath).also { speakerModel = it }
-            Recognizer(m, OyeLumiDetector.SAMPLE_RATE.toFloat(), spk).use { rec ->
-                val bytes = ByteArray(audio.size * 2)
-                audio.forEachIndexed { i, v -> bytes[2 * i] = (v.toInt() and 0xff).toByte(); bytes[2 * i + 1] = (v.toInt() shr 8).toByte() }
-                rec.acceptWaveForm(bytes, bytes.size)
-                val arr = JSONObject(rec.finalResult).optJSONArray("spk") ?: return@use null
-                FloatArray(arr.length()) { arr.getDouble(it).toFloat() }
-            }
-        }.onFailure { Log.w(TAG, "No voice print", it) }.getOrNull()
+        if (app.voiceProfile.data.value == null) return false
+        val now = SystemClock.elapsedRealtime()
+        if (now - modelCheckedAt > MODEL_CHECK_MS) { modelReady = app.wakeWordModel.isReady(); modelCheckedAt = now }
+        return modelReady
+    }
+
+    /** A score the user's sensitivity would have accepted, ignored because other audio was playing (diagnostics). */
+    private fun onSuppressed(score: Float, policy: WakePolicy, ctx: AudioContext) {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastSuppressed < COOLDOWN_MS) return
+        lastSuppressed = now
+        Log.i(TAG, "Wake ignored: score=$score policy=${policy.reason} threshold=${policy.threshold} media=${ctx.mediaPlaying} route=${ctx.route}")
+        report("«Lumi» (${(score * 100).toInt()} %)", null, false, getString(io.github.salex27.lumi.R.string.wake_ignored_audio))
     }
 
     /** Releases the microphone (so the assistant or voice training can use it). */
@@ -185,8 +233,8 @@ class WakeWordService : Service() {
         lastHeard.value = Heard(text, similarity, accepted, reason, System.currentTimeMillis())
     }
 
-    private fun openAssistant() {
-        val intent = AssistantActivity.intent(this, startListening = true, compact = true, fromWakeWord = true)
+    private fun openAssistant(confirm: Boolean, wakeId: Long) {
+        val intent = AssistantActivity.intent(this, startListening = true, compact = true, fromWakeWord = true, wakeConfirm = confirm, wakeId = wakeId)
         if (Settings.canDrawOverlays(this)) {
             // Exempt from the background activity start restriction thanks to SYSTEM_ALERT_WINDOW
             startActivity(intent)
@@ -225,9 +273,9 @@ class WakeWordService : Service() {
         screenReceiver?.let { unregisterReceiver(it) }
         alive = false; listening = false
         worker?.join(1500)
+        audioEnv?.close()
         detector?.close()
-        speakerModel?.close()
-        voskModel?.close()
+        printer.close()
         _running.value = false
         super.onDestroy()
     }
@@ -268,6 +316,9 @@ class WakeWordService : Service() {
         private const val CHANNEL_ID = "wake_word"
         private const val NOTIF_ID = 4242
         private const val COOLDOWN_MS = 4_000L
+        /** After a rejected wake the same sound keeps firing for a few windows: not checked again for this long. */
+        private const val REJECT_HOLD_MS = 1_000L
+        private const val MODEL_CHECK_MS = 5_000L
 
         const val ACTION_PAUSE = "io.github.salex27.lumi.WAKE_PAUSE"
         const val ACTION_RESUME = "io.github.salex27.lumi.WAKE_RESUME"
