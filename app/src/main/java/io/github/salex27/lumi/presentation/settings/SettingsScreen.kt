@@ -307,6 +307,9 @@ fun SettingsScreen(
             if (showGuide) Box(Modifier.padding(16.dp)) { GoogleTasksGuide(context.packageName, state.system.signingSha1) }
         }
 
+        // ── Lumi Hub (agents on the PC) ───────────────────────────────────────
+        HubSettingsSection()
+
         // ── System assistant ────────────────────────────────────────────────
         SectionHeader(stringResource(R.string.open_anywhere), Modifier.padding(start = 4.dp, top = 12.dp))
         ListGroup {

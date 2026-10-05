@@ -84,6 +84,24 @@ class ChatStore(context: Context, private val dao: ChatDao, scope: CoroutineScop
         }
     }
 
+    /**
+     * Appends to the session of [kind] named [title], created on first use (Hub messages are grouped per agent). The
+     * name is matched exactly; a session the user renamed starts a new one on the next message.
+     */
+    fun appendNamed(kind: String, title: String, message: ChatMessageEntity, onSaved: suspend (Long) -> Unit = {}) {
+        queue.trySend {
+            val id = dao.sessionNamed(kind, title)?.id ?: dao.insertSession(
+                ChatSessionEntity(kind = kind, title = title, createdAt = message.createdAt, updatedAt = message.createdAt)
+            )
+            val rowId = dao.insertMessage(message.copy(sessionId = id))
+            dao.touch(id, message.createdAt)
+            onSaved(rowId)
+        }
+    }
+
+    suspend fun message(id: Long): ChatMessageEntity? = dao.message(id)
+    suspend fun messageWithPayload(fragment: String): ChatMessageEntity? = dao.messageWithPayload(fragment)
+
     /** Updates a message in place (a streamed agent reply). */
     fun update(messageId: Long, text: String, payload: String?, isError: Boolean = false) {
         queue.trySend { dao.updateMessage(messageId, text, payload, isError) }

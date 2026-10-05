@@ -100,6 +100,8 @@ class MainActivity : ComponentActivity() {
     companion object {
         /** Open this task's editor on entry ("edit the dentist one" from the assistant). */
         const val EXTRA_EDIT_TASK_ID = "edit_task_id"
+        /** Open the Lumi Hub message (agent message, question or task proposal) with this chat message id. */
+        const val EXTRA_OPEN_HUB_MESSAGE = "open_hub_message"
     }
 
     /** Task the assistant asked to edit (consumed when the editor opens). */

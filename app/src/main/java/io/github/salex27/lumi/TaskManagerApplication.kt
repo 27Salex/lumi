@@ -89,6 +89,13 @@ class TaskManagerApplication : Application() {
         )
     }
 
+    // ── Lumi Hub (agents on the PC) ─────────────────────────────────────────
+    val hubSettings by lazy { io.github.salex27.lumi.data.hub.HubSettings(this) }
+    val hubClient by lazy { io.github.salex27.lumi.data.hub.HubClient(hubSettings) }
+    val hubInbox by lazy { io.github.salex27.lumi.data.hub.HubInbox(this, chatStore, hubClient, repository) }
+    /** The event stream is open only while a Lumi screen is visible (see [onCreate]). */
+    val hubConnection by lazy { io.github.salex27.lumi.data.hub.HubConnection(hubSettings, hubClient, hubInbox, appScope) }
+
     val reminderScheduler: AlarmReminderScheduler by lazy { AlarmReminderScheduler(this, settings, database.reminderDao()) }
 
     // ── Places, live chip and voice ─────────────────────────────────────────
@@ -187,6 +194,7 @@ class TaskManagerApplication : Application() {
         super.onCreate()
         updateAppLanguage()
         createNotificationChannels()
+        registerActivityLifecycleCallbacks(VisibleScreens { hubConnection.setVisible(it) })
 
         appScope.launch {
             nanoEngine.refreshStatus()
@@ -228,5 +236,18 @@ class TaskManagerApplication : Application() {
             enableVibration(true)
         }
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        io.github.salex27.lumi.data.hub.HubInbox.createChannel(this)
+    }
+
+    /** Counts started activities: [onChange] gets true when the first one starts and false when the last one stops. */
+    private class VisibleScreens(private val onChange: (Boolean) -> Unit) : ActivityLifecycleCallbacks {
+        private var started = 0
+        override fun onActivityStarted(activity: android.app.Activity) { if (started++ == 0) onChange(true) }
+        override fun onActivityStopped(activity: android.app.Activity) { if (--started == 0) onChange(false) }
+        override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: android.os.Bundle?) {}
+        override fun onActivityResumed(activity: android.app.Activity) {}
+        override fun onActivityPaused(activity: android.app.Activity) {}
+        override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: android.os.Bundle) {}
+        override fun onActivityDestroyed(activity: android.app.Activity) {}
     }
 }

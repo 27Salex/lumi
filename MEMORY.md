@@ -6,6 +6,29 @@ translated when the project went public; version numbers before 1.0.0 refer to t
 
 ---
 
+## 2026-10-05 — Lumi Hub: MCP server + relay for PC agents (issue #3)
+
+- **Built fresh under `tools/lumi-hub/`** (stdlib Python, like the old bridge): the earlier `tools/claude-bridge`
+  (Remote Control launcher) only existed uncommitted in another checkout and was not brought in. Same security model:
+  127.0.0.1 + `tailscale serve`, phone = owner's `Tailscale-User-Login` AND phone token; MCP clients get one token each
+  (their name is the message source). `--dev-no-tailscale` exists only for emulator tests (debug builds allow
+  cleartext to 10.0.2.2 via a debug-only network security config; release is HTTPS only).
+- **MCP over streamable HTTP with plain JSON responses** (no SSE on /mcp needed for 4 tools) + a stdio proxy mode.
+  `lumi_ask` blocks inside the tool call on a Condition until the phone answers (default 10 min, max 1 h); open
+  questions are re-sent to a reconnecting phone. Event ids start at the hub's start time in ms so a restarted hub
+  never reuses ids the phone already saw.
+- **Wake per message:** `claude -p --output-format stream-json --verbose [--resume id]`, prompt via **stdin** (never
+  argv), thread → session id persisted in `~/.lumi-hub.json`; one turn per thread, two at once max, 15 min cap.
+  Format verified against Claude Code 2.1.289 (init → assistant text blocks → result with session_id).
+- **Phone:** `HubConnection` keeps the SSE stream open only while a Lumi screen is visible (Application activity
+  counter, 5 s grace), so the always-on services are untouched. `HubInbox` stores events in `chat_sessions` kind HUB
+  (one per source) with a JSON payload (state open/answered/added…) and posts notifications on channel `lumi_hub`
+  with Yes/No (≤3 options) or a typed reply, and Add task / Dismiss. Decisions run under one Mutex so a chat tap and a
+  notification tap (or the hub's own "closed" echo) can't race. Agent text is never interpreted; tasks are built by
+  rules (`HubTaskProposal`, English then Spanish date parser).
+- Verified on the emulator against a real hub: lumi_send / lumi_create_task / lumi_ask → notifications; tapping
+  "Yes" unblocked the agent's call ("The user answered: Yes"); "Add task" created "Review PR 12" for tomorrow 17:00.
+
 ## 2026-10-05 — Chat sessions (issue #8)
 
 - **Room v8**: `chat_sessions` + `chat_messages` (migration 7→8, SQL in `ChatSchema`, checked against Room's generated

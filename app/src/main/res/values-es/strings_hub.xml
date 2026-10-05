@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lumi Hub (issue #3): los agentes de IA de tu PC hablan contigo a través de Lumi. -->
+<resources>
+    <string name="hub_title">Lumi Hub</string>
+    <string name="hub_sub">Permite que los agentes de IA de tu PC (Claude Code y otros) te escriban, te pregunten cosas y te propongan tareas, y que tú chatees con ellos. Funciona en tu PC a través de Tailscale: mira tools/lumi-hub.</string>
+    <string name="hub_address">Dirección del hub (p. ej. mi-pc.tailnet.ts.net:8443)</string>
+    <string name="hub_address_invalid">Usa la dirección https que mostró el hub (tu nombre de Tailscale).</string>
+    <string name="hub_token">Token del móvil</string>
+    <string name="hub_test">Probar conexión</string>
+    <string name="hub_test_ok">Conectado a %1$s. Agentes: %2$s</string>
+    <string name="hub_test_failed">No llego al hub (%1$s). ¿Está en marcha y Tailscale activado en los dos dispositivos?</string>
+    <string name="hub_test_unauthorized">El hub ha rechazado este móvil: revisa el token y que Tailscale use tu propia cuenta.</string>
+    <string name="hub_status_connected">En directo: los mensajes de tus agentes llegan mientras Lumi está abierta</string>
+    <string name="hub_status_connecting">Conectando…</string>
+    <string name="hub_status_offline">El hub no responde; reintentando</string>
+    <string name="hub_status_off">Sin conectar</string>
+    <string name="hub_security_note">Los mensajes de los agentes se muestran solo como texto. Lumi nunca ejecuta nada de lo que envían, y una tarea que proponen solo se añade si pulsas Añadir tarea.</string>
+    <string name="hub_channel_name">Mensajes de tus agentes</string>
+    <string name="hub_channel_description">Mensajes, preguntas y propuestas de tareas de los agentes de IA de tu PC (Lumi Hub)</string>
+    <string name="hub_task_proposed">Quiere añadir una tarea: %1$s</string>
+    <string name="hub_task_add">Añadir tarea</string>
+    <string name="hub_task_dismiss">Descartar</string>
+    <string name="hub_task_added">Tarea añadida</string>
+    <string name="hub_answer_hint">Tu respuesta</string>
+    <string name="hub_question_closed">Esa pregunta ya no está abierta</string>
+    <string name="hub_unreachable">No he podido llegar a Lumi Hub</string>
+</resources>

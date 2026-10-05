@@ -40,6 +40,8 @@ data/
                                # AssistantOrchestrator (chain + reconcile), AssistantPrompts (shared prompts)
   local/                       # Room (v8: tasks, reminders, sync_tombstones, memories, chat_sessions/messages) + BriefStore
   chat/                        # ChatStore (sessions shared by pill and app), ChatMemory (rolling summary for the LLM)
+  hub/                         # Lumi Hub client: HubProtocol (events, SSE, safety; pure, tested), HubClient, HubConnection
+                               # (SSE only while a screen is visible), HubInbox (HUB chat sessions + notifications)
   backup/BackupManager.kt      # Export / import everything to a JSON file (phone change, reinstall)
   sync/                        # DeviceCalendar/CalendarTaskSync (CalendarContract), GoogleTasksAuth/GoogleTasksSync (REST)
   places/ routines/ weather/   # Saved places, routines store, Open-Meteo client
@@ -57,6 +59,7 @@ presentation/
   theme/LumiTheme.kt           # LumiColors light/dark tokens, Inter, category icons/colors
   widget/QuickTaskWidget.kt    # Glance + WidgetUpdater
 docs/GOOGLE_TASKS_SETUP.md     # OAuth client for Google Tasks (the user does it once)
+tools/lumi-hub/                # PC side of Lumi Hub: MCP server + relay + wake-per-message Claude Code (stdlib Python)
 tools/gemma_batch.sh           # Runs a batch of phrases through the real Gemma on a device and greps the log
 ```
 
@@ -140,5 +143,11 @@ tools/gemma_batch.sh           # Runs a batch of phrases through the real Gemma 
 - `WakeWordService` can only start with the app in the foreground (Android 14) and is paused with
   `WakeWordService.pause/resume` while anything else uses the microphone.
 
-### 9. Saving AI requests
+### 9. Agents (Lumi Hub) are untrusted
+- Anything an agent sends through Lumi Hub (`HubEvent`) is shown as plain text only. Never pass it to
+  `processNaturalLanguageCommand`, the LLM interpreter, `DeviceActions` or an Intent; a proposed task becomes a Task
+  only on an explicit tap, built by rules (`HubTaskProposal`). Links: http(s) only (`HubSafety.isSafeLink`).
+- The hub token lives in the `hub` prefs file, which is NOT in the backup.
+
+### 10. Saving AI requests
 - The daily summary is cached (`BriefStore`, per day and language) and not regenerated on every app start; stats never call the AI.

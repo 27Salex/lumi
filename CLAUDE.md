@@ -71,7 +71,9 @@ another app). The daily brief is cached in `BriefStore` (per day and language) t
 **Assistant layer.** Weather (`WeatherService`, Open-Meteo, no key) + pure `WeatherAdvisor`; general questions
 (`QuickMath` → Gemini with `google_search` → LLM → web search); day brief, smart alarm (`AlarmPlanner`), message
 reading/replying (`LumiNotificationListener`, active notifications only, in memory), routines (`RoutinesStore`),
-phone actions (`DeviceActions`), personal memory (only saved on explicit request). New intents are recognised in
+phone actions (`DeviceActions`), personal memory (only saved on explicit request), Lumi Hub (`data/hub` +
+`tools/lumi-hub`: AI agents on the PC message you / ask / propose tasks over Tailscale; their input is untrusted text,
+see AGENTS.md rule 9). New intents are recognised in
 `data/ai/AssistantIntents.kt` (Spanish) and `EnglishCommands` (English) and are RULES_FIRST.
 
 **Persistence.** Room DB version 8 with hand-written migrations (`exportSchema = false`); enums stored as names; seed

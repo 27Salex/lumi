@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lumi Hub (issue #3): AI agents on your PC talking with you through Lumi. -->
+<resources>
+    <string name="hub_title">Lumi Hub</string>
+    <string name="hub_sub">Lets the AI agents on your PC (Claude Code and others) message you, ask you things and propose tasks, and lets you chat with them. Runs on your PC over Tailscale: see tools/lumi-hub.</string>
+    <string name="hub_address">Hub address (e.g. my-pc.tailnet.ts.net:8443)</string>
+    <string name="hub_address_invalid">Use the https address the hub printed (your Tailscale name).</string>
+    <string name="hub_token">Phone token</string>
+    <string name="hub_test">Test connection</string>
+    <string name="hub_test_ok">Connected to %1$s. Agents: %2$s</string>
+    <string name="hub_test_failed">Can\'t reach the hub (%1$s). Is it running, and is Tailscale on in both devices?</string>
+    <string name="hub_test_unauthorized">The hub refused this phone: check the token and that Tailscale uses your own account.</string>
+    <string name="hub_status_connected">Live: messages from your agents arrive while Lumi is open</string>
+    <string name="hub_status_connecting">Connecting…</string>
+    <string name="hub_status_offline">Hub not reachable; retrying</string>
+    <string name="hub_status_off">Not connected</string>
+    <string name="hub_security_note">Messages from agents are shown as text only. Lumi never runs anything they send, and a task they propose is added only if you tap Add task.</string>
+    <string name="hub_channel_name">Messages from your agents</string>
+    <string name="hub_channel_description">Messages, questions and task proposals from the AI agents on your PC (Lumi Hub)</string>
+    <string name="hub_task_proposed">Wants to add a task: %1$s</string>
+    <string name="hub_task_add">Add task</string>
+    <string name="hub_task_dismiss">Dismiss</string>
+    <string name="hub_task_added">Task added</string>
+    <string name="hub_answer_hint">Your answer</string>
+    <string name="hub_question_closed">That question is no longer open</string>
+    <string name="hub_unreachable">Couldn\'t reach Lumi Hub</string>
+</resources>

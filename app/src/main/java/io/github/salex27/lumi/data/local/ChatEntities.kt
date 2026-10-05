@@ -99,6 +99,13 @@ interface ChatDao {
     @Query("SELECT * FROM chat_sessions ORDER BY id")
     suspend fun allSessions(): List<ChatSessionEntity>
 
+    @Query("SELECT * FROM chat_sessions WHERE kind = :kind AND title = :title ORDER BY id DESC LIMIT 1")
+    suspend fun sessionNamed(kind: String, title: String): ChatSessionEntity?
+
+    /** Newest message whose JSON payload contains [fragment] (e.g. a Hub question id). */
+    @Query("SELECT * FROM chat_messages WHERE payload LIKE '%' || :fragment || '%' ORDER BY id DESC LIMIT 1")
+    suspend fun messageWithPayload(fragment: String): ChatMessageEntity?
+
     @Insert
     suspend fun insertSession(session: ChatSessionEntity): Long
 
