@@ -54,6 +54,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.layout.ime
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -293,7 +294,9 @@ class MainActivity : ComponentActivity() {
                             assistantSection = { io.github.salex27.lumi.presentation.settings.AssistantSettings(app) }
                         )
                     } else {
-                        Scaffold(containerColor = Lumi.colors.background, bottomBar = { BottomBar(tab) { tab = it } }) { padding ->
+                        val imeOpen = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+                        // Keyboard up: hide the tab bar so the Home SmartBar (and any field) sits right above the keyboard
+                        Scaffold(containerColor = Lumi.colors.background, bottomBar = { if (!imeOpen) BottomBar(tab) { tab = it } }) { padding ->
                             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
                             val agenda by agendaViewModel.state.collectAsStateWithLifecycle()
                             AnimatedContent(
