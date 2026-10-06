@@ -12,6 +12,8 @@ sealed interface DeviceCommand {
     data class Message(val contact: String, val text: String, val whatsapp: Boolean) : DeviceCommand
     data class PlayMusic(val query: String, val app: String?) : DeviceCommand
     data class WebSearch(val query: String) : DeviceCommand
+    /** Opens the maps app searching [query] around the user (fallback when nearby places cannot be listed). */
+    data class MapsSearch(val query: String) : DeviceCommand
     data class OpenSettings(val panel: SettingsPanel) : DeviceCommand
     data class Flashlight(val on: Boolean) : DeviceCommand
     /** Do Not Disturb (needs the "Do Not Disturb" access granted once). */
@@ -38,6 +40,7 @@ sealed interface DeviceCommand {
         is Message -> "MESSAGE|$contact|$whatsapp|$text"
         is PlayMusic -> "MUSIC|${app.orEmpty()}|$query"
         is WebSearch -> "SEARCH|$query"
+        is MapsSearch -> "MAPS|$query"
         is OpenSettings -> "SETTINGS|${panel.name}"
         is Flashlight -> "FLASHLIGHT|$on"
         is DoNotDisturb -> "DND|$on"
@@ -60,6 +63,7 @@ sealed interface DeviceCommand {
                     "MESSAGE" -> Message(p[1], p.drop(3).joinToString("|"), p[2].toBoolean())
                     "MUSIC" -> PlayMusic(p.drop(2).joinToString("|"), p[1].ifBlank { null })
                     "SEARCH" -> WebSearch(p.drop(1).joinToString("|"))
+                    "MAPS" -> MapsSearch(p.drop(1).joinToString("|"))
                     "SETTINGS" -> OpenSettings(SettingsPanel.valueOf(p[1]))
                     "FLASHLIGHT" -> Flashlight(p[1].toBoolean())
                     "DND" -> DoNotDisturb(p[1].toBoolean())

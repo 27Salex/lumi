@@ -60,6 +60,8 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
     fun parse(input: String, now: LocalDateTime): TaskAICommand {
         val text = input.trim()
         if (text.isBlank()) return TaskAICommand(action = TaskAICommand.PLAN_DAY)
+        // Places near me (both languages, typo tolerant): before phone actions, "busca una farmacia" is a places search
+        AssistantIntents.nearby(text)?.let { return it }
         // English has its own parser (same commands, English grammar)
         if (LanguageDetector.detect(text, ReplyLanguage.app) == Lang.EN) return EnglishCommands.parse(text, now)
         val lower = text.lowercase()

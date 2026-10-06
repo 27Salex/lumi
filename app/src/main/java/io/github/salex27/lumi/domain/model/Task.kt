@@ -195,6 +195,8 @@ data class TaskAICommand(
         const val WEATHER = "WEATHER"
         /** General question or request (not about your tasks): answered by the LLM, or searched on the web. */
         const val ASK = "ASK"
+        /** "Where can I eat cheap?", "a pharmacy nearby": places near the phone. [targetTitle] = the (corrected) sentence. */
+        const val NEARBY = "NEARBY"
         /** Summary of a day ("good morning", "what do I have tomorrow?"): [dueDate] = the day. */
         const val DAY_BRIEF = "DAY_BRIEF"
         /** Alarm based on tomorrow's schedule. [newStatus] = "ASK" when it was a question (confirm before setting it). */
@@ -228,6 +230,14 @@ sealed interface AIProcessingResult {
     data class Memory(override val reply: String, override val engine: String) : AIProcessingResult
     /** Action on the phone (run by the UI). */
     data class Device(val command: io.github.salex27.lumi.domain.assistant.DeviceCommand, override val reply: String, override val engine: String) : AIProcessingResult
+    /**
+     * Places near the phone ([places] by distance, untrusted data). [needsLocationPermission]: the UI asks for the
+     * permission and, if granted, repeats [query].
+     */
+    data class Nearby(
+        val places: List<io.github.salex27.lumi.domain.places.NearbyPlace>, val query: String,
+        override val reply: String, override val engine: String, val needsLocationPermission: Boolean = false
+    ) : AIProcessingResult
     /** Information answer (weather, general question, day summary, messages). */
     data class Answer(override val reply: String, override val engine: String) : AIProcessingResult
 

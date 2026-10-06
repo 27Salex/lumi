@@ -1,5 +1,6 @@
 package io.github.salex27.lumi.data.ai
 
+import io.github.salex27.lumi.domain.model.TaskAICommand
 import io.github.salex27.lumi.domain.weather.PartOfDay
 import io.github.salex27.lumi.domain.weather.WeatherQuery
 import java.time.LocalDate
@@ -29,6 +30,10 @@ object AssistantIntents {
             "hay\\s+(?:previsi[oó]n|lluvia|tormenta))\\b"
     )
     private val TASKY = Regex("$I^(?:recu[eé]rda(?:me)?|ap[uú]nta(?:me)?|a[ñn]ade|crea|tengo\\s+que|hay\\s+que|debo|comprar|coger)\\b")
+
+    /** "Dónde puedo comer barato", "where can I eat near me", "busca una farmacia cerca" (typos tolerated; both languages). */
+    fun nearby(text: String): TaskAICommand? =
+        io.github.salex27.lumi.domain.places.NearbyIntent.parse(text)?.let { TaskAICommand(action = TaskAICommand.NEARBY, targetTitle = it.text) }
 
     fun isWeather(text: String): Boolean {
         val t = text.trim()

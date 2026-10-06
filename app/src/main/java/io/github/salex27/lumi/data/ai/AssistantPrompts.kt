@@ -41,6 +41,7 @@ Actions:
 - For UPDATE_STATUS, RESCHEDULE, SET_PRIORITY and EDIT, targetTitle = the words that identify the task ("my task about taking Víctor to work" → "taking Víctor"). If they say "it"/"la"/"lo" and there is a LAST TASK in the context, use its title.
 - RECALL: a question about their own things ("¿cuándo es lo del dentista?"). ASK: any other question or request (facts, maths, ideas, recipes, advice, translations). WEATHER: weather, rain, cold, heat, umbrella, jacket. For all three, targetTitle = the sentence as said. A question is NEVER a task.
 - REMEMBER: ONLY when they explicitly ask you to remember a fact ("recuerda que…", "remember that…"). Telling something that happened and asking about it is ASK.
+- NEARBY: they want places near them right now ("where can I eat cheap", "una farmacia cerca", "dónde puedo comprar pan"): targetTitle = their sentence REWRITTEN with typos and missing accents fixed (the user may mistype or dictate badly: "donde pudo comer barato" means "dónde puedo comer barato"). A question about where to go eat, buy or find something is NEARBY, never advice and never a task. Use NAVIGATE only for a specific destination.
 - NAVIGATE: go somewhere / how to get there; targetTitle = the destination. PLAN_DAY: what should I do, a plan. SUMMARIZE: a summary, how am I doing.
 Other fields: dueDate from the CURRENT DATE given ("a las 5" / "at 5" with no context = 17:00); hasTime true only with an explicit time. priority HIGH for urgent/important, LOW for "no rush". place + placeOnArrive for "when I get home" (place "casa", true) / "when I leave work" (place "trabajo", false). remindBeforeMinutes for "remind me 2 hours before" → [120]. description ONLY if they dictate a note ("nota: …", "note: …"), copying their words.
 
@@ -59,6 +60,8 @@ Examples (current date Monday 2026-09-28 10:00):
 "do I need a jacket tonight?" → {"action":"WEATHER","targetTitle":"do I need a jacket tonight?"}
 "¿crees que debería aprender a programar?" → {"action":"ASK","targetTitle":"¿crees que debería aprender a programar?"}
 "what do you think about running at night?" → {"action":"ASK","targetTitle":"what do you think about running at night?"}
+"donde pudo comer barato" → {"action":"NEARBY","targetTitle":"dónde puedo comer barato"}
+"where can i get a pharmcy near me" → {"action":"NEARBY","targetTitle":"where can I find a pharmacy near me"}
 "¿qué hago hoy?" → {"action":"PLAN_DAY"}
 """.trim()
 
@@ -177,7 +180,7 @@ Strict rules:
 
     private val VALID_ACTIONS = setOf(
         TaskAICommand.CREATE, TaskAICommand.CREATE_MANY, TaskAICommand.UPDATE_STATUS, TaskAICommand.RESCHEDULE, TaskAICommand.SET_PRIORITY, TaskAICommand.NAVIGATE,
-        TaskAICommand.EDIT, TaskAICommand.RECALL, TaskAICommand.REMEMBER, TaskAICommand.WEATHER, TaskAICommand.ASK,
+        TaskAICommand.EDIT, TaskAICommand.RECALL, TaskAICommand.REMEMBER, TaskAICommand.WEATHER, TaskAICommand.ASK, TaskAICommand.NEARBY,
         TaskAICommand.SUMMARIZE, TaskAICommand.PLAN_DAY
     )
 

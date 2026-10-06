@@ -25,6 +25,7 @@ object EnglishCommands {
         if (text.isBlank()) return TaskAICommand(action = TaskAICommand.PLAN_DAY)
         val lower = text.lowercase()
 
+        AssistantIntents.nearby(text)?.let { return it }
         followUp(text, now)?.let { return it }
         navigate(text)?.let { return it }
         edit(text, now)?.let { return it }

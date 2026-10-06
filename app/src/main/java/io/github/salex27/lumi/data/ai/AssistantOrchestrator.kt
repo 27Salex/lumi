@@ -136,6 +136,7 @@ class AssistantOrchestrator(
         if (rules.action == TaskAICommand.NAVIGATE) return rules
         // A question the LLM turned into a task (too literal) → it gets answered
         if (rules.action == TaskAICommand.RECALL && llm.action == TaskAICommand.CREATE) return rules
+        if (llm.action == TaskAICommand.NEARBY && llm.targetTitle.isNullOrBlank()) return llm.copy(targetTitle = prompt)
         if ((llm.action == TaskAICommand.ASK || llm.action == TaskAICommand.WEATHER) && llm.targetTitle.isNullOrBlank()) return llm.copy(targetTitle = prompt)
         // Memory is only touched when the user asks: Gemma saved "he dejado una natilla en la nevera" when it was a
         // question ("¿me la puedo comer?")
@@ -212,7 +213,7 @@ class AssistantOrchestrator(
         private const val TAG = "AssistantOrchestrator"
         private val RULES_FIRST = setOf(
             TaskAICommand.DEVICE, TaskAICommand.REMEMBER, TaskAICommand.FORGET, TaskAICommand.NAVIGATE, TaskAICommand.EDIT,
-            TaskAICommand.WEATHER, TaskAICommand.DAY_BRIEF, TaskAICommand.SMART_ALARM, TaskAICommand.NOTIFICATIONS, TaskAICommand.ASK
+            TaskAICommand.WEATHER, TaskAICommand.DAY_BRIEF, TaskAICommand.SMART_ALARM, TaskAICommand.NOTIFICATIONS, TaskAICommand.ASK, TaskAICommand.NEARBY
         )
 
         /** Accepts "2026-10-03T17:00" or "2026-10-03" (→ 09:00 without a time). */
