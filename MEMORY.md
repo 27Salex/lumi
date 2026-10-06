@@ -6,6 +6,13 @@ translated when the project went public; version numbers before 1.0.0 refer to t
 
 ---
 
+## 2026-10-06 — Orbit routing by need, search follow-ups, web-off notes (issues #12, #13, #9)
+
+- **Orbit (#12).** `OrbitLeader` got a `WEB` signal (`needsWeb`: search/best/trains/flights/prices/news, at least 4 words) that proposes the Claude agent, and `isFollowUp`: a reply of up to 4 words right after an agent's question goes straight back to that agent (checked in `OrbitRepository.lead` before the rules). The default stays "propose, ask Lumi or X" unless the Orbit is on automatic. Hub already passes `--allowedTools WebSearch WebFetch`.
+- **Chat (#13).** `IntentRouter.isBareSearchFollowUp` ("pues busca un sitio", topic-less) after an ASK turn searches the previous question instead of creating a task. `AssistantPrompts.deflects` (Gemma says "consulta las webs…") triggers `webAnswer`. With web search off, "search" and "don't know" replies say so (Settings > Web search) and open Google instead of echoing "Buscando…" (`Extras.webSearchOn`).
+- **Brief label (#9).** Already fixed in 0dbad49 (leftover-width Box + ellipsis); nothing more needed.
+
+
 ## 2026-10-05 — Chats screen and in-app update (issues #10, #11)
 
 - **Chats (#10).** One list of every `chat_sessions` row (kinds ASSISTANT, ORBIT, HUB) via `ChatDao.observeAllSessions`, newest first, grouped by day (`domain/chat/ChatHistory`, pure and tested), with search over title and last message, a kind badge (Lumi / Orbit / Hub), long-press for rename/delete and a "New chat" dialog (Lumi or one-tap Claude). Home's Orbit icon became a labelled "Chats" pill. A Lumi chat resumes through `ChatStore.requestResume(id)` (sets the active session plus a one-shot flag so `sessionToResume` skips the staleness check) and opens the assistant. Orbit/Hub rows open the existing thread view. The old Orbit list is now "Manage agents" (new Orbit, agents, what Lumi learned). No DB change.

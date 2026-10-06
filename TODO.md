@@ -29,6 +29,10 @@ Pending work. Finished items are removed; their history is in `MEMORY.md` and gi
 - [ ] Run `tools/intent_eval.sh` with Gemma on the S25 and with the cloud engine; grow the set from real logcat
 - [ ] Show Claude's answer inside the assistant chat (today it lands in Orbit); remember "task or Claude?" preferences
 
+## Routing (#12, #13) follow-ups
+
+- Real-device check: plain "best high-speed trains to Madrid tomorrow" in an Orbit with Claude, "barcelona" after Claude asks, "pues busca un sitio" after a food question, web search on and off. Typo tolerance ("pudo" for "puedo") is not done.
+
 ## Web search (#7) follow-ups
 - [ ] Fetch the page of the top result when snippets are too thin; news-specific backend
 - [ ] Spoken answers: keep them even shorter than the chat text
