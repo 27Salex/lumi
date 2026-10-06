@@ -103,4 +103,11 @@ class OrbitTest {
         // On import the agent has a new id, found by its key
         assertEquals(9L, ChatBackup.toEntity(s.messages.single(), 70) { if (it == 55L) 9L else null }.agentId)
     }
+
+    @Test fun contextHeaderHasTimeLanguageAndOptionalTasks() {
+        val now = java.time.LocalDateTime.of(2026, 10, 7, 9, 30, 15)
+        assertEquals("[Now: 2026-10-07 09:30 · user language: Spanish]", OrbitContext.header(now, "Spanish", null))
+        val h = OrbitContext.header(now, "English", (1..10).map { "Task $it" })
+        assertTrue(h.contains("Task 1; Task 2") && h.contains("+2 more"))
+    }
 }

@@ -47,7 +47,9 @@ class OrbitRepository(
     /** The leader's memory of the user's routing choices, and which Orbits route on their own. */
     val routing: RoutingMemory? = null,
     /** (system, user, maxTokens) → Lumi's brain, for the leader's pick when the rules have no opinion. */
-    private val ask: suspend (String, String, Int) -> String? = { _, _, _ -> null }
+    private val ask: suspend (String, String, Int) -> String? = { _, _, _ -> null },
+    /** Titles of today's open tasks, offered to agents with can_read_tasks. */
+    private val todayTasks: suspend () -> List<String> = { emptyList() }
 ) {
     /** Message rows of one streamed turn are created/updated under this lock (send and the event stream race). */
     private val turns = Mutex()
@@ -83,6 +85,20 @@ class OrbitRepository(
             ChatSessionEntity(kind = ChatSessionEntity.KIND_ORBIT, title = title.trim().take(80).ifBlank { "Orbit" }, titleCustom = true, createdAt = now, updatedAt = now)
         )
         agentIds.distinct().forEach { dao.addMember(OrbitMemberEntity(id, it)) }
+        return id
+    }
+
+    /**
+     * "New chat" with an agent: ALWAYS a fresh 1:1 thread (own row in Chats, own Claude session), titled from its first
+     * message. [agentId] null = the Claude Code agent (created if missing). Older threads stay untouched.
+     */
+    suspend fun newChat(agentId: Long?): Long {
+        val agent = agentId?.let { dao.agent(it) }
+            ?: dao.agents().firstOrNull { it.backend == AgentBackendKind.CLAUDE_PC.name }
+            ?: dao.agent(createAgent(AgentBackendKind.CLAUDE_PC))!!
+        val now = store.stamp()
+        val id = chatDao.insertSession(ChatSessionEntity(kind = ChatSessionEntity.KIND_ORBIT, title = "", titleCustom = false, createdAt = now, updatedAt = now))
+        dao.addMember(OrbitMemberEntity(id, agent.id))
         return id
     }
 
@@ -199,7 +215,11 @@ class OrbitRepository(
         val kind = AgentBackendKind.of(agent.backend)
         val backend = backends.of(kind)
         val lines = lines(sessionId)
-        val context = if (kind == AgentBackendKind.CLAUDE_PC) OrbitContext.sinceLastReply(lines, agent.id) else OrbitContext.recent(lines)
+        val context = if (kind == AgentBackendKind.CLAUDE_PC) {
+            val header = OrbitContext.header(java.time.LocalDateTime.now(), if (ReplyLanguage.current == io.github.salex27.lumi.domain.assistant.Lang.ES) "Spanish" else "English",
+                if (agent.canReadTasks) runCatching { todayTasks() }.getOrNull() else null)
+            header + "\n" + OrbitContext.sinceLastReply(lines, agent.id)
+        } else OrbitContext.recent(lines)
         val placeholder = appendAndWait(sessionId, agentMessage(sessionId, agent.id, "", HubPayload(HubEvent.REPLY, state = HubPayload.STATE_OPEN)))
         val result = backend?.start(AgentRequest(agent, text, context, OrbitThreads.id(sessionId, agent.id)))
             ?: AgentStart.Failed(ReplyLanguage.ui("Este agente aún no está disponible.", "This agent isn't available yet."))

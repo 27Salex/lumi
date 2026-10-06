@@ -82,6 +82,8 @@ class OrbitViewModel(
 
     fun openThread(id: Long?) { _open.value = id }
 
+    fun newChat(agentId: Long?) = viewModelScope.launch { _open.value = repo.newChat(agentId) }
+
     fun chatWithClaude() = viewModelScope.launch { _open.value = repo.chatWithClaude() }
 
     fun createOrbit(title: String, agentIds: List<Long>) = viewModelScope.launch { _open.value = repo.createOrbit(title, agentIds) }

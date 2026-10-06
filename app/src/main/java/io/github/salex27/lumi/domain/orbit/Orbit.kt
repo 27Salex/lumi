@@ -110,6 +110,21 @@ data class OrbitLine(val speaker: String, val text: String, val agentId: Long? =
  * so it gets the newest lines that fit. Both are capped in characters.
  */
 object OrbitContext {
+    /**
+     * What a PC agent should know about the moment: date/time, the user's language and (only when the agent may read
+     * tasks) a compact list of today's open tasks. Titles only: no descriptions, places or ids, nothing secret.
+     */
+    fun header(now: java.time.LocalDateTime, language: String, todayTasks: List<String>?, maxTasks: Int = 8): String = buildString {
+        append("[Now: ").append(now.toLocalDate()).append(' ').append(now.toLocalTime().withSecond(0).withNano(0))
+        append(" · user language: ").append(language).append("]")
+        if (!todayTasks.isNullOrEmpty()) {
+            append("\n[Today's open tasks: ")
+            append(todayTasks.take(maxTasks).joinToString("; ") { it.replace(Regex("\\s+"), " ").take(60) })
+            if (todayTasks.size > maxTasks) append("; +${todayTasks.size - maxTasks} more")
+            append("]")
+        }
+    }
+
     fun sinceLastReply(lines: List<OrbitLine>, agentId: Long, maxChars: Int = 1_500): String {
         val start = lines.indexOfLast { it.agentId == agentId } + 1
         // The newest line is the message being sent: it isn't context

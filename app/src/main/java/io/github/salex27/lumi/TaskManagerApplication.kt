@@ -125,7 +125,13 @@ class TaskManagerApplication : Application() {
             )),
             appScope,
             io.github.salex27.lumi.data.orbit.RoutingMemory(this),
-            { system, user, max -> assistant.ask(system, user, max)?.first }
+            { system, user, max -> assistant.ask(system, user, max)?.first },
+            {
+                val end = java.time.LocalDate.now().plusDays(1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                database.taskDao().getAllTasksSnapshot()
+                    .filter { it.status != io.github.salex27.lumi.domain.model.TaskStatus.COMPLETED && (it.dueAt ?: Long.MAX_VALUE) < end }
+                    .sortedBy { it.dueAt }.map { it.title }
+            }
         )
     }
 
@@ -211,6 +217,7 @@ class TaskManagerApplication : Application() {
                 },
                 webSearch = { question, lang -> webSearch.search(question, lang) },
                 webSearchOn = { webSearch.config.value.enabled },
+                webSearchError = { webSearch.lastError.value },
                 describeAction = { task ->
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         io.github.salex27.lumi.presentation.agent.ActionPreview.resolve(this@TaskManagerApplication, contactAliases, task)

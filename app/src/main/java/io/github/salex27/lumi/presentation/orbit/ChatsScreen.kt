@@ -147,9 +147,9 @@ fun ChatsScreen(
         ) { newChat = true }
     }
 
-    if (newChat) NewChatDialog(hub, onDismiss = { newChat = false },
+    if (newChat) NewChatDialog(hub, vm.agents.collectAsStateWithLifecycle().value, onDismiss = { newChat = false },
         onLumi = { newChat = false; onOpenAssistantChat(null) },
-        onClaude = { newChat = false; vm.chatWithClaude() })
+        onAgent = { newChat = false; vm.newChat(it) })
     renaming?.let { e ->
         RenameDialog(e.title, onDismiss = { renaming = null }) { vm.renameThread(e.id, it); renaming = null }
     }
@@ -239,7 +239,7 @@ private fun SearchField(value: String, onChange: (String) -> Unit, modifier: Mod
 }
 
 @Composable
-private fun NewChatDialog(hub: Boolean, onDismiss: () -> Unit, onLumi: () -> Unit, onClaude: () -> Unit) {
+private fun NewChatDialog(hub: Boolean, agents: List<io.github.salex27.lumi.data.local.AgentEntity>, onDismiss: () -> Unit, onLumi: () -> Unit, onAgent: (Long?) -> Unit) {
     val c = Lumi.colors
     Dialog(onDismissRequest = onDismiss) {
         Column(Modifier.clip(RoundedCornerShape(24.dp)).background(c.elevated).padding(vertical = 16.dp)) {
@@ -248,12 +248,21 @@ private fun NewChatDialog(hub: Boolean, onDismiss: () -> Unit, onLumi: () -> Uni
                 stringResource(R.string.chats_new_lumi), stringResource(R.string.chats_new_lumi_sub), onClick = onLumi,
                 leading = { LumiMark(LumiState.IDLE, size = 32.dp) }
             )
-            ListRow(
+            if (agents.none { it.backend == AgentBackendKind.CLAUDE_PC.name }) ListRow(
                 stringResource(R.string.orbit_chat_with_claude),
                 stringResource(if (hub) R.string.orbit_chat_with_claude_sub else R.string.orbit_needs_hub),
-                onClick = if (hub) onClaude else null,
+                onClick = if (hub) ({ onAgent(null) }) else null,
                 leading = { AgentFace(AgentBackendKind.CLAUDE_PC.defaultFace, AgentBackendKind.CLAUDE_PC.defaultColor) }
             )
+            agents.forEach { a ->
+                val kind = AgentBackendKind.of(a.backend) ?: AgentBackendKind.CLAUDE_PC
+                ListRow(
+                    a.name,
+                    stringResource(if (hub) R.string.orbit_chat_with_claude_sub else R.string.orbit_needs_hub),
+                    onClick = if (hub) ({ onAgent(a.id) }) else null,
+                    leading = { AgentFace(kind.defaultFace, kind.defaultColor) }
+                )
+            }
         }
     }
 }
