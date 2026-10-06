@@ -209,6 +209,7 @@ class TaskManagerApplication : Application() {
                     if (listener.isEnabled(this)) listener.unread() else null
                 },
                 webSearch = { question, lang -> webSearch.search(question, lang) },
+                webSearchOn = { webSearch.config.value.enabled },
                 describeAction = { task ->
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         io.github.salex27.lumi.presentation.agent.ActionPreview.resolve(this@TaskManagerApplication, contactAliases, task)

@@ -78,6 +78,14 @@ object IntentRouter {
             "(?:hacer(?:me)?|programar|crear|montar|construir|desarrollar|dise[nñ]ar|escribir|build|make|create|program|code|develop|design|write|start|building|making|creating|coding|developing|designing|writing|starting)\\b"
     )
 
+    private val BARE_SEARCH = Regex(
+        "(?iu)^(?:pues\\s+|entonces\\s+|vale\\s+|ok\\s+|y\\s+|so\\s+|then\\s+|well\\s+)*(?:busca(?:me)?|b[uú]scame|search(?:\\s+for)?|look\\s+(?:up|for)|find(?:\\s+me)?)\\s+" +
+            "(?:(?:un|una|alg[uú]n|algo|alguno|some|a|an|one|me|me\\s+a|me\\s+some)\\s+)?(?:sitios?|lugar(?:es)?|restaurantes?|opci[oó]n(?:es)?|places?|spots?|restaurants?|options?|something|it|eso|esto|uno|una)?\\s*[.!]*$"
+    )
+
+    /** "pues busca un sitio": a search request with no topic of its own, so it refers to the previous question (#13). */
+    fun isBareSearchFollowUp(text: String): Boolean = BARE_SEARCH.matches(text.trim())
+
     /** "Me gustaría programar una nueva web" → "Programar una nueva web" (the task title when the user says "task"). */
     fun wishObject(text: String): String {
         val m = Regex("(?iu)^(?:yo\\s+)?(?:quiero|quisiera|me\\s+gustar[ií]a|tengo\\s+ganas\\s+de|estoy\\s+pensando\\s+en|i'?d\\s+like\\s+to|i\\s+would\\s+like\\s+to|i\\s+want\\s+to|i'?m\\s+thinking\\s+(?:of|about))\\s+(.+)$").find(text.trim()) ?: return text.trim()

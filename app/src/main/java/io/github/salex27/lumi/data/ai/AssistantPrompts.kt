@@ -220,6 +220,16 @@ Strict rules:
         if (history.isNotBlank()) append("\n$history")
     }
 
+    private val DEFLECT = Regex(
+        "(?iu)(?:consulta(?:r)?\\s+(?:las?|los|el)?\\s*(?:web|webs|p[aá]gina|sitio)|visita(?:r)?\\s+(?:la|el|las|los)\\s+(?:web|p[aá]gina|sitio)|" +
+            "no\\s+tengo\\s+(?:informaci[oó]n|acceso|datos)|no\\s+puedo\\s+(?:buscar|navegar|acceder)|" +
+            "(?:check|visit|consult)\\s+(?:the|their|its)?\\s*(?:official\\s+)?(?:web|site|website|pages?)|" +
+            "i\\s+(?:don't|do\\s+not)\\s+have\\s+(?:specific\\s+|access\\s+to\\s+|real-time\\s+)?(?:information|data|access)|i'm\\s+not\\s+able\\s+to\\s+(?:browse|search))"
+    )
+
+    /** The model sends the user off to look it up themselves instead of answering (a cue to search the web). */
+    fun deflects(reply: String): Boolean = DEFLECT.containsMatchIn(reply)
+
     /** Cleans the conversational reply: removes markdown that small models sometimes sneak in. */
     fun cleanReply(raw: String): String? = raw
         .replace("**", "")

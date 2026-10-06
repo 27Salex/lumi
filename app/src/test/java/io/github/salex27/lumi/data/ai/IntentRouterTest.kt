@@ -2,6 +2,7 @@ package io.github.salex27.lumi.data.ai
 
 import io.github.salex27.lumi.domain.assistant.IntentRoute
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -49,5 +50,13 @@ class IntentRouterTest {
         assertEquals("Programar una nueva web", IntentRouter.wishObject("Me gustaría programar una nueva web"))
         assertEquals("Build a website for my band", IntentRouter.wishObject("I'd like to build a website for my band."))
         assertEquals("comprar pan", IntentRouter.wishObject("comprar pan"))
+    }
+
+    @Test
+    fun `a bare search request refers to the previous question`() {
+        for (s in listOf("pues busca un sitio", "busca un sitio", "búscame uno", "vale busca algún restaurante", "search for a place", "then look up some options"))
+            assertTrue(s, IntentRouter.isBareSearchFollowUp(s))
+        for (s in listOf("busca un sitio para el dentista", "busca mis llaves", "search for trains to Madrid", "recuérdame buscar un sitio"))
+            assertFalse(s, IntentRouter.isBareSearchFollowUp(s))
     }
 }

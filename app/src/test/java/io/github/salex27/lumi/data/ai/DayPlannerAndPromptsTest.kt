@@ -75,4 +75,11 @@ class DayPlannerAndPromptsTest {
         assertEquals(LocalDateTime.of(2026, 10, 3, 17, 0), AssistantOrchestrator.parseIso("2026-10-03T17:00"))
         assertEquals(LocalDateTime.of(2026, 10, 3, 9, 0), AssistantOrchestrator.parseIso("2026-10-03"))
     }
+
+    @Test
+    fun `a reply that sends the user to look it up is a deflection`() {
+        assertTrue(AssistantPrompts.deflects("No tengo información específica; consulta las webs de Renfe."))
+        assertTrue(AssistantPrompts.deflects("I don't have specific information, check the official website."))
+        assertTrue(!AssistantPrompts.deflects("Renfe y Ouigo operan alta velocidad; Ouigo suele ser más barata."))
+    }
 }

@@ -101,7 +101,9 @@ class TaskRepositoryImpl(
         /** "Then you'll get a button to send Roberto Pérez a WhatsApp…" (contact already looked up). */
         val describeAction: suspend (Task) -> String = { "" },
         /** Web search (#7, opt-in): results for a question, or null when it is off. */
-        val webSearch: suspend (String, io.github.salex27.lumi.domain.assistant.Lang) -> List<io.github.salex27.lumi.domain.search.WebHit>? = { _, _ -> null }
+        val webSearch: suspend (String, io.github.salex27.lumi.domain.assistant.Lang) -> List<io.github.salex27.lumi.domain.search.WebHit>? = { _, _ -> null },
+        /** Whether web search is switched on (to say so when it is off instead of answering with a stub). */
+        val webSearchOn: () -> Boolean = { false }
     )
 
     private val zone: ZoneId get() = ZoneId.systemDefault()
@@ -217,10 +219,12 @@ class TaskRepositoryImpl(
         lastAction = null
         val routine = if (route == null) RoutineMatcher.match(prompt, extras.routines()) else null
         val sentence = followUpWeather(prompt) ?: prompt
+        // "pues busca un sitio" after a question: search for that question instead of making a task (#13)
+        val searchFollow = if (route == null && routine == null) followUpSearch(prompt) else null
         // Top-level route first (#1): only unambiguous cases are decided here, the rest goes on as before
         val top = route ?: if (routine == null) IntentRouter.classify(sentence, now) else null
         if (top != null) android.util.Log.i("LumiInterpret", "route=$top for «$sentence»")
-        val result = if (routine != null) runRoutine(routine, now) else when (top) {
+        val result = if (routine != null) runRoutine(routine, now) else if (searchFollow != null) { lastAction = TaskAICommand.ASK; searchFollowUp(searchFollow, now) } else when (top) {
             IntentRoute.AGENT -> {
                 lastAction = ACTION_AGENT
                 val request = IntentRouter.agentRequest(sentence) ?: sentence
@@ -276,6 +280,19 @@ class TaskRepositoryImpl(
             else -> null
         }
         conversation.record(prompt, result.reply, lastAction, task)
+    }
+
+    /** The previous question when [prompt] is a bare "search for one" follow-up ("pues busca un sitio"), else null. */
+    private fun followUpSearch(prompt: String): String? {
+        val last = conversation.recent().lastOrNull() ?: return null
+        return last.user.takeIf { last.action == TaskAICommand.ASK && IntentRouter.isBareSearchFollowUp(prompt) }
+    }
+
+    private suspend fun searchFollowUp(question: String, now: LocalDateTime): AIProcessingResult {
+        webAnswer(question)?.let { return it }
+        val query = question.trim().trimEnd('?', '.').replace(Regex("^¿"), "")
+        val why = if (extras.webSearchOn()) t("No he encontrado resultados.", "I found no results.") else webOffNote()
+        return AIProcessingResult.Device(DeviceCommand.WebSearch(query), why + t(" Te lo abro en Google.", " Opening it in Google."), assistant.rulesName)
     }
 
     /** "¿Y mañana?" / "and tomorrow?" right after a weather answer → a weather question for that day. */
@@ -523,6 +540,9 @@ class TaskRepositoryImpl(
             ?: return AIProcessingResult.Error(t("No sé hacer eso en el móvil todavía.", "I can't do that on the phone yet."), engine)
         // An explicit "search for…" answers from the web with sources when search is on (#13); otherwise it opens the browser
         (cmd as? DeviceCommand.WebSearch)?.let { search -> webAnswer(search.query)?.let { return it } }
+        if (cmd is DeviceCommand.WebSearch && !extras.webSearchOn()) {
+            return AIProcessingResult.Device(cmd as DeviceCommand, webOffNote() + t(" Te lo abro en Google.", " Opening it in Google."), engine)
+        }
         var usedEngine = engine
         if (cmd is DeviceCommand.Message) {
             // 1) The LLM (if any) separates recipient and text and rewrites it as a direct message
@@ -641,16 +661,21 @@ class TaskRepositoryImpl(
         if (fresh) webAnswer(question)?.let { return it }
         val result = assistant.answer(AssistantPrompts.generalSystem(now, context, history), question, web = fresh)
         val text = result?.first?.let(AssistantPrompts::cleanReply)
+        // The model deflects ("check Renfe's website"): a factual question goes to the web when it is on (#13)
+        if (text != null && AssistantPrompts.deflects(text)) webAnswer(question)?.let { return it }
         android.util.Log.i("LumiInterpret", "Answer to «$question» (${result?.second}): ${text?.take(200)}")
         if (text == null || text.contains("NO_LO_SE")) {
             if (!fresh) webAnswer(question)?.let { return it }
             val query = question.trim().trimEnd('?', '.').replace(Regex("^¿"), "")
+            if (!extras.webSearchOn()) return AIProcessingResult.Device(DeviceCommand.WebSearch(query), webOffNote() + t(" Te lo abro en Google.", " Opening it in Google."), result?.second ?: engine)
             val why = if (result == null) t("No tengo un modelo de IA activo para responder eso", "I don't have an AI model on to answer that")
             else t("No lo sé con seguridad", "I'm not sure")
             return AIProcessingResult.Device(DeviceCommand.WebSearch(query), why + t("; te lo busco en Google.", "; I'll search Google for you."), result?.second ?: engine)
         }
         return AIProcessingResult.Answer(text, result.second)
     }
+
+    private fun webOffNote() = t("La búsqueda web está desactivada (Ajustes > Búsqueda web).", "Web search is off (Settings > Web search).")
 
     /**
      * Searches the web and answers from the results (#7). Null when web search is off or found nothing (the caller
