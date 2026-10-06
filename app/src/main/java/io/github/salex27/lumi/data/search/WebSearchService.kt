@@ -41,6 +41,10 @@ class WebSearchService(context: Context, private val hub: HubClient) {
     private val _config = MutableStateFlow(load())
     val config: StateFlow<WebSearchConfig> = _config.asStateFlow()
 
+    /** Why the last search failed or was empty (null when it worked): shown to the user instead of a silent fallback. */
+    private val _lastError = MutableStateFlow<String?>(null)
+    val lastError: StateFlow<String?> = _lastError.asStateFlow()
+
     private val _searching = MutableStateFlow(false)
     val searching: StateFlow<Boolean> = _searching.asStateFlow()
 
@@ -63,30 +67,50 @@ class WebSearchService(context: Context, private val hub: HubClient) {
         if (!c.enabled) return null
         val query = WebAnswers.query(question).ifBlank { return emptyList() }
         _searching.value = true
+        _lastError.value = null
         return try {
-            val raw = withContext(Dispatchers.IO) {
-                when (c.backend) {
-                    WebSearchBackend.WIKIPEDIA -> SearchParsers.wikipedia(get(SearchParsers.wikipediaUrl(query, lang)))
-                    WebSearchBackend.SEARXNG -> SearchParsers.searxUrl(c.searxUrl, query, lang)?.let { SearchParsers.searx(get(it)) }.orEmpty()
-                    WebSearchBackend.BRAVE -> if (c.braveKey.isBlank()) emptyList()
-                        else SearchParsers.brave(get(SearchParsers.braveUrl(query, lang), mapOf("X-Subscription-Token" to c.braveKey)))
-                    WebSearchBackend.HUB -> hub.search(query)
-                }
-            }
-            WebAnswers.clean(raw)
+            val raw = withContext(Dispatchers.IO) { fetch(c, query, lang) }
+            WebAnswers.clean(raw).also { if (it.isEmpty()) _lastError.value = "no results (${c.backend})" }
         } catch (e: Exception) {
             Log.w("LumiSearch", "search failed (${c.backend}): ${e.message}")
-            emptyList()
+            _lastError.value = describe(c.backend, e)
+            // A configured backend that is down must not leave Lumi blind: Wikipedia needs no key and no server
+            if (c.backend != WebSearchBackend.WIKIPEDIA) fallbackWikipedia(query, lang) else emptyList()
         } finally {
             _searching.value = false
         }
     }
 
+    private suspend fun fetch(c: WebSearchConfig, query: String, lang: Lang): List<WebHit> = when (c.backend) {
+        WebSearchBackend.WIKIPEDIA -> SearchParsers.wikipedia(get(SearchParsers.wikipediaUrl(query, lang)))
+        WebSearchBackend.SEARXNG -> {
+            val url = SearchParsers.searxUrl(c.searxUrl, query, lang) ?: error("SearXNG address missing or invalid")
+            val hits = SearchParsers.searx(get(url))
+            if (hits.isEmpty()) {
+                Log.w("LumiSearch", "SearXNG returned no results for «$query»; trying Wikipedia")
+                _lastError.value = "SearXNG returned no results"
+                runCatching { SearchParsers.wikipedia(get(SearchParsers.wikipediaUrl(query, lang))) }.getOrDefault(emptyList())
+            } else hits
+        }
+        WebSearchBackend.BRAVE -> if (c.braveKey.isBlank()) error("Brave key missing")
+            else SearchParsers.brave(get(SearchParsers.braveUrl(query, lang), mapOf("X-Subscription-Token" to c.braveKey)))
+        WebSearchBackend.HUB -> hub.search(query)
+    }
+
+    private fun fallbackWikipedia(query: String, lang: Lang): List<WebHit> = try {
+        WebAnswers.clean(SearchParsers.wikipedia(get(SearchParsers.wikipediaUrl(query, lang))))
+    } catch (e: Exception) {
+        Log.w("LumiSearch", "Wikipedia fallback failed: ${e.message}")
+        emptyList()
+    }
+
+    private fun describe(b: WebSearchBackend, e: Exception) = "${b.name}: ${e.message ?: e.javaClass.simpleName}"
+
     private fun get(url: String, headers: Map<String, String> = emptyMap()): String {
         val conn = URL(url).openConnection() as HttpURLConnection
         try {
             conn.connectTimeout = 8_000
-            conn.readTimeout = 12_000
+            conn.readTimeout = 15_000
             conn.setRequestProperty("Accept", "application/json")
             // Wikimedia asks API clients to identify themselves
             conn.setRequestProperty("User-Agent", "Lumi/1.0 (https://github.com/27Salex/lumi)")
@@ -120,7 +144,7 @@ object SearchParsers {
     fun searxUrl(base: String, query: String, lang: Lang): String? {
         val b = base.trim().trimEnd('/')
         if (!Regex("^https?://[^\\s/@]+(/\\S*)?$", RegexOption.IGNORE_CASE).matches(b)) return null
-        return "$b/search?q=${enc(query)}&format=json&language=${code(lang)}&safesearch=1"
+        return "$b/search?q=${enc(query)}&format=json&language=${code(lang)}&safesearch=1&categories=general"
     }
 
     fun searx(body: String): List<WebHit> =

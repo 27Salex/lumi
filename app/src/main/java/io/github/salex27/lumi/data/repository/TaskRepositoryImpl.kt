@@ -106,6 +106,7 @@ class TaskRepositoryImpl(
         val webSearch: suspend (String, io.github.salex27.lumi.domain.assistant.Lang) -> List<io.github.salex27.lumi.domain.search.WebHit>? = { _, _ -> null },
         /** Whether web search is switched on (to say so when it is off instead of answering with a stub). */
         val webSearchOn: () -> Boolean = { false },
+        val webSearchError: () -> String? = { null },
         /** Places near the phone (OpenStreetMap); null in tests. */
         val nearby: io.github.salex27.lumi.data.places.NearbyService? = null
     )
@@ -298,7 +299,7 @@ class TaskRepositoryImpl(
         lastAction = TaskAICommand.ASK
         webAnswer(question)?.let { return it }
         val query = question.trim().trimEnd('?', '.').replace(Regex("^¿"), "")
-        val why = if (extras.webSearchOn()) t("No he encontrado resultados.", "I found no results.") else webOffNote()
+        val why = if (extras.webSearchOn()) webFailNote() else webOffNote()
         return AIProcessingResult.Device(DeviceCommand.WebSearch(query), why + t(" Te lo abro en Google.", " Opening it in Google."), assistant.rulesName)
     }
 
@@ -708,12 +709,16 @@ class TaskRepositoryImpl(
             if (!fresh) webAnswer(question)?.let { return it }
             val query = question.trim().trimEnd('?', '.').replace(Regex("^¿"), "")
             if (!extras.webSearchOn()) return AIProcessingResult.Device(DeviceCommand.WebSearch(query), webOffNote() + t(" Te lo abro en Google.", " Opening it in Google."), result?.second ?: engine)
-            val why = if (result == null) t("No tengo un modelo de IA activo para responder eso", "I don't have an AI model on to answer that")
+            val why = if (extras.webSearchError() != null) webFailNote()
+            else if (result == null) t("No tengo un modelo de IA activo para responder eso", "I don't have an AI model on to answer that")
             else t("No lo sé con seguridad", "I'm not sure")
             return AIProcessingResult.Device(DeviceCommand.WebSearch(query), why + t("; te lo busco en Google.", "; I'll search Google for you."), result?.second ?: engine)
         }
         return AIProcessingResult.Answer(text, result.second)
     }
+
+    private fun webFailNote() = extras.webSearchError()?.let { t("La búsqueda web falló ($it).", "Web search failed ($it).") }
+        ?: t("No he encontrado resultados.", "I found no results.")
 
     private fun webOffNote() = t("La búsqueda web está desactivada (Ajustes > Búsqueda web).", "Web search is off (Settings > Web search).")
 

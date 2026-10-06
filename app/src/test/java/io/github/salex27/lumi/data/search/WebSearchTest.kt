@@ -33,7 +33,7 @@ class WebSearchTest {
         assertEquals("https://b.com", brave.single().url)
         assertEquals(listOf("https://c.com"), SearchParsers.hub("""{"hits":[{"title":"C","url":"https://c.com","snippet":"Gamma"}]}""").map { it.url })
         assertNull(SearchParsers.searxUrl("javascript:alert(1)", "q", Lang.EN))
-        assertEquals("https://searx.me/search?q=hola+mundo&format=json&language=es&safesearch=1", SearchParsers.searxUrl("https://searx.me/", "hola mundo", Lang.ES))
+        assertEquals("https://searx.me/search?q=hola+mundo&format=json&language=es&safesearch=1&categories=general", SearchParsers.searxUrl("https://searx.me/", "hola mundo", Lang.ES))
     }
 
     @Test
@@ -60,5 +60,11 @@ class WebSearchTest {
         assertEquals("Canberra is the capital. It was founded in 1913. [1]", WebAnswers.fallback(hits))
         assertNull(WebAnswers.fallback(emptyList()))
         assertEquals("Cuál es la capital de Australia", WebAnswers.query("  ¿Cuál es la capital de Australia?  "))
+    }
+
+    @Test fun freshDataDetectsEnglishAndSpanish() {
+        listOf("What is the latest iPhone price?", "who won the match yesterday", "noticias de hoy", "cuánto cuesta el bitcoin")
+            .forEach { assertTrue(it, io.github.salex27.lumi.data.ai.AssistantIntents.needsFreshData(it)) }
+        assertTrue(!io.github.salex27.lumi.data.ai.AssistantIntents.needsFreshData("why is the sky blue"))
     }
 }

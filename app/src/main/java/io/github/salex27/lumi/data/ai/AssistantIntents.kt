@@ -164,7 +164,10 @@ object AssistantIntents {
     /** A question that needs current data (better with web search when Gemini online is on). Works for both languages. */
     fun needsFreshData(text: String) = Regex(
         "$I\\b(?:hoy|ahora|actual(?:mente)?|[uú]ltim[oa]s?|noticias?|resultado|marcador|partido|gan[oó]|jug[oó]|precio|cotiza|cuesta|" +
-            "abre|cierra|horario|esta\\s+semana|este\\s+a[ñn]o|20\\d\\d|elecciones|presidente|estreno)\\b"
+            "abre|cierra|horario|esta\\s+semana|este\\s+a[ñn]o|20\\d\\d|elecciones|presidente|estreno|" +
+            "today|now|current(?:ly)?|latest|news|score|results?|match|won|winner|price|costs?|open|closes?|opening\\s+hours|" +
+            "this\\s+(?:week|year|month)|election|president|released?|who\\s+is|how\\s+much\\s+is|" +
+            "qui[eé]n\\s+es|cu[aá]nto\\s+cuesta|cu[aá]ndo\\s+(?:sale|juega)|when\\s+(?:does|is|do)|stock|bitcoin|exchange\\s+rate|cambio)\\b"
     ).containsMatchIn(text)
 }
 
