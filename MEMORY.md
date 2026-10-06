@@ -780,3 +780,10 @@ Plan approved by the user ("Lumi — Plan v3.1"). Decisions:
 - Places come from Overpass (OpenStreetMap, no key) around the phone (1.5 km, then 4 km); names are untrusted (control chars removed, capped). OSM has no prices: "cheap" only widens FOOD to fast food/simple cuisines and the reply says results are by distance. Rows in the chat open Google Maps links (https, no app launch).
 - No permission: the chat asks for location and repeats the search if granted. No location / no network / no results / denied: a Google Maps search link in the chat (WebAnswer source), never just launching Maps. "pues busca un sitio" after a NEARBY turn repeats the places search.
 - Not done: handing the query to web search / Hub; open-now (only "24/7" is shown).
+
+## 2026-10-07 — 1.1.2: keyboard, SearXNG, new chats, Hub context
+
+- Keyboard: Home hides the tab bar while the IME is open and the SmartBar uses `imePadding`; Assistant and Orbit already had it. NOT verified on the emulator (the PC disk was full, the AVD refused to start): needs a real-device check.
+- Web search: `WebSearchService` keeps `lastError`; when SearXNG/Brave/Hub fail or return nothing it falls back to Wikipedia and logs `Log.w("LumiSearch")`; the chat says "Web search failed (reason)" instead of a silent Google. SearXNG URL adds `categories=general`. `needsFreshData` now also matches English (latest, price, who is, news...).
+- Chats > New chat: `OrbitRepository.newChat(agentId)` always creates a fresh 1:1 thread (blank title, auto-titled from the first message, own Claude session); the dialog lists every agent. `chatWithClaude()` (reuse) stays only for the assistant hand-over.
+- Hub: clear errors for timeout/crash/empty turns, `/health` has running turns + uptime, Claude turns get a context header (date/time, language, today's task titles only if `can_read_tasks`), agent prompt asks for sources and WebSearch, `lumi.cmd` is in the repo.

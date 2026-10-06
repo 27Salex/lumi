@@ -14,6 +14,9 @@ Pending work. Finished items are removed; their history is in `MEMORY.md` and gi
 - [x] versionCode 1 / versionName 1.0.0, build, APK to Drive, tag `v1.0.0`
 - [x] Published: https://github.com/27Salex/lumi (release v1.0.0 with the APK)
 
+## 1.1.2 pending real-device checks
+- [ ] Keyboard pushes the Home SmartBar, assistant pill and Orbit input up; New chat creates separate threads; SearXNG answers over the tailnet
+
 ## Lumi Hub (#3) follow-ups
 - [ ] Claude Code Channels (`claude/channel`) to push into a running interactive session
 - [ ] Files in `lumi_send`; Codex / Gemini CLI as wake-per-message agents (`Agents.command_for`)
