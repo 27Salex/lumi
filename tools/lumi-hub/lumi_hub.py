@@ -58,6 +58,7 @@ ASK_DEFAULT_TIMEOUT = 600
 ASK_MAX_TIMEOUT = 3_600
 EVENTS_PER_MINUTE = 30
 TURN_TIMEOUT = 15 * 60
+START_TIME = time.time()
 SEARCH_TIMEOUT = 140
 MAX_TURNS_RUNNING = 2
 SESSION_ID = re.compile(r"^[A-Za-z0-9_-]{8,80}$")
@@ -447,6 +448,13 @@ class Agents:
         self.lock = threading.Lock()
         self.search_slot = threading.Semaphore(1)
 
+    def status(self):
+        """Health details for the phone and for `lumi status`: what is running right now."""
+        with self.lock:
+            running = len(self.running)
+        return {"claude": bool(self.claude), "running_turns": running, "max_turns": MAX_TURNS_RUNNING,
+                "turn_timeout_seconds": TURN_TIMEOUT}
+
     def available(self):
         return [{"id": "claude", "name": "Claude Code", "host": socket.gethostname()}] if self.claude else []
 
@@ -483,13 +491,17 @@ class Agents:
 
     def _run(self, thread, agent, turn, args, text):
         reply, session, error = "", None, None
+        timed_out = threading.Event()
         try:
             flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
             proc = subprocess.Popen(
                 args, cwd=self.workdir, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                 text=True, encoding="utf-8", errors="replace", creationflags=flags,
             )
-            timer = threading.Timer(TURN_TIMEOUT, proc.kill)
+            def on_timeout():
+                timed_out.set()
+                proc.kill()
+            timer = threading.Timer(TURN_TIMEOUT, on_timeout)
             timer.start()
             try:
                 proc.stdin.write(text)
@@ -516,10 +528,14 @@ class Agents:
             finally:
                 timer.cancel()
                 proc.stdout.close()
-            if proc.returncode not in (0, None) and not reply:
-                error = error or f"exit code {proc.returncode}"
+            if timed_out.is_set():
+                error = f"Claude took longer than {TURN_TIMEOUT // 60} minutes and was stopped"
+            elif proc.returncode not in (0, None) and not reply:
+                error = error or f"Claude stopped unexpectedly (exit code {proc.returncode})"
+            elif not reply and not error:
+                error = "Claude finished without an answer"
         except OSError as e:
-            error = f"could not start the agent: {e}"
+            error = f"could not start Claude on the PC: {e}"
         finally:
             if session and SESSION_ID.match(session):
                 self.config.setdefault("threads", {})[thread] = {"agent": agent, "session": session}
@@ -662,7 +678,8 @@ class Handler(BaseHTTPRequestHandler):
         path, _, query = self.path.partition("?")
         if path == "/health":
             if self.phone():
-                self.send_json(200, {"ok": True, "host": socket.gethostname(), "agents": self.agents.available()})
+                self.send_json(200, {"ok": True, "host": socket.gethostname(), "agents": self.agents.available(),
+                                     "status": self.agents.status(), "uptime_seconds": int(time.time() - START_TIME)})
         elif path == "/events":
             if self.phone():
                 self.stream_events(query)

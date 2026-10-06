@@ -171,6 +171,25 @@ class TurnTest(unittest.TestCase):
         with self.assertRaises(h.HubError):
             agents.start_turn("bad thread id!", "claude", "x")
 
+    def test_failed_and_timed_out_turns_report_a_clear_error(self):
+        hub = h.Hub()
+        agents = FakeAgents(hub, {"threads": {}}, "import sys; sys.stdin.read(); sys.exit(3)")
+        agents.start_turn("orbit-2", "claude", "hi")
+        self.assertIn("exit code 3", self._wait_done(hub, 0)["error"])
+        old, h.TURN_TIMEOUT = h.TURN_TIMEOUT, 0.3
+        try:
+            agents.script = "import time; time.sleep(30)"
+            last = hub.since(0)[-1]["id"]
+            agents.start_turn("orbit-3", "claude", "hi")
+            self.assertIn("took longer", self._wait_done(hub, last)["error"])
+        finally:
+            h.TURN_TIMEOUT = old
+
+    def test_status_reports_running_turns(self):
+        st = h.Agents(None, {}, lambda: None, ".", "claude").status()
+        self.assertTrue(st["claude"])
+        self.assertEqual(0, st["running_turns"])
+
     def _wait_done(self, hub, after):
         for _ in range(3000):
             done = [e for e in hub.since(after) if e["type"] == "reply" and e["done"]]

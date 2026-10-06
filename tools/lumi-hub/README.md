@@ -35,6 +35,13 @@ Config lives in `~/.lumi-hub.json` (phone token, client tokens, thread → Claud
 delete the file (or one client entry) and restart the hub.
 `--config <file>` uses another config file (tests; don't fake HOME, Claude Code would lose its login).
 
+## The `lumi` launcher (Windows)
+
+`lumi.cmd` is the single command for everything on the PC: it starts SearXNG (WSL, via `lumi-search.cmd`) and then the hub
+(via `lumi-hub.cmd`, which wraps `python lumi_hub.py serve`). `lumi status` shows what is running and the `tailscale serve`
+mapping. Install: copy `lumi.cmd` to a folder on your PATH (for example `%USERPROFILE%\.local\bin`), next to your own
+`lumi-search.cmd` and `lumi-hub.cmd`, then run `lumi` from any terminal.
+
 ## Security
 
 - The hub listens on **127.0.0.1 only**; the phone reaches it through `tailscale serve` (HTTPS with a real *.ts.net
@@ -56,7 +63,7 @@ delete the file (or one client entry) and restart the hub.
 
 | Who | Method | Path | |
 |---|---|---|---|
-| phone | GET | `/health` | host + available agents |
+| phone | GET | `/health` | host, available agents, running turns, uptime |
 | phone | GET | `/events?since=<id>` | SSE stream; open questions are always re-sent on connect |
 | phone | POST | `/answer` | `{ask_id, answer}` → unblocks `lumi_ask` (410 if no longer open) |
 | phone | POST | `/chat` | `{thread, agent, text}` → one agent turn, reply as `reply` events |
