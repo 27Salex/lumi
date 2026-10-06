@@ -179,8 +179,8 @@ class AssistantActivity : ComponentActivity() {
                     pendingNearby = null
                     if (result.values.any { it }) viewModel.send(question)
                     else {
-                        viewModel.say(ReplyLanguage.t("Sin tu ubicación no puedo buscar sitios cercanos. Te lo abro en el mapa.", "Without your location I can't list nearby places. Opening it on the map."), isError = true)
-                        viewModel.retryDevice(io.github.salex27.lumi.domain.assistant.DeviceCommand.MapsSearch(question))
+                        viewModel.say(ReplyLanguage.t("Sin tu ubicación no puedo buscar sitios cercanos. Te dejo la búsqueda en Google Maps.", "Without your location I can't list nearby places. Here is the search in Google Maps."), isError = true,
+                            sources = listOf(io.github.salex27.lumi.domain.search.WebHit("Google Maps: " + question, io.github.salex27.lumi.domain.places.NearbyIntent.mapsUrl(question), "")))
                     }
                 }
                 LaunchedEffect(state.locationRequest) {

@@ -661,18 +661,19 @@ class TaskRepositoryImpl(
     private suspend fun nearby(question: String, engine: String): AIProcessingResult {
         val q = NearbyIntent.parse(question)
         val label = q?.let { t(it.category.es, it.category.en) } ?: question.trim().trimEnd('?', '.').replace(Regex("^¿"), "")
-        val maps = DeviceCommand.MapsSearch(label)
+        val mapsLink = io.github.salex27.lumi.domain.search.WebHit(t("Buscar en Google Maps: ", "Search in Google Maps: ") + label, NearbyIntent.mapsUrl(label), "")
+        fun fallback(why: String) = AIProcessingResult.WebAnswer(why, listOf(mapsLink), engine)
         val service = extras.nearby
-        if (q == null || service == null) return AIProcessingResult.Device(maps, t("Te lo busco en el mapa.", "Searching it on the map for you."), engine)
+        if (q == null || service == null) return fallback(t("Te dejo la búsqueda en Google Maps.", "Here is the search in Google Maps."))
         return when (val r = service.search(q)) {
             is NearbyService.Result.NoPermission -> AIProcessingResult.Nearby(
                 emptyList(), question, needsLocationPermission = true, engine = engine,
                 reply = t("Para buscar sitios cerca de ti necesito tu ubicación. Solo uso tu posición ahora, para esta búsqueda.", "To look for places near you I need your location. I only use your position now, for this search.")
             )
-            is NearbyService.Result.NoLocation -> AIProcessingResult.Device(maps, t("No consigo tu ubicación (¿está activada?). Te lo abro en el mapa.", "I can't get your location (is it on?). Opening it on the map."), engine)
-            is NearbyService.Result.Failed -> AIProcessingResult.Device(maps, t("No he podido consultar los sitios cercanos (¿sin conexión?). Te lo abro en el mapa.", "I couldn't look up nearby places (no connection?). Opening it on the map."), engine)
+            is NearbyService.Result.NoLocation -> fallback(t("No consigo tu ubicación (¿está activada?). Te dejo la búsqueda en Google Maps.", "I can't get your location (is it on?). Here is the search in Google Maps."))
+            is NearbyService.Result.Failed -> fallback(t("No he podido consultar los sitios cercanos (¿sin conexión?). Te dejo la búsqueda en Google Maps.", "I couldn't look up nearby places (no connection?). Here is the search in Google Maps."))
             is NearbyService.Result.Ok -> if (r.places.isEmpty())
-                AIProcessingResult.Device(maps, t("No he encontrado $label cerca. Te lo abro en el mapa.", "I found no $label nearby. Opening it on the map."), engine)
+                fallback(t("No he encontrado $label cerca. Te dejo la búsqueda en Google Maps.", "I found no $label nearby. Here is the search in Google Maps."))
             else {
                 val km = if (r.radiusM >= 1000) "${r.radiusM / 1000.0} km".replace(".0 km", " km") else "${r.radiusM} m"
                 val cheap = if (q.cheap) t(" No conozco los precios: están ordenados por cercanía.", " I don't know prices: they are sorted by distance.") else ""

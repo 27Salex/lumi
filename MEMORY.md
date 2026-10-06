@@ -773,3 +773,10 @@ Plan approved by the user ("Lumi — Plan v3.1"). Decisions:
 - Google Tasks only has a date (no time) → the time lives only on the phone.
 - The Agenda view doesn't allow dragging blocks to change the time (edit from the sheet).
 - The APK is debug-signed (no release keystore): an app signed with another key can't update over it.
+
+## 2026-10-06 — Nearby places (#13)
+
+- New action `NEARBY` ("dónde puedo comer barato", "where can I eat cheap near me", "una farmacia cerca"), RULES_FIRST, typo tolerant: `NearbyIntent` (pure) strips accents and fixes words of 5+ letters with Damerau-Levenshtein 1 (2 for 9+); 4-letter words must be exact on purpose ("near"/"bear"). The Gemma prompt also asks for a corrected sentence in `targetTitle`.
+- Places come from Overpass (OpenStreetMap, no key) around the phone (1.5 km, then 4 km); names are untrusted (control chars removed, capped). OSM has no prices: "cheap" only widens FOOD to fast food/simple cuisines and the reply says results are by distance. Rows in the chat open Google Maps links (https, no app launch).
+- No permission: the chat asks for location and repeats the search if granted. No location / no network / no results / denied: a Google Maps search link in the chat (WebAnswer source), never just launching Maps. "pues busca un sitio" after a NEARBY turn repeats the places search.
+- Not done: handing the query to web search / Hub; open-now (only "24/7" is shown).

@@ -484,8 +484,8 @@ class AssistantViewModel(
     }
 
     /** A message from Lumi that doesn't come from the repository (e.g. "I can't find Ana in your contacts"). */
-    fun say(text: String, isError: Boolean = false) {
-        append(ChatMessage.Assistant(nextId++, text, isError = isError))
+    fun say(text: String, isError: Boolean = false, sources: List<io.github.salex27.lumi.domain.search.WebHit> = emptyList()) {
+        append(ChatMessage.Assistant(nextId++, text, isError = isError, sources = sources))
         if (voiceTurn) speak(text)
     }
 

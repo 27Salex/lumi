@@ -142,6 +142,12 @@ object NearbyIntent {
         return out.sortedBy { it.distanceM }.distinctBy { it.name.lowercase() }.take(max)
     }
 
+    /** Google Maps link for a text search. */
+    fun mapsUrl(query: String): String = "https://www.google.com/maps/search/?api=1&query=" + java.net.URLEncoder.encode(query, "UTF-8")
+
+    /** Google Maps link for a found place: its name plus exact coordinates. */
+    fun mapsUrl(p: NearbyPlace): String = mapsUrl("${p.name} ${p.lat},${p.lng}")
+
     /** Removes control characters and caps the length of an untrusted name. */
     fun cleanName(raw: String): String = raw.filter { !it.isISOControl() }.trim().take(60)
 

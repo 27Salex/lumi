@@ -31,7 +31,7 @@ Pending work. Finished items are removed; their history is in `MEMORY.md` and gi
 
 ## Routing (#12, #13) follow-ups
 
-- Real-device check: plain "best high-speed trains to Madrid tomorrow" in an Orbit with Claude, "barcelona" after Claude asks, "pues busca un sitio" after a food question, web search on and off. Typo tolerance ("pudo" for "puedo") is not done.
+- Real-device check: plain "best high-speed trains to Madrid tomorrow" in an Orbit with Claude, "barcelona" after Claude asks, "pues busca un sitio" after a food question, web search on and off. Typo tolerance for places requests is done (`NearbyIntent`); other intents still need exact words. Real-device check of "donde pudo comer barato" and location permission flow.
 
 ## Web search (#7) follow-ups
 - [ ] Fetch the page of the top result when snippets are too thin; news-specific backend

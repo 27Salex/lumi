@@ -37,6 +37,7 @@ before a meeting…), or you add your own. Place reminders fire when you arrive 
 - Plans your day around your calendar, work hours and priorities ("What should I do now?"), and suggests what to do in
   a free gap.
 - Weather (Open-Meteo, no key) with warnings for your outdoor tasks.
+- Nearby places ("where can I eat cheap?", «una farmacia cerca», typos tolerated): OpenStreetMap results by distance with Google Maps links.
 - Answers general questions and quick math, remembers facts only when you ask it to.
 - Reads your unread messages and replies from the notification ("what did they write to me?", "reply that I'm coming").
 - Phone actions: calls, WhatsApp/SMS, alarms, timers, flashlight, Do Not Disturb, music, directions.

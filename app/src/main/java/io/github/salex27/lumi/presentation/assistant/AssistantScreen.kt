@@ -536,11 +536,9 @@ private fun NearbyList(places: List<io.github.salex27.lumi.domain.places.NearbyP
             val detail = listOfNotNull(p.distanceLabel, p.kind?.replace('_', ' '), open24.takeIf { p.open == true }).joinToString(" · ")
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.muted).clickable {
-                    // Only numbers go into the URI; the name is a label (URL-encoded), never executed
-                    val label = android.net.Uri.encode(p.name)
                     runCatching {
                         context.startActivity(
-                            android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("geo:${p.lat},${p.lng}?q=${p.lat},${p.lng}($label)"))
+                            android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(io.github.salex27.lumi.domain.places.NearbyIntent.mapsUrl(p)))
                                 .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                         )
                     }

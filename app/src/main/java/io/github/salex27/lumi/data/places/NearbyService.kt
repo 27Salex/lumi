@@ -40,7 +40,9 @@ class NearbyService(private val context: Context) {
         val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         if (!granted) return@withContext Result.NoPermission
-        val here = location() ?: return@withContext Result.NoLocation
+        val here = location()
+        android.util.Log.i("LumiNearby", "location=$here")
+        if (here == null) return@withContext Result.NoLocation
         try {
             for (radius in RADII) {
                 val places = NearbyIntent.parseOverpass(post(NearbyIntent.overpass(q, here.latitude, here.longitude, radius)), here.latitude, here.longitude)
@@ -49,6 +51,7 @@ class NearbyService(private val context: Context) {
             Result.Ok(emptyList(), RADII.last())
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
+            android.util.Log.w("LumiNearby", "Overpass failed", e)
             Result.Failed
         }
     }
