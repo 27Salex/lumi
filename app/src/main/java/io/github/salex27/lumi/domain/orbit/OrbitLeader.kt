@@ -23,7 +23,7 @@ data class RoutingExample(val text: String, val agentName: String, val at: Long)
  */
 object OrbitLeader {
 
-    enum class Why { LEARNED, PURPOSE, CODE, COMPLEX, LLM, NONE }
+    enum class Why { LEARNED, PURPOSE, CODE, COMPLEX, WEB, FOLLOW_UP, LLM, NONE }
 
     data class Decision(
         /** null = Lumi answers. */
@@ -41,10 +41,28 @@ object OrbitLeader {
         val capable = agents.firstOrNull { it.backend == AgentBackendKind.CLAUDE_PC }
         if (capable != null && isCode(text)) return Decision(capable, Why.CODE, complex)
         if (capable != null && complex) return Decision(capable, Why.COMPLEX, true)
+        if (capable != null && needsWeb(text)) return Decision(capable, Why.WEB, complex)
         llmPick?.let { pick -> agents.firstOrNull { fold(it.name) == fold(pick).trim().trim('.', '"', '«', '»') } }
             ?.let { return Decision(it, Why.LLM, complex) }
         return Decision(null, Why.NONE, complex)
     }
+
+    private val WEB = Regex(
+        "(?iu)\\b(search(?:\\s+for)?|look\\s*up|look\\s+for|busca\\w*|averigua\\w*|mejor(?:es)?|best|cheapest|m[aá]s\\s+barat\\w+|" +
+            "trenes?|trains?|vuelos?|flights?|hoteles|hotels?|billetes?|tickets?|precios?|prices?|horarios?|timetables?|" +
+            "noticias|news|reviews?|rese[nñ]as|latest|[uú]ltimas)\\b"
+    )
+
+    /** A request that needs fresh facts from the web (search, prices, travel, news): Claude on the PC can browse. */
+    fun needsWeb(text: String): Boolean = WEB.containsMatchIn(text) && text.trim().split(Regex("\\s+")).size >= 4
+
+    /**
+     * A short reply (up to 4 words, not a question of its own) right after an agent asked something answers that
+     * agent. [lastAgentText] is the agent's last message, [agentWasLast] whether it was the last turn.
+     */
+    fun isFollowUp(text: String, lastAgentText: String?, agentWasLast: Boolean): Boolean =
+        agentWasLast && lastAgentText?.trimEnd()?.endsWith("?") == true &&
+            text.trim().split(Regex("\\s+")).size <= 4 && !text.trim().endsWith("?")
 
     /** Prompt for the optional LLM pick: one name or "Lumi". */
     fun llmPrompt(text: String, agents: List<LeaderAgent>): Pair<String, String> {

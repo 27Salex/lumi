@@ -130,6 +130,11 @@ class OrbitRepository(
     private suspend fun lead(sessionId: Long, text: String, members: List<AgentEntity>) {
         val agents = members.map { LeaderAgent(it.id, it.name, AgentBackendKind.of(it.backend), it.purpose) }
         val examples = routing?.examples?.value.orEmpty()
+        // A short reply right after an agent asked a question belongs to that agent ("barcelona")
+        val last = lines(sessionId).dropLast(1).lastOrNull() // the user's own message is already stored
+        val followUp = last?.agentId?.let { id -> members.firstOrNull { it.id == id } }
+            ?.takeIf { OrbitLeader.isFollowUp(text, last.text, true) }
+        if (followUp != null) { ask(sessionId, followUp, text); return }
         var decision = OrbitLeader.decide(text, agents, examples)
         // Only when the rules have no opinion, and only for real requests: Lumi's brain picks (or keeps it)
         if (decision.why == OrbitLeader.Why.NONE && text.trim().split(Regex("\\s+")).size >= 4) {
@@ -176,7 +181,8 @@ class OrbitRepository(
         OrbitLeader.Why.PURPOSE -> ReplyLanguage.t("encaja con su papel", "it fits its role")
         OrbitLeader.Why.CODE -> ReplyLanguage.t("es trabajo de código en tu PC", "it's code work on your PC")
         OrbitLeader.Why.COMPLEX -> ReplyLanguage.t("es un encargo grande para mí", "it's a big job for me")
-        OrbitLeader.Why.LLM, OrbitLeader.Why.NONE -> ReplyLanguage.t("parece lo suyo", "it looks like the best fit")
+        OrbitLeader.Why.WEB -> ReplyLanguage.t("necesita buscar en la web", "it needs a web search")
+        OrbitLeader.Why.FOLLOW_UP, OrbitLeader.Why.LLM, OrbitLeader.Why.NONE -> ReplyLanguage.t("parece lo suyo", "it looks like the best fit")
     }
 
     /** "Second opinion": the same question goes to another agent of the Orbit. */

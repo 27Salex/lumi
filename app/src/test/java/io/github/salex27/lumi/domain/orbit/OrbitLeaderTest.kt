@@ -69,4 +69,21 @@ class OrbitLeaderTest {
         assertTrue(system.contains("ONE name"))
         assertTrue(user.contains("Nova: Writes and edits") && user.contains("Claude: Claude Code"))
     }
+
+    @Test
+    fun `web research without a mention goes to claude`() {
+        val d = OrbitLeader.decide("best high-speed trains to Madrid tomorrow", team, emptyList())
+        assertEquals(claude, d.agent)
+        assertEquals(Why.WEB, d.why)
+        assertEquals(claude, OrbitLeader.decide("busca el mejor hotel barato en Sevilla", team, emptyList()).agent)
+        assertNull(OrbitLeader.decide("good morning, how are you?", team, emptyList()).agent)
+    }
+
+    @Test
+    fun `short answer after an agent question is a follow up`() {
+        assertTrue(OrbitLeader.isFollowUp("barcelona", "Which city do you leave from?", true))
+        assertFalse(OrbitLeader.isFollowUp("barcelona", "Here are the trains.", true))
+        assertFalse(OrbitLeader.isFollowUp("barcelona", "Which city?", false))
+        assertFalse(OrbitLeader.isFollowUp("and what about flights to Rome?", "Which city?", true))
+    }
 }
