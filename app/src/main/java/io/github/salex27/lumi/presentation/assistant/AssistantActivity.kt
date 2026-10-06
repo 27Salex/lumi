@@ -172,6 +172,23 @@ class AssistantActivity : ComponentActivity() {
                         else -> viewModel.say(ReplyLanguage.t("Sin acceso a tus contactos no puedo buscar a quién llamar. Puedes darme el número.", "Without access to your contacts I can't look up who to call. You can give me the number."), isError = true)
                     }
                 }
+                // "Where can I eat?" without location permission: ask once, then repeat the search (or fall back to the map)
+                var pendingNearby by remember { mutableStateOf<String?>(null) }
+                val locationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+                    val question = pendingNearby ?: return@rememberLauncherForActivityResult
+                    pendingNearby = null
+                    if (result.values.any { it }) viewModel.send(question)
+                    else {
+                        viewModel.say(ReplyLanguage.t("Sin tu ubicación no puedo buscar sitios cercanos. Te lo abro en el mapa.", "Without your location I can't list nearby places. Opening it on the map."), isError = true)
+                        viewModel.retryDevice(io.github.salex27.lumi.domain.assistant.DeviceCommand.MapsSearch(question))
+                    }
+                }
+                LaunchedEffect(state.locationRequest) {
+                    val question = state.locationRequest ?: return@LaunchedEffect
+                    viewModel.locationHandled()
+                    pendingNearby = question
+                    locationPermission.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION))
+                }
                 LaunchedEffect(state.device) {
                     val cmd = state.device ?: return@LaunchedEffect
                     val contact = state.deviceContact

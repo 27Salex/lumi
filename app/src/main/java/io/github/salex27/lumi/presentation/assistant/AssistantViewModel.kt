@@ -37,7 +37,9 @@ sealed interface ChatMessage {
         val tasks: List<Task> = emptyList(),
         val isError: Boolean = false,
         /** Web results the answer came from (#7), shown as links. */
-        val sources: List<io.github.salex27.lumi.domain.search.WebHit> = emptyList()
+        val sources: List<io.github.salex27.lumi.domain.search.WebHit> = emptyList(),
+        /** Nearby places (OpenStreetMap, untrusted), shown as tappable rows that open the maps app. */
+        val places: List<io.github.salex27.lumi.domain.places.NearbyPlace> = emptyList()
     ) : ChatMessage
 }
 
@@ -63,6 +65,8 @@ data class AssistantUiState(
     val openTaskId: Long? = null,
     /** Pending phone action (the Activity launches it and clears it). */
     val device: DeviceCommand? = null,
+    /** Set when a nearby search needs the location permission: the question to repeat once it is granted. */
+    val locationRequest: String? = null,
     val deviceContact: DeviceActions.Contact? = null,
     /** Lumi asked for something missing ("What should I tell Víctor?"): the next sentence fills it in. */
     val followUp: AIProcessingResult.AskFollowUp? = null,
@@ -100,10 +104,16 @@ data class ContactChoice(val command: DeviceCommand, val options: List<DeviceAct
 /** Web sources stored with an assistant message (JSON payload), so a resumed chat still shows them. */
 internal object MessagePayload {
     @kotlinx.serialization.Serializable
-    private data class Payload(val sources: List<io.github.salex27.lumi.domain.search.WebHit> = emptyList())
+    private data class Payload(
+        val sources: List<io.github.salex27.lumi.domain.search.WebHit> = emptyList(),
+        val places: List<io.github.salex27.lumi.domain.places.NearbyPlace> = emptyList()
+    )
     private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
 
-    fun of(sources: List<io.github.salex27.lumi.domain.search.WebHit>): String? = if (sources.isEmpty()) null else json.encodeToString(Payload(sources))
+    fun of(sources: List<io.github.salex27.lumi.domain.search.WebHit>, places: List<io.github.salex27.lumi.domain.places.NearbyPlace> = emptyList()): String? =
+        if (sources.isEmpty() && places.isEmpty()) null else json.encodeToString(Payload(sources, places))
+    fun places(payload: String?): List<io.github.salex27.lumi.domain.places.NearbyPlace> =
+        payload?.let { runCatching { json.decodeFromString<Payload>(it).places }.getOrNull() }.orEmpty()
     fun sources(payload: String?): List<io.github.salex27.lumi.domain.search.WebHit> =
         payload?.let { runCatching { json.decodeFromString<Payload>(it).sources }.getOrNull() }.orEmpty()
 }
@@ -223,7 +233,7 @@ class AssistantViewModel(
         if (m.role == ChatMessageEntity.ROLE_USER) ChatMessage.User(id, m.text)
         else ChatMessage.Assistant(
             id, m.text, m.engine, m.taskIdList.take(6).mapNotNull { runCatching { repository.getTask(it) }.getOrNull() }, m.isError,
-            MessagePayload.sources(m.payload)
+            MessagePayload.sources(m.payload), MessagePayload.places(m.payload)
         )
 
     // ── Sessions ──────────────────────────────────────────────────────────────
@@ -425,6 +435,7 @@ class AssistantViewModel(
 
     fun openTaskHandled() = _state.update { it.copy(openTaskId = null) }
     fun deviceHandled() = _state.update { it.copy(device = null, deviceContact = null) }
+    fun locationHandled() = _state.update { it.copy(locationRequest = null) }
 
     /** A routine is running: missing accesses are mentioned, without opening system screens halfway through. */
     var routineActive = false
@@ -515,7 +526,8 @@ class AssistantViewModel(
                     engine = result.engine,
                     tasks = tasks,
                     isError = result is AIProcessingResult.Error,
-                    sources = (result as? AIProcessingResult.WebAnswer)?.sources.orEmpty()
+                    sources = (result as? AIProcessingResult.WebAnswer)?.sources.orEmpty(),
+                    places = (result as? AIProcessingResult.Nearby)?.places.orEmpty()
                 ),
                 action
             )
@@ -529,6 +541,7 @@ class AssistantViewModel(
                     openTaskId = (result as? AIProcessingResult.OpenTask)?.task?.id,
                     device = (result as? AIProcessingResult.Device)?.command
                         ?: (result as? AIProcessingResult.Routine)?.devices?.firstOrNull(),
+                    locationRequest = (result as? AIProcessingResult.Nearby)?.takeIf { r -> r.needsLocationPermission }?.query,
                     deviceQueue = (result as? AIProcessingResult.Routine)?.devices?.drop(1).orEmpty(),
                     routineNavigate = (result as? AIProcessingResult.Routine)?.navigate?.takeIf { result.devices.isNotEmpty() },
                     followUp = result as? AIProcessingResult.AskFollowUp,
@@ -572,7 +585,7 @@ class AssistantViewModel(
                 sessionId = 0, role = ChatMessageEntity.ROLE_ASSISTANT, text = message.text, createdAt = store.stamp(),
                 engine = message.engine, isError = message.isError, action = action,
                 taskIds = ChatMessageEntity.joinIds(message.tasks.map { it.id }),
-                payload = MessagePayload.of(message.sources)
+                payload = MessagePayload.of(message.sources, message.places)
             )
         }
         synchronized(pendingWrites) {

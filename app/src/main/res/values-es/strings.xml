@@ -430,4 +430,5 @@
     <string name="widget_empty">Nada pendiente. Di «Oye Lumi» o toca abajo.</string>
     <string name="work_end">Termino de trabajar</string>
     <string name="work_start">Empiezo a trabajar</string>
+    <string name="nearby_open_24h">Abierto 24 h</string>
 </resources>

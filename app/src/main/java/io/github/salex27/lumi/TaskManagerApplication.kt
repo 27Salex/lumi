@@ -203,6 +203,7 @@ class TaskManagerApplication : Application() {
             memory = memoryStore,
             extras = TaskRepositoryImpl.AssistantExtras(
                 weather = weather,
+                nearby = io.github.salex27.lumi.data.places.NearbyService(this),
                 routines = { routines.routines.value },
                 unreadMessages = {
                     val listener = io.github.salex27.lumi.service.notify.LumiNotificationListener

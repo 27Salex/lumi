@@ -58,6 +58,9 @@ object DeviceActions {
             is DeviceCommand.WebSearch -> start(context, Intent(Intent.ACTION_WEB_SEARCH).putExtra(SearchManager.QUERY, command.query))
                 .takeIf { it is Outcome.Done }
                 ?: start(context, Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=${Uri.encode(command.query)}")))
+            is DeviceCommand.MapsSearch -> start(context, Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=${Uri.encode(command.query)}")))
+                .takeIf { it is Outcome.Done }
+                ?: start(context, Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/search/${Uri.encode(command.query)}")))
             is DeviceCommand.OpenSettings -> start(context, when (command.panel) {
                 DeviceCommand.SettingsPanel.WIFI -> Intent(Settings.Panel.ACTION_WIFI)
                 DeviceCommand.SettingsPanel.BLUETOOTH -> Intent(Settings.ACTION_BLUETOOTH_SETTINGS)

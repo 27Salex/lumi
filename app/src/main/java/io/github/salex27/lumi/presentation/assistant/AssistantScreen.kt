@@ -418,10 +418,11 @@ private fun FullAssistant(
                             Column {
                                 TypewriterText(msg.text, style = MaterialTheme.typography.bodyLarge, color = if (msg.isError) c.danger else c.textPrimary,
                                     animate = msg.id !in state.revealed, onFinished = { finished = true; onRevealed(msg.id) })
-                                AnimatedVisibility(finished && (msg.tasks.isNotEmpty() || msg.engine.isNotBlank() || msg.sources.isNotEmpty())) {
+                                AnimatedVisibility(finished && (msg.tasks.isNotEmpty() || msg.engine.isNotBlank() || msg.sources.isNotEmpty() || msg.places.isNotEmpty())) {
                                     Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                         msg.tasks.take(6).forEach { TaskMiniChip(it) }
                                         if (msg.sources.isNotEmpty()) SourceLinks(msg.sources)
+                                        if (msg.places.isNotEmpty()) NearbyList(msg.places)
                                         EngineBadge(msg.engine)
                                     }
                                 }
@@ -520,6 +521,34 @@ private fun SourceLinks(sources: List<io.github.salex27.lumi.domain.search.WebHi
                     }
                 }.padding(vertical = 2.dp)
             )
+        }
+    }
+}
+
+/** Nearby places (OpenStreetMap, untrusted text): name, distance, open 24 h; a tap opens the place in the maps app. */
+@Composable
+private fun NearbyList(places: List<io.github.salex27.lumi.domain.places.NearbyPlace>) {
+    val c = Lumi.colors
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val open24 = stringResource(R.string.nearby_open_24h)
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        places.forEach { p ->
+            val detail = listOfNotNull(p.distanceLabel, p.kind?.replace('_', ' '), open24.takeIf { p.open == true }).joinToString(" · ")
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.muted).clickable {
+                    // Only numbers go into the URI; the name is a label (URL-encoded), never executed
+                    val label = android.net.Uri.encode(p.name)
+                    runCatching {
+                        context.startActivity(
+                            android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("geo:${p.lat},${p.lng}?q=${p.lat},${p.lng}($label)"))
+                                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    }
+                }.padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Text(p.name, style = MaterialTheme.typography.bodyMedium, color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(detail, style = MaterialTheme.typography.bodySmall, color = c.textTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
 }

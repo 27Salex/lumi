@@ -40,6 +40,8 @@ import io.github.salex27.lumi.domain.assistant.Routine
 import io.github.salex27.lumi.domain.assistant.RoutineMatcher
 import io.github.salex27.lumi.domain.assistant.TaskMatcher
 import io.github.salex27.lumi.domain.model.AIProcessingResult
+import io.github.salex27.lumi.domain.places.NearbyIntent
+import io.github.salex27.lumi.data.places.NearbyService
 import io.github.salex27.lumi.domain.model.AgendaEvent
 import io.github.salex27.lumi.domain.model.LinkedMeeting
 import io.github.salex27.lumi.domain.model.NavDestination
@@ -103,7 +105,9 @@ class TaskRepositoryImpl(
         /** Web search (#7, opt-in): results for a question, or null when it is off. */
         val webSearch: suspend (String, io.github.salex27.lumi.domain.assistant.Lang) -> List<io.github.salex27.lumi.domain.search.WebHit>? = { _, _ -> null },
         /** Whether web search is switched on (to say so when it is off instead of answering with a stub). */
-        val webSearchOn: () -> Boolean = { false }
+        val webSearchOn: () -> Boolean = { false },
+        /** Places near the phone (OpenStreetMap); null in tests. */
+        val nearby: io.github.salex27.lumi.data.places.NearbyService? = null
     )
 
     private val zone: ZoneId get() = ZoneId.systemDefault()
@@ -224,7 +228,7 @@ class TaskRepositoryImpl(
         // Top-level route first (#1): only unambiguous cases are decided here, the rest goes on as before
         val top = route ?: if (routine == null) IntentRouter.classify(sentence, now) else null
         if (top != null) android.util.Log.i("LumiInterpret", "route=$top for «$sentence»")
-        val result = if (routine != null) runRoutine(routine, now) else if (searchFollow != null) { lastAction = TaskAICommand.ASK; searchFollowUp(searchFollow, now) } else when (top) {
+        val result = if (routine != null) runRoutine(routine, now) else if (searchFollow != null) searchFollowUp(searchFollow, now) else when (top) {
             IntentRoute.AGENT -> {
                 lastAction = ACTION_AGENT
                 val request = IntentRouter.agentRequest(sentence) ?: sentence
@@ -285,10 +289,13 @@ class TaskRepositoryImpl(
     /** The previous question when [prompt] is a bare "search for one" follow-up ("pues busca un sitio"), else null. */
     private fun followUpSearch(prompt: String): String? {
         val last = conversation.recent().lastOrNull() ?: return null
-        return last.user.takeIf { last.action == TaskAICommand.ASK && IntentRouter.isBareSearchFollowUp(prompt) }
+        return last.user.takeIf { (last.action == TaskAICommand.ASK || last.action == TaskAICommand.NEARBY) && IntentRouter.isBareSearchFollowUp(prompt) }
     }
 
     private suspend fun searchFollowUp(question: String, now: LocalDateTime): AIProcessingResult {
+        // A "where can I eat" question: the bare "search for one" repeats the places search
+        if (NearbyIntent.parse(question) != null) { lastAction = TaskAICommand.NEARBY; return nearby(question, assistant.rulesName) }
+        lastAction = TaskAICommand.ASK
         webAnswer(question)?.let { return it }
         val query = question.trim().trimEnd('?', '.').replace(Regex("^¿"), "")
         val why = if (extras.webSearchOn()) t("No he encontrado resultados.", "I found no results.") else webOffNote()
@@ -320,6 +327,7 @@ class TaskRepositoryImpl(
             TaskAICommand.RECALL -> recall(command.targetTitle?.ifBlank { null } ?: prompt, now, engine)
             TaskAICommand.ASK -> answer(command.targetTitle?.ifBlank { null } ?: prompt, now, engine)
             TaskAICommand.WEATHER -> weather(command.targetTitle?.ifBlank { null } ?: prompt, now, engine)
+            TaskAICommand.NEARBY -> nearby(command.targetTitle?.ifBlank { null } ?: prompt, engine)
             TaskAICommand.DAY_BRIEF -> dayBrief(command.dueDate?.let { runCatching { LocalDate.parse(it.take(10)) }.getOrNull() } ?: now.toLocalDate())
             TaskAICommand.SMART_ALARM -> smartAlarm(ask = command.newStatus == "ASK", now = now, engine = engine)
             TaskAICommand.NOTIFICATIONS -> readMessages(command.targetTitle.orEmpty(), now, engine)
@@ -576,6 +584,7 @@ class TaskRepositoryImpl(
                 else "Te preparo el ${if (c.whatsapp) "WhatsApp" else "mensaje"} para ${c.contact}; solo tienes que enviarlo."
             is DeviceCommand.PlayMusic -> if (c.query.isBlank()) t("Poniendo música.", "Playing music.") else t("Poniendo ${c.query}.", "Playing ${c.query}.")
             is DeviceCommand.WebSearch -> t("Buscando «${c.query}».", "Searching «${c.query}».")
+            is DeviceCommand.MapsSearch -> t("Abriendo el mapa: «${c.query}».", "Opening the map: «${c.query}».")
             is DeviceCommand.OpenSettings -> t("Abriendo ${c.panel.label}.", "Opening ${c.panel.label}.")
             is DeviceCommand.Flashlight -> if (c.on) t("Linterna encendida.", "Flashlight on.") else t("Linterna apagada.", "Flashlight off.")
             is DeviceCommand.DoNotDisturb -> if (c.on) t("No molestar activado.", "Do Not Disturb is on.") else t("No molestar desactivado.", "Do Not Disturb is off.")
@@ -642,6 +651,36 @@ class TaskRepositoryImpl(
         return when (val r = service.forecast(query.place)) {
             is WeatherService.Result.Ok -> AIProcessingResult.Answer(WeatherAdvisor.answer(query, r.report, now), "Open-Meteo")
             is WeatherService.Result.Failed -> AIProcessingResult.Error(r.message, engine)
+        }
+    }
+
+    /**
+     * "Where can I eat cheap?" / "a pharmacy nearby": real places around the phone (OpenStreetMap), by distance. Without
+     * permission the UI asks for it; without location or results the maps app opens with the same search.
+     */
+    private suspend fun nearby(question: String, engine: String): AIProcessingResult {
+        val q = NearbyIntent.parse(question)
+        val label = q?.let { t(it.category.es, it.category.en) } ?: question.trim().trimEnd('?', '.').replace(Regex("^¿"), "")
+        val maps = DeviceCommand.MapsSearch(label)
+        val service = extras.nearby
+        if (q == null || service == null) return AIProcessingResult.Device(maps, t("Te lo busco en el mapa.", "Searching it on the map for you."), engine)
+        return when (val r = service.search(q)) {
+            is NearbyService.Result.NoPermission -> AIProcessingResult.Nearby(
+                emptyList(), question, needsLocationPermission = true, engine = engine,
+                reply = t("Para buscar sitios cerca de ti necesito tu ubicación. Solo uso tu posición ahora, para esta búsqueda.", "To look for places near you I need your location. I only use your position now, for this search.")
+            )
+            is NearbyService.Result.NoLocation -> AIProcessingResult.Device(maps, t("No consigo tu ubicación (¿está activada?). Te lo abro en el mapa.", "I can't get your location (is it on?). Opening it on the map."), engine)
+            is NearbyService.Result.Failed -> AIProcessingResult.Device(maps, t("No he podido consultar los sitios cercanos (¿sin conexión?). Te lo abro en el mapa.", "I couldn't look up nearby places (no connection?). Opening it on the map."), engine)
+            is NearbyService.Result.Ok -> if (r.places.isEmpty())
+                AIProcessingResult.Device(maps, t("No he encontrado $label cerca. Te lo abro en el mapa.", "I found no $label nearby. Opening it on the map."), engine)
+            else {
+                val km = if (r.radiusM >= 1000) "${r.radiusM / 1000.0} km".replace(".0 km", " km") else "${r.radiusM} m"
+                val cheap = if (q.cheap) t(" No conozco los precios: están ordenados por cercanía.", " I don't know prices: they are sorted by distance.") else ""
+                AIProcessingResult.Nearby(
+                    r.places, question, engine = "OpenStreetMap",
+                    reply = t("Esto es lo más cercano (${label}, a menos de $km):", "Here is what's closest ($label, within $km):") + cheap
+                )
+            }
         }
     }
 

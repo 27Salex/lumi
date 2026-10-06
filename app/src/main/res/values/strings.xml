@@ -430,4 +430,5 @@
     <string name="widget_empty">Nothing pending. Say «Hey Lumi» or tap below.</string>
     <string name="work_end">I finish work</string>
     <string name="work_start">I start work</string>
+    <string name="nearby_open_24h">Open 24 h</string>
 </resources>
