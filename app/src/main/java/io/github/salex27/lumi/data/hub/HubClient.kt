@@ -135,7 +135,7 @@ class HubClient(private val settings: HubSettings) {
         Thread { runCatching { conn.disconnect() } }.start()
     }
 
-    private fun open(method: String, path: String, readTimeoutMs: Int = 20_000): HttpURLConnection {
+    internal fun open(method: String, path: String, readTimeoutMs: Int = 20_000): HttpURLConnection {
         val c = settings.config.value
         val base = c.baseUrl ?: throw HubException(0, "not configured")
         return (URL(base + path).openConnection() as HttpURLConnection).apply {

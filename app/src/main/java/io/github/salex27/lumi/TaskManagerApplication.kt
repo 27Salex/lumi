@@ -108,6 +108,7 @@ class TaskManagerApplication : Application() {
 
     val hubSettings by lazy { io.github.salex27.lumi.data.hub.HubSettings(this) }
     val hubClient by lazy { io.github.salex27.lumi.data.hub.HubClient(hubSettings) }
+    val pcViewClient by lazy { io.github.salex27.lumi.data.hub.PcViewClient(hubClient) }
     val hubInbox by lazy { io.github.salex27.lumi.data.hub.HubInbox(this, chatStore, hubClient, repository) }
     /** The event stream is open only while a Lumi screen is visible (see [onCreate]). */
     val hubConnection by lazy { io.github.salex27.lumi.data.hub.HubConnection(hubSettings, hubClient, hubInbox, appScope) }

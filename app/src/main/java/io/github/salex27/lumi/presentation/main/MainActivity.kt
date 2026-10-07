@@ -123,6 +123,9 @@ class MainActivity : ComponentActivity() {
 
     private val app get() = application as TaskManagerApplication
 
+    private val pcViewModel: io.github.salex27.lumi.presentation.pcview.PcViewViewModel by viewModels {
+        io.github.salex27.lumi.presentation.pcview.PcViewViewModel.Factory(app.pcViewClient, app.hubSettings)
+    }
     private val viewModel: MainViewModel by viewModels {
         MainViewModel.Factory(app.repository, app.assistant, app.gemmaModel, app.briefStore)
     }
@@ -248,6 +251,7 @@ class MainActivity : ComponentActivity() {
                     app.repository.getTask(id)?.let { showSettings = false; tab = Tab.TASKS; editing = it }
                 }
                 var showOrbit by rememberSaveable { mutableStateOf(false) }
+                var showMyPc by rememberSaveable { mutableStateOf(false) }
                 var showManage by rememberSaveable { mutableStateOf(false) }
                 val hubRequest by pendingHubMessage.collectAsStateWithLifecycle()
                 LaunchedEffect(hubRequest) {
@@ -261,7 +265,12 @@ class MainActivity : ComponentActivity() {
                 }
 
                 Box(Modifier.fillMaxSize().background(Lumi.colors.background)) {
-                    if (showOrbit) {
+                    if (showMyPc) {
+                        io.github.salex27.lumi.presentation.pcview.PcViewScreen(
+                            pcViewModel, onBack = { showMyPc = false },
+                            onOpenSettings = { showMyPc = false; showSettings = true }
+                        )
+                    } else if (showOrbit) {
                         val openThread by orbitViewModel.open.collectAsStateWithLifecycle()
                         if (openThread != null || showManage) {
                             io.github.salex27.lumi.presentation.orbit.OrbitScreen(orbitViewModel, onBack = { showManage = false })
@@ -291,7 +300,8 @@ class MainActivity : ComponentActivity() {
                             aliases = app.contactAliases.aliases.collectAsStateWithLifecycle().value,
                             onRemoveAlias = app.contactAliases::remove,
                             onAddAlias = ::addAlias,
-                            assistantSection = { io.github.salex27.lumi.presentation.settings.AssistantSettings(app) }
+                            assistantSection = { io.github.salex27.lumi.presentation.settings.AssistantSettings(app) },
+                            onOpenMyPc = { showSettings = false; showMyPc = true }
                         )
                     } else {
                         val imeOpen = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
@@ -312,6 +322,7 @@ class MainActivity : ComponentActivity() {
                                         onOpenAssistant = { listen, prompt -> startActivity(AssistantActivity.intent(this@MainActivity, listen, prompt)) },
                                         onOpenSettings = { showSettings = true },
                                         onOpenChats = { showOrbit = true },
+                                        onOpenMyPc = { showMyPc = true },
                                         onOpenAgenda = { tab = Tab.AGENDA },
                                         onTaskClick = { editing = it },
                                         onStartTask = { viewModel.updateTaskStatus(it, io.github.salex27.lumi.domain.model.TaskStatus.IN_PROGRESS) },

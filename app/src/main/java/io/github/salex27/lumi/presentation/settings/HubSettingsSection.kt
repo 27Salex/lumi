@@ -23,7 +23,9 @@ import io.github.salex27.lumi.TaskManagerApplication
 import io.github.salex27.lumi.data.hub.HubClient
 import io.github.salex27.lumi.data.hub.HubConnection
 import io.github.salex27.lumi.data.hub.HubSafety
+import io.github.salex27.lumi.presentation.components.ListDivider
 import io.github.salex27.lumi.presentation.components.ListGroup
+import io.github.salex27.lumi.presentation.components.ListRow
 import io.github.salex27.lumi.presentation.components.PillButton
 import io.github.salex27.lumi.presentation.components.PillStyle
 import io.github.salex27.lumi.presentation.components.SectionHeader
@@ -36,7 +38,7 @@ import kotlinx.coroutines.launch
  * connection test. Self-contained (talks to the app's hub objects directly).
  */
 @Composable
-fun HubSettingsSection() {
+fun HubSettingsSection(onOpenMyPc: () -> Unit = {}) {
     val c = Lumi.colors
     val app = LocalContext.current.applicationContext as TaskManagerApplication
     val config by app.hubSettings.config.collectAsState()
@@ -93,5 +95,7 @@ fun HubSettingsSection() {
             }
             Text(stringResource(R.string.hub_security_note), style = MaterialTheme.typography.bodySmall, color = c.textTertiary)
         }
+        ListDivider()
+        ListRow(stringResource(R.string.pc_settings_row), stringResource(R.string.pc_settings_row_sub), onClick = onOpenMyPc)
     }
 }

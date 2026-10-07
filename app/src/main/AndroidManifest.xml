@@ -15,6 +15,8 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- My PC (view only): the platform BiometricPrompt that unlocks each viewing session -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <!-- Google Calendar through the system calendar (Agenda + appointments as events) -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />

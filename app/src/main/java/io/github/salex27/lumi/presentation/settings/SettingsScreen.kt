@@ -92,7 +92,8 @@ fun SettingsScreen(
     /** Add an alias: (alias, contact name to look up) → the Activity searches the address book (with permission). */
     onAddAlias: (String, String) -> Unit = { _, _ -> },
     /** Assistant, alarm, access and routines (v3.6, see AssistantSettings). */
-    assistantSection: @Composable () -> Unit = {}
+    assistantSection: @Composable () -> Unit = {},
+    onOpenMyPc: () -> Unit = {}
 ) {
     val c = Lumi.colors
     val context = LocalContext.current
@@ -313,7 +314,7 @@ fun SettingsScreen(
         }
 
         // ── Lumi Hub (agents on the PC) ───────────────────────────────────────
-        HubSettingsSection()
+        HubSettingsSection(onOpenMyPc)
 
         // ── Web search (opt-in) ─────────────────────────────────────────────
         WebSearchSettingsSection()
