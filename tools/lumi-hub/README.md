@@ -59,6 +59,41 @@ mapping. Install: copy `lumi.cmd` to a folder on your PATH (for example `%USERPR
 - `--dev-no-tailscale` (development only) skips the Tailscale identity check for emulator tests: loopback only, and
   release builds of Lumi refuse plain HTTP anyway.
 
+## My PC (view only)
+
+Lumi can show your PC screens on the phone. **View only: there is no mouse, keyboard, terminal or command execution, and
+none will be added** (use Tailscale SSH or RDP for that). Windows only, no installs (GDI + GDI+ through `ctypes`).
+
+- **Off by default.** Turn it on once, on the PC: `python lumi_hub.py enable-pc-view` (`disable-pc-view` turns it off and
+  revokes everything). The flag lives in `~/.lumi-hub.json` and is re-read on every request, so no restart is needed.
+- **Each viewing session needs an unlock** from the phone: Lumi asks for the fingerprint, face or screen lock (platform
+  `BiometricPrompt`), then asks the hub for a short-lived unlock token (10 minutes, extended while you watch, never more
+  than 1 hour in total). Frames need that token. Tokens live only in memory: restarting the hub revokes them.
+- **Lock now** (button in Lumi, or `python lumi_hub.py pc-lock`) revokes every token and drops the viewers. Lumi also
+  locks when you leave the screen or the app, and the screen blocks screenshots (FLAG_SECURE).
+- Capture happens only while an unlocked viewer asks for a frame (polling, adaptive width/quality, `304` when the screen
+  did not change, frames capped at 1.5 MB and 1920 px wide). Nothing is captured otherwise.
+- **Audit log** next to the config (`~/.lumi-hub.audit.log`): unlocks, failures, lockouts, viewer start/stop, lock,
+  enable/disable. It never contains tokens or screen content.
+
+Threat model:
+
+| Threat | Defence |
+|---|---|
+| Someone else on the tailnet | `Tailscale-User-Login` must be the PC owner, plus the phone token (constant-time compares) |
+| Someone with your unlocked phone but not you | Each session needs the biometric / screen lock on the phone |
+| Guessing tokens | 5 failures in 5 minutes lock all PC-view access for 15 minutes (a lock request still works); unlocks are limited to 6 per minute; tokens are 256-bit random |
+| Forgotten open session | 10-minute token, 1-hour cap, locks when you leave Lumi, Lock now |
+| Malware on the PC / on the phone | Out of scope: it could read the screen or the phone token anyway |
+| Feature left on | Off by default; `disable-pc-view` revokes at once |
+
+Known limit: the biometric is checked on the phone, not cryptographically bound to the token request. Someone who stole
+the phone token (a rooted or compromised phone) AND the tailnet identity could call `/pc/unlock` directly. Binding the
+unlock to a Keystore key that needs the biometric is a possible hardening (see `TODO.md`).
+
+If something fails: `My PC view unavailable` at startup means the GDI backend could not load (not Windows). A black image
+usually means the PC is locked (Windows does not allow capturing the lock screen) or a secure desktop is showing.
+
 ## Endpoints
 
 | Who | Method | Path | |
@@ -69,6 +104,10 @@ mapping. Install: copy `lumi.cmd` to a folder on your PATH (for example `%USERPR
 | phone | POST | `/chat` | `{thread, agent, text}` → one agent turn, reply as `reply` events |
 | phone | POST | `/forget` | `{thread}` → the next message starts a new agent session |
 | phone | POST | `/search` | `{query}` → `{hits:[{title,url,snippet}]}`: Claude Code with only the WebSearch tool (Lumi's web search option) |
+| phone | GET | `/pc/status` | `disabled` / `locked` / `unlocked` / `locked_out` (no unlock needed) |
+| phone | POST | `/pc/unlock` | a short-lived unlock token (`expires_in`) |
+| phone | POST | `/pc/extend`, `/pc/lock` | extend while viewing (needs `X-Lumi-Unlock`); revoke all (always allowed) |
+| phone | GET | `/pc/monitors`, `/pc/frame?monitor=&w=&q=` | monitor list; one JPEG (needs `X-Lumi-Unlock`, `If-None-Match` supported) |
 | MCP client | POST | `/mcp` | JSON-RPC 2.0 (streamable HTTP, JSON responses) |
 
 ## Tests

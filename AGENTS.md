@@ -45,6 +45,7 @@ data/
   chat/                        # ChatStore (sessions shared by pill and app), ChatMemory (rolling summary for the LLM)
   hub/                         # Lumi Hub client: HubProtocol (events, SSE, safety; pure, tested), HubClient, HubConnection
                                # (SSE only while a screen is visible), HubInbox (HUB chat sessions + notifications)
+  hub/PcViewClient             # My PC (view only): status, unlock, frames; domain/pcview = pure state machine + zoom/pan (tested)
   search/WebSearchService      # Opt-in web search (#7): Wikipedia / SearXNG / Brave / Lumi Hub + SearchParsers (tested)
   orbit/                       # OrbitRepository (threads = chat sessions of kind ORBIT, members, streamed agent turns),
                                # AgentBackends (extension point: LumiBrainBackend, ClaudePcBackend)
@@ -159,6 +160,9 @@ tools/gemma_batch.sh           # Runs a batch of phrases through the real Gemma 
   `processNaturalLanguageCommand`, the LLM interpreter, `DeviceActions` or an Intent; a proposed task becomes a Task
   only on an explicit tap, built by rules (`HubTaskProposal`). Links: http(s) only (`HubSafety.isSafeLink`).
 - The hub token lives in the `hub` prefs file, which is NOT in the backup.
+
+### 9b. My PC is view only
+- Never add input injection, a terminal or command execution to the hub or the app (decision 2026-10-07). Unlock tokens stay in memory, never in logs or the backup; the screen uses FLAG_SECURE and locks when it is left.
 
 ### 10. Saving AI requests
 - The daily summary is cached (`BriefStore`, per day and language) and not regenerated on every app start; stats never call the AI.

@@ -6,6 +6,14 @@ translated when the project went public; version numbers before 1.0.0 refer to t
 
 ---
 
+## 2026-10-07 — My PC (view only) 1.1.3
+
+- **What.** A screen to see the PC screens from the phone (Home icon and Settings > Lumi Hub row). View only by decision: no input, terminal or commands; those go through Tailscale SSH / RDP.
+- **Hub** (`tools/lumi-hub/pcview.py`, routes in `lumi_hub.py`): `/pc/status|unlock|extend|lock|monitors|frame`. Capture with GDI + GDI+ JPEG through ctypes (no packages; a fake backend for tests). Off by default; `enable-pc-view` / `disable-pc-view` / `pc-lock` edit `~/.lumi-hub.json` from another process, so the hub re-reads the file by mtime and `Config.save` keeps those two keys. Lock epoch revokes tokens issued before it. Tokens are in memory only (10 min, extendable, 1 h cap), compared in constant time. 5 failures in 5 min = 15 min lockout; Lock is always allowed. Audit log `~/.lumi-hub.audit.log`, never tokens or content.
+- **App.** Platform `BiometricPrompt` (not androidx.biometric: MainActivity is a ComponentActivity), biometric or screen lock, only gates the unlock request (limit documented in the hub README). FLAG_SECURE on the screen; leaving the screen or the app locks again. Pure logic (state machine, adaptive quality, zoom/pan) in `domain/pcview`, tested. Image size for zoom math uses the monitor size, not the (adaptive) frame size.
+- **Not verified on a device** at release time: emulator not run (low disk); verified with unit tests and a live dev-port hub test returning a real JPEG.
+
+
 ## 2026-10-06 — Orbit routing by need, search follow-ups, web-off notes (issues #12, #13, #9)
 
 - **Orbit (#12).** `OrbitLeader` got a `WEB` signal (`needsWeb`: search/best/trains/flights/prices/news, at least 4 words) that proposes the Claude agent, and `isFollowUp`: a reply of up to 4 words right after an agent's question goes straight back to that agent (checked in `OrbitRepository.lead` before the rules). The default stays "propose, ask Lumi or X" unless the Orbit is on automatic. Hub already passes `--allowedTools WebSearch WebFetch`.

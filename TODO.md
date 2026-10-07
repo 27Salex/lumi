@@ -17,6 +17,10 @@ Pending work. Finished items are removed; their history is in `MEMORY.md` and gi
 ## 1.1.2 pending real-device checks
 - [ ] Keyboard pushes the Home SmartBar, assistant pill and Orbit input up; New chat creates separate threads; SearXNG answers over the tailnet
 
+## 1.1.3 My PC (view only) pending real-device checks
+- [ ] On the S25: `lumi_hub.py enable-pc-view`, restart `lumi`, re-link, My PC: unlock prompt, monitors, pinch/pan, fit, full screen/landscape, Lock now, locks when leaving the app
+- [ ] Bind the unlock to a Keystore key that needs the biometric (today the biometric only gates the request); show the cursor in frames
+
 ## Lumi Hub (#3) follow-ups
 - [ ] Claude Code Channels (`claude/channel`) to push into a running interactive session
 - [ ] Files in `lumi_send`; Codex / Gemini CLI as wake-per-message agents (`Agents.command_for`)

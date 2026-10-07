@@ -95,6 +95,8 @@ Read [`AGENTS.md`](AGENTS.md) for the architecture and rules, and [`MEMORY.md`](
 
 Requires Android 10+. Built and tested on a Samsung Galaxy S25 (Android 16) and the Android emulator.
 
+**My PC (view only).** With Lumi Hub on your PC, Lumi can show your PC screens on the phone (Home, desktop icon). It is off by default (`lumi_hub.py enable-pc-view` on the PC), needs your fingerprint or screen lock for each session, and never controls the PC. See `tools/lumi-hub/README.md`.
+
 **Updates.** Lumi checks the latest GitHub release when it opens (at most every 12 hours; Settings, Updates has "Check now") and offers to download and install it. Release APKs are debug-signed, so an update only installs over a Lumi signed with the same key; otherwise Lumi says so before opening the installer (uninstall first, after exporting a backup).
 
 **Chats.** Home has a Chats button: one history of every conversation (Lumi chats, Orbit threads, agent inboxes) grouped by day, with search, rename and delete (long-press). Agents and "what Lumi learned" are under Manage agents.

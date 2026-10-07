@@ -80,6 +80,8 @@ El diagrama y los detalles están en el [README en inglés](README.md#how-it-wor
 Necesita Android 10 o superior. Desarrollado y probado en un Samsung Galaxy S25 (Android 16) y en el emulador.
 El APK va firmado en modo depuración: es un proyecto personal, no una app de Play Store.
 
+**Mi PC (solo ver).** Con Lumi Hub en tu PC, Lumi puede mostrar las pantallas de tu PC en el móvil (Inicio, icono de escritorio). Viene desactivado (`lumi_hub.py enable-pc-view` en el PC), pide tu huella o bloqueo de pantalla en cada sesión y nunca controla el PC. Ver `tools/lumi-hub/README.md`.
+
 **Actualizaciones.** Lumi busca la última versión en GitHub al abrirse (como máximo cada 12 horas; Ajustes, Actualizaciones tiene «Comprobar ahora») y ofrece descargarla e instalarla. Los APK de las versiones van firmados en modo depuración, así que una actualización solo se instala sobre un Lumi firmado con la misma clave; si no, Lumi lo avisa antes de abrir el instalador (desinstala antes, tras exportar una copia).
 
 **Chats.** Inicio tiene un botón Chats: un único historial de todas las conversaciones (chats con Lumi, hilos de Orbit, buzones de agentes) agrupadas por día, con búsqueda, renombrar y borrar (pulsación larga). Los agentes y «lo que Lumi ha aprendido» están en Gestionar agentes.
