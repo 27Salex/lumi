@@ -38,6 +38,8 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+import pcview
+
 CONFIG_PATH = Path.home() / ".lumi-hub.json"
 PROTOCOL_VERSION = "2025-06-18"
 SERVER_INFO = {"name": "lumi-hub", "version": "1.0.0"}
@@ -596,6 +598,9 @@ class Config:
 
     def save(self):
         with self.lock:
+            # the CLI (enable-pc-view / pc-lock) edits these two keys from another process: never overwrite them
+            enabled, epoch = pcview.read_flags(self.path)
+            self.data["pc_view_enabled"], self.data["pc_lock_epoch"] = enabled, epoch
             tmp = self.path.with_suffix(".tmp")
             tmp.write_text(json.dumps(self.data, indent=2), encoding="utf-8")
             os.replace(tmp, self.path)
@@ -645,6 +650,7 @@ class Handler(BaseHTTPRequestHandler):
     hub: Hub = None
     config: Config = None
     agents: Agents = None
+    pc: "pcview.PcView" = None
     owner = None
     protocol_version = "HTTP/1.1"
 
@@ -674,8 +680,62 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(401, {"error": "unauthorized"})
         return False
 
+    def send_bytes(self, code, data, content_type, headers=None):
+        self.send_response(code)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        for key, value in (headers or {}).items():
+            self.send_header(key, str(value))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def pc_route(self, method, path, query):
+        """My PC (view only). Owner + phone token first (failures are counted and can lock out), then the unlock token."""
+        pc = self.pc
+        if method == "POST":  # the endpoints take no body: drain it so the keep-alive connection stays clean
+            self.rfile.read(min(int(self.headers.get("Content-Length", "0") or 0), MAX_BODY))
+        try:
+            if path == "/pc/lock" and method == "POST":  # always allowed to an authorised phone, even locked out
+                if not phone_allowed(self.headers, self.owner, self.config.data["phone_token"]):
+                    pc.note_failure("bad phone credentials")
+                    return self.send_json(401, {"error": "unauthorized"})
+                pc.lock_now("phone")
+                return self.send_json(200, {"ok": True})
+            if pc.enabled():
+                left = pc.status().get("retry_after")
+                if left:
+                    return self.send_json(429, {"error": "locked_out", "retry_after": left})
+            if not phone_allowed(self.headers, self.owner, self.config.data["phone_token"]):
+                if pc.enabled():
+                    pc.note_failure("bad phone credentials")
+                return self.send_json(401, {"error": "unauthorized"})
+            token = self.headers.get("X-Lumi-Unlock", "")
+            params = dict(p.split("=", 1) for p in query.split("&") if "=" in p)
+            if path == "/pc/status" and method == "GET":
+                return self.send_json(200, pc.status())
+            if path == "/pc/unlock" and method == "POST":
+                return self.send_json(200, pc.unlock())
+            if path == "/pc/extend" and method == "POST":
+                return self.send_json(200, pc.extend(token))
+            if path == "/pc/monitors" and method == "GET":
+                return self.send_json(200, {"monitors": pc.monitors(token)})
+            if path == "/pc/frame" and method == "GET":
+                data, info = pc.frame(token, pcview.clamp(params.get("monitor"), 0, 99, 0), params.get("w"), params.get("q"),
+                                      self.headers.get("If-None-Match", "").strip('"'))
+                headers = {"ETag": f'"{info["etag"]}"', "X-Lumi-Width": info["width"], "X-Lumi-Height": info["height"],
+                           "X-Lumi-Quality": info["quality"], "X-Lumi-Delay-Ms": info["delay_ms"]}
+                if data is None:
+                    return self.send_bytes(304, b"", "image/jpeg", headers)
+                return self.send_bytes(200, data, "image/jpeg", headers)
+            return self.send_json(404, {"error": "not_found"})
+        except pcview.PcError as e:
+            self.send_json(e.code, {"error": str(e), **e.extra})
+
     def do_GET(self):
         path, _, query = self.path.partition("?")
+        if path.startswith("/pc/"):
+            return self.pc_route("GET", path, query)
         if path == "/health":
             if self.phone():
                 self.send_json(200, {"ok": True, "host": socket.gethostname(), "agents": self.agents.available(),
@@ -687,6 +747,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(404, {"error": "not_found"})
 
     def do_POST(self):
+        if self.path.startswith("/pc/"):
+            return self.pc_route("POST", self.path.partition("?")[0], "")
         try:
             if self.path == "/mcp":
                 return self.mcp()
@@ -802,6 +864,13 @@ def cmd_serve(args):
         hub.on_publish = ntfy_pusher(hub, args.ntfy)
     agents = Agents(hub, config.data, config.save, args.dir, shutil.which("claude"))
     Handler.hub, Handler.config, Handler.agents = hub, config, agents
+    try:
+        backend = pcview.default_backend()
+    except pcview.BackendUnavailable as e:
+        print(f"My PC view unavailable: {e}")
+        backend = pcview.FakeBackend(monitors=0)
+        backend.name = "unavailable"
+    Handler.pc = pcview.PcView(pcview.FileFlags(config.path), backend, pcview.AuditLog(Path(config.path).with_suffix(".audit.log")))
     if args.dev_no_tailscale:
         Handler.owner, address = None, f"http://10.0.2.2:{args.port} (emulator) / http://127.0.0.1:{args.port}"
         print("DEVELOPMENT MODE: no Tailscale identity check. Loopback only; never expose this port.")
@@ -821,6 +890,7 @@ def cmd_serve(args):
     print(f"  Agents:                                 {', '.join(a['name'] for a in agents.available()) or 'none (claude not on PATH)'}")
     print(f"  Agent turns run in:                     {args.dir}")
     print(f"  MCP clients:                            {len(config.data['clients'])} (add one: lumi_hub.py add-client NAME)")
+    print(f"  My PC view (view only):                 {'ENABLED' if Handler.pc.enabled() else 'off (enable: lumi_hub.py enable-pc-view)'}")
     print("Ctrl+C to stop.", flush=True)
     try:
         server.serve_forever()
@@ -842,6 +912,24 @@ def cmd_add_client(args):
     print("Desktop apps that only speak stdio (e.g. claude_desktop_config.json):")
     print(json.dumps({"mcpServers": {"lumi": {"command": sys.executable, "args": [str(script), "mcp", "--token", token,
                                                                                     "--hub", f"http://127.0.0.1:{args.port}"]}}}, indent=2))
+
+
+def cmd_pc_flag(args):
+    enable = args.command == "enable-pc-view"
+    path = Path(args.config)
+    pcview.write_flags(path, enabled=enable, lock_now=not enable)
+    pcview.AuditLog(path.with_suffix(".audit.log")).write("pc_view_enabled" if enable else "pc_view_disabled", "cli")
+    if enable:
+        print("My PC view is ENABLED (view only: no mouse, keyboard or terminal). Each viewing session still needs an unlock")
+        print("from your phone's fingerprint / screen lock. Turn it off again with: lumi_hub.py disable-pc-view")
+    else:
+        print("My PC view is DISABLED and every unlock was revoked.")
+
+
+def cmd_pc_lock(args):
+    pcview.write_flags(args.config, lock_now=True)
+    pcview.AuditLog(Path(args.config).with_suffix(".audit.log")).write("lock", "cli")
+    print("Every PC view unlock was revoked; viewers are dropped within seconds.")
 
 
 def cmd_mcp(args):
@@ -889,8 +977,14 @@ def main(argv=None):
     mcp = sub.add_parser("mcp", help="stdio MCP transport (proxy to the running hub)")
     mcp.add_argument("--token", required=True)
     mcp.add_argument("--hub", default="http://127.0.0.1:8766")
+    for name, text in (("enable-pc-view", "Allow viewing this PC's screens from Lumi (view only, off by default)"),
+                       ("disable-pc-view", "Turn My PC view off and revoke every unlock"),
+                       ("pc-lock", "Revoke every active PC view unlock now")):
+        cmd = sub.add_parser(name, help=text)
+        cmd.add_argument("--config", default=str(CONFIG_PATH), help="Config file (default ~/.lumi-hub.json)")
     args = parser.parse_args(argv)
-    {"serve": cmd_serve, "add-client": cmd_add_client, "mcp": cmd_mcp}[args.command](args)
+    {"serve": cmd_serve, "add-client": cmd_add_client, "mcp": cmd_mcp, "enable-pc-view": cmd_pc_flag,
+     "disable-pc-view": cmd_pc_flag, "pc-lock": cmd_pc_lock}[args.command](args)
 
 
 if __name__ == "__main__":
