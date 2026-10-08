@@ -140,8 +140,9 @@ class FakeAgents(h.Agents):
         super().__init__(hub, config, lambda: None, tempfile.gettempdir(), "fake")
         self.script = script
         self.seen = []
+        self.persistent = False
 
-    def command_for(self, agent, session):
+    def command_for(self, agent, session, model=None, effort=None, persistent=False):
         self.seen.append(session)
         import sys
         return [sys.executable, "-c", self.script]
@@ -154,6 +155,90 @@ print(json.dumps({"type": "system", "subtype": "init", "session_id": "sess-12345
 print(json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "You said: " + prompt}]}}))
 print(json.dumps({"type": "result", "result": "You said: " + prompt, "session_id": "sess-12345678", "is_error": False}))
 """
+
+
+PERSISTENT_CLAUDE = r"""
+import json, sys
+n = 0
+for line in sys.stdin:
+    n += 1
+    text = json.loads(line)["message"]["content"]
+    print(json.dumps({"type": "stream_event", "event": {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "Hel"}}}), flush=True)
+    print(json.dumps({"type": "stream_event", "event": {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "lo"}}}), flush=True)
+    print(json.dumps({"type": "result", "result": "n=%d %s" % (n, text), "session_id": "sess-12345678", "is_error": False}), flush=True)
+"""
+
+
+class PersistentTest(unittest.TestCase):
+    def make(self, script=PERSISTENT_CLAUDE):
+        hub = h.Hub()
+        agents = FakeAgents(hub, {"threads": {}}, script)
+        agents.persistent = True
+        self.addCleanup(agents.shutdown)
+        return hub, agents
+
+    def wait(self, hub, after):
+        return TurnTest._wait_done(self, hub, after)
+
+    def test_one_process_serves_many_messages_and_streams_deltas(self):
+        hub, agents = self.make()
+        agents.start_turn("orbit-1", "claude", "a")
+        first = self.wait(hub, 0)
+        self.assertEqual("n=1 a", first["text"])
+        deltas = [e["text"] for e in hub.since(0) if e["type"] == "turn_delta"]
+        self.assertEqual(["Hel", "lo"], deltas)
+        agents.start_turn("orbit-1", "claude", "b")
+        self.assertEqual("n=2 b", self.wait(hub, first["id"])["text"])  # same process: counter continued
+        self.assertEqual(1, len(agents.workers))
+        self.assertEqual("sess-12345678", agents.config["threads"]["orbit-1"]["session"])
+
+    def test_model_change_restarts_and_idle_is_reaped(self):
+        hub, agents = self.make()
+        agents.start_turn("orbit-1", "claude", "a", model="opus")
+        first = self.wait(hub, 0)
+        agents.start_turn("orbit-1", "claude", "b", model="haiku", effort="low")
+        self.assertEqual("n=1 b", self.wait(hub, first["id"])["text"])  # fresh process
+        agents.reap_idle(time.time() + h.IDLE_TIMEOUT + 5)
+        self.assertEqual({}, agents.workers)
+
+    def test_falls_back_to_one_shot_when_the_process_dies(self):
+        hub, agents = self.make("import sys; sys.exit(1)")
+        calls = []
+        agents._turn_oneshot = lambda *a: (calls.append(1), a[-1].update(reply="ok"))
+        agents.start_turn("orbit-1", "claude", "a")
+        self.assertEqual("ok", self.wait(hub, 0)["text"])
+        self.assertEqual([1], calls)
+
+
+class OptionsTest(unittest.TestCase):
+    def test_options_defaults_and_validation(self):
+        saved = []
+        agents = h.Agents(None, {}, lambda: saved.append(1), ".", "claude")
+        opts = agents.options()
+        self.assertEqual({"model": "sonnet", "effort": "medium"}, opts["defaults"])
+        self.assertIn("sonnet", [m["id"] for m in opts["models"]])
+        self.assertEqual("opus", agents.set_defaults("opus", "high")["model"])
+        self.assertEqual({"model": "opus", "effort": "high"}, agents.options()["defaults"])
+        self.assertEqual(1, len(saved))
+        for bad in ("--x", "a b", "m;rm", "", "x" * 80):
+            with self.assertRaises(h.HubError):
+                h.clean_model(bad)
+        self.assertEqual("claude-opus-4-1", h.clean_model("claude-opus-4-1"))
+        with self.assertRaises(h.HubError):
+            h.clean_effort("ultra")
+        self.assertEqual("max", h.clean_effort("MAX"))
+
+    def test_command_flags(self):
+        agents = h.Agents(None, {}, lambda: None, ".", "claude")
+        args = agents.command_for("claude", "sess-12345678", "sonnet", "low", persistent=True)
+        self.assertIn("--input-format", args)
+        self.assertEqual("sonnet", args[args.index("--model") + 1])
+        self.assertEqual("low", args[args.index("--effort") + 1])
+        self.assertNotIn("--strict-mcp-config", args)
+
+    def test_delta_line_parsing(self):
+        line = json.dumps({"type": "stream_event", "event": {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "hi"}}})
+        self.assertEqual(("delta", "hi"), h.parse_stream_line(line))
 
 
 class TurnTest(unittest.TestCase):

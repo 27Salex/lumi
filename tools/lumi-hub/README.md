@@ -101,7 +101,8 @@ usually means the PC is locked (Windows does not allow capturing the lock screen
 | phone | GET | `/health` | host, available agents, running turns, uptime |
 | phone | GET | `/events?since=<id>` | SSE stream; open questions are always re-sent on connect |
 | phone | POST | `/answer` | `{ask_id, answer}` → unblocks `lumi_ask` (410 if no longer open) |
-| phone | POST | `/chat` | `{thread, agent, text}` → one agent turn, reply as `reply` events |
+| phone | POST | `/chat` (alias `/turn`) | `{thread, agent, text, model?, effort?}` → one agent turn, `turn_delta` then `reply` events |
+| phone | GET/POST | `/agents/options` | selectable models/efforts and saved defaults (POST `{model?, effort?}` saves defaults) |
 | phone | POST | `/forget` | `{thread}` → the next message starts a new agent session |
 | phone | POST | `/search` | `{query}` → `{hits:[{title,url,snippet}]}`: Claude Code with only the WebSearch tool (Lumi's web search option) |
 | phone | GET | `/pc/status` | `disabled` / `locked` / `unlocked` / `locked_out` (no unlock needed) |
@@ -128,3 +129,18 @@ python -m unittest discover tools/lumi-hub
 Every Claude session the hub starts (`claude -p`, new or resumed) uses the `lumi` agent defined in `agents/lumi.md`
 (`--agents` + `--agent lumi`): how to reply on a phone, when to ask first with `lumi_ask`, and the safety rules for
 untrusted text. Edit that file to change how Claude behaves in Lumi; if it is missing, the hub runs plain Claude Code.
+
+## Turn options and streaming
+
+- `POST /turn` (alias `/chat`, phone auth) body `{thread, agent, text, model?, effort?}` → `202 {ok, turn}`.
+  `model`: `sonnet`, `opus`, `haiku` or a full id (`^[A-Za-z0-9][A-Za-z0-9._\[\]-]{0,63}$`, else 400).
+  `effort`: `low|medium|high|max` (maps to `claude --effort`; else 400). Omitted values use the saved defaults
+  (initially `sonnet` / `medium`, stored in the config under `agent_defaults.claude`).
+- `GET /agents/options` → `{models:[{id,label}], efforts:["low","medium","high","max"], defaults:{model,effort}}`.
+  `POST /agents/options {model?, effort?}` saves new defaults and returns `{defaults}`.
+- SSE: while Claude writes, `{"type":"turn_delta","thread","turn","text"}` events (`text` = the new chunk only). The existing
+  `{"type":"reply",...,"done":true,"error"}` event still ends the turn with the full text (or the error); non-final `reply`
+  events (whole text blocks) are unchanged. Treat deltas as a live preview and replace it with the final `reply` text.
+- One long-lived `claude -p --input-format stream-json` process per thread keeps MCP servers warm (max 3, idle 10 min,
+  restarted with `--resume` on crash or model/effort change, killed on `/forget` and hub shutdown). If it fails before
+  producing anything, the turn falls back to the old one-process-per-message spawn. MCP servers are never restricted.

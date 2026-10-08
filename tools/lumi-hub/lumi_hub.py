@@ -63,6 +63,13 @@ TURN_TIMEOUT = 15 * 60
 START_TIME = time.time()
 SEARCH_TIMEOUT = 140
 MAX_TURNS_RUNNING = 2
+MAX_PERSISTENT = 3          # long-lived claude processes kept warm (one per chat)
+IDLE_TIMEOUT = 10 * 60      # a warm process nobody talks to is stopped after this
+MODELS = [{"id": "sonnet", "label": "Sonnet (fast)"}, {"id": "opus", "label": "Opus (deepest)"},
+          {"id": "haiku", "label": "Haiku (fastest)"}]
+EFFORTS = ["low", "medium", "high", "max"]
+DEFAULT_MODEL, DEFAULT_EFFORT = "sonnet", "medium"
+MODEL_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._\[\]-]{0,63}$")
 SESSION_ID = re.compile(r"^[A-Za-z0-9_-]{8,80}$")
 THREAD_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,80}$")
 
@@ -363,6 +370,12 @@ def parse_stream_line(line):
     kind = data.get("type")
     if kind == "system" and data.get("subtype") == "init" and data.get("session_id"):
         return ("session", data["session_id"])
+    if kind == "stream_event" and not data.get("parent_tool_use_id"):
+        event = data.get("event") or {}
+        delta = event.get("delta") or {}
+        if event.get("type") == "content_block_delta" and delta.get("type") == "text_delta" and delta.get("text"):
+            return ("delta", delta["text"])
+        return None
     if kind == "assistant":
         content = (data.get("message") or {}).get("content") or []
         text = "".join(block.get("text", "") for block in content if isinstance(block, dict) and block.get("type") == "text")
@@ -370,6 +383,20 @@ def parse_stream_line(line):
     if kind == "result":
         return ("result", (data.get("result") or "", data.get("session_id"), bool(data.get("is_error"))))
     return None
+
+
+def clean_model(value):
+    value = str(value or "").strip()
+    if not MODEL_ID.match(value):
+        raise HubError("bad model")
+    return value
+
+
+def clean_effort(value):
+    value = str(value or "").strip().lower()
+    if value not in EFFORTS:
+        raise HubError("bad effort")
+    return value
 
 
 def parse_search_result(stdout):
@@ -437,6 +464,32 @@ def lumi_agent_args(path=AGENT_FILE):
 
 
 
+class PersistentFailed(Exception):
+    pass
+
+
+class Worker:
+    """One long-lived `claude -p --input-format stream-json` process, owned by one chat thread."""
+
+    def __init__(self, proc, key):
+        self.proc, self.key = proc, key
+        self.last_used = time.time()
+        self.busy = False
+
+    def alive(self):
+        return self.proc.poll() is None
+
+    def kill(self):
+        try:
+            self.proc.kill()
+        except OSError:
+            pass
+        try:
+            self.proc.stdin.close()
+        except (OSError, ValueError):
+            pass
+
+
 class Agents:
     """Runs agent turns. Only Claude Code for now; other CLIs plug in through [command_for]."""
 
@@ -448,6 +501,10 @@ class Agents:
         self.claude = claude_path
         self.running = {}
         self.lock = threading.Lock()
+        self.persistent = True
+        self.workers = {}
+        self.plock = threading.RLock()
+        self.reaper = None
         self.search_slot = threading.Semaphore(1)
 
     def status(self):
@@ -460,11 +517,18 @@ class Agents:
     def available(self):
         return [{"id": "claude", "name": "Claude Code", "host": socket.gethostname()}] if self.claude else []
 
-    def command_for(self, agent, session):
+    def command_for(self, agent, session, model=None, effort=None, persistent=False):
         if agent != "claude" or not self.claude:
             raise HubError(f"Agent not available on this PC: {agent}", 404)
         # The prompt goes through stdin, never through the argument list
-        args = [self.claude, "-p", "--output-format", "stream-json", "--verbose"]
+        args = [self.claude, "-p"]
+        if persistent:
+            args += ["--input-format", "stream-json"]
+        args += ["--output-format", "stream-json", "--verbose", "--include-partial-messages"]
+        if model:
+            args += ["--model", model]
+        if effort:
+            args += ["--effort", effort]
         args += lumi_agent_args()
         # Non-interactive turns can't ask for permission, so read-only web tools must be pre-approved
         args += ["--allowedTools", "WebSearch", "WebFetch"]
@@ -472,15 +536,39 @@ class Agents:
             args += ["--resume", session]
         return args
 
-    def start_turn(self, thread, agent, text):
+    # ── Options (model + reasoning level) ──
+
+    def defaults(self, agent="claude"):
+        saved = (self.config.get("agent_defaults") or {}).get(agent) or {}
+        model, effort = saved.get("model"), saved.get("effort")
+        return {"model": model if model and MODEL_ID.match(model) else DEFAULT_MODEL,
+                "effort": effort if effort in EFFORTS else DEFAULT_EFFORT}
+
+    def options(self):
+        """GET /agents/options: what the phone can choose per turn, plus the saved defaults."""
+        return {"models": [dict(m) for m in MODELS], "efforts": list(EFFORTS), "defaults": self.defaults()}
+
+    def set_defaults(self, model=None, effort=None, agent="claude"):
+        current = self.defaults(agent)
+        if model is not None:
+            current["model"] = clean_model(model)
+        if effort is not None:
+            current["effort"] = clean_effort(effort)
+        self.config.setdefault("agent_defaults", {})[agent] = current
+        self.save_config()
+        return current
+
+    # ── Turns ──
+
+    def start_turn(self, thread, agent, text, model=None, effort=None):
         if not THREAD_ID.match(thread or ""):
             raise HubError("bad thread id")
         text = clean_text(text, MAX_TEXT, "text")
-        threads = self.config.setdefault("threads", {})
-        session = (threads.get(thread) or {}).get("session")
-        if session and not SESSION_ID.match(session):
-            session = None
-        args = self.command_for(agent, session)
+        defaults = self.defaults(agent)
+        model = clean_model(model) if model else defaults["model"]
+        effort = clean_effort(effort) if effort else defaults["effort"]
+        if agent != "claude" or not self.claude:
+            raise HubError(f"Agent not available on this PC: {agent}", 404)
         with self.lock:
             if thread in self.running:
                 raise HubError("This chat is still answering", 409)
@@ -488,57 +576,61 @@ class Agents:
                 raise HubError("Too many agent turns running", 429)
             turn = secrets.token_hex(6)
             self.running[thread] = turn
-        threading.Thread(target=self._run, args=(thread, agent, turn, args, text), daemon=True).start()
+        threading.Thread(target=self._run, args=(thread, agent, turn, text, model, effort), daemon=True).start()
         return turn
 
-    def _run(self, thread, agent, turn, args, text):
-        reply, session, error = "", None, None
-        timed_out = threading.Event()
+    def _session_of(self, thread):
+        session = (self.config.setdefault("threads", {}).get(thread) or {}).get("session")
+        return session if session and SESSION_ID.match(session) else None
+
+    def _spawn(self, args):
+        flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        return subprocess.Popen(
+            args, cwd=self.workdir, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            text=True, encoding="utf-8", errors="replace", creationflags=flags,
+        )
+
+    def _run(self, thread, agent, turn, text, model=None, effort=None):
+        state = {"reply": "", "session": None, "error": None}
+
+        def handle(line):
+            """Applies one stream-json line to [state]; returns True when the turn's result arrived."""
+            parsed = parse_stream_line(line)
+            if not parsed:
+                return False
+            kind, value = parsed
+            if kind == "session":
+                state["session"] = value
+            elif kind == "delta":
+                self.hub.publish({"type": "turn_delta", "thread": thread, "turn": turn, "text": value})
+            elif kind == "text":
+                reply = state["reply"]
+                state["reply"] = (reply + "\n\n" + value).strip() if reply else value
+                self.hub.publish({"type": "reply", "thread": thread, "agent": agent, "turn": turn,
+                                  "text": state["reply"][-MAX_TEXT * 4:], "done": False})
+            elif kind == "result":
+                final, sid, is_error = value
+                state["session"] = sid or state["session"]
+                if final:
+                    state["reply"] = final
+                if is_error:
+                    state["error"] = final or "error"
+                return True
+            return False
+
         try:
-            flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-            proc = subprocess.Popen(
-                args, cwd=self.workdir, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                text=True, encoding="utf-8", errors="replace", creationflags=flags,
-            )
-            def on_timeout():
-                timed_out.set()
-                proc.kill()
-            timer = threading.Timer(TURN_TIMEOUT, on_timeout)
-            timer.start()
-            try:
-                proc.stdin.write(text)
-                proc.stdin.close()
-                for line in proc.stdout:
-                    parsed = parse_stream_line(line)
-                    if not parsed:
-                        continue
-                    kind, value = parsed
-                    if kind == "session":
-                        session = value
-                    elif kind == "text":
-                        reply = (reply + "\n\n" + value).strip() if reply else value
-                        self.hub.publish({"type": "reply", "thread": thread, "agent": agent, "turn": turn,
-                                          "text": reply[-MAX_TEXT * 4:], "done": False})
-                    elif kind == "result":
-                        final, sid, is_error = value
-                        session = sid or session
-                        if final:
-                            reply = final
-                        if is_error:
-                            error = final or "error"
-                proc.wait()
-            finally:
-                timer.cancel()
-                proc.stdout.close()
-            if timed_out.is_set():
-                error = f"Claude took longer than {TURN_TIMEOUT // 60} minutes and was stopped"
-            elif proc.returncode not in (0, None) and not reply:
-                error = error or f"Claude stopped unexpectedly (exit code {proc.returncode})"
-            elif not reply and not error:
-                error = "Claude finished without an answer"
+            done = False
+            if self.persistent:
+                try:
+                    done = self._turn_persistent(thread, agent, text, model, effort, handle, state)
+                except PersistentFailed:
+                    state.update(reply="", error=None)  # nothing usable came out: retry the old way
+            if not done:
+                self._turn_oneshot(thread, agent, text, model, effort, handle, state)
         except OSError as e:
-            error = f"could not start Claude on the PC: {e}"
+            state["error"] = f"could not start Claude on the PC: {e}"
         finally:
+            session, reply, error = state["session"], state["reply"], state["error"]
             if session and SESSION_ID.match(session):
                 self.config.setdefault("threads", {})[thread] = {"agent": agent, "session": session}
                 self.save_config()
@@ -546,6 +638,116 @@ class Agents:
                 self.running.pop(thread, None)
             self.hub.publish({"type": "reply", "thread": thread, "agent": agent, "turn": turn,
                               "text": reply[-MAX_TEXT * 4:], "done": True, "error": error})
+
+    def _turn_oneshot(self, thread, agent, text, model, effort, handle, state):
+        args = self.command_for(agent, self._session_of(thread), model, effort)
+        timed_out = threading.Event()
+        proc = self._spawn(args)
+        def on_timeout():
+            timed_out.set()
+            proc.kill()
+        timer = threading.Timer(TURN_TIMEOUT, on_timeout)
+        timer.start()
+        try:
+            proc.stdin.write(text)
+            proc.stdin.close()
+            for line in proc.stdout:
+                handle(line)
+            proc.wait()
+        finally:
+            timer.cancel()
+            proc.stdout.close()
+        if timed_out.is_set():
+            state["error"] = f"Claude took longer than {TURN_TIMEOUT // 60} minutes and was stopped"
+        elif proc.returncode not in (0, None) and not state["reply"]:
+            state["error"] = state["error"] or f"Claude stopped unexpectedly (exit code {proc.returncode})"
+        elif not state["reply"] and not state["error"]:
+            state["error"] = "Claude finished without an answer"
+
+    def _turn_persistent(self, thread, agent, text, model, effort, handle, state):
+        """Feeds [text] to the thread's long-lived process. Returns True when the turn is finished (answer or a
+        reported error). Raises PersistentFailed when the process produced nothing usable (caller falls back)."""
+        worker = self._worker(thread, agent, model, effort)
+        timed_out = threading.Event()
+        def on_timeout():
+            timed_out.set()
+            worker.kill()
+        timer = threading.Timer(TURN_TIMEOUT, on_timeout)
+        timer.start()
+        finished = False
+        try:
+            try:
+                worker.proc.stdin.write(json.dumps({"type": "user", "message": {"role": "user", "content": text}}) + "\n")
+                worker.proc.stdin.flush()
+            except (OSError, ValueError):
+                worker.kill()
+                raise PersistentFailed("stdin closed")
+            for line in worker.proc.stdout:
+                if handle(line):
+                    finished = True
+                    break
+        finally:
+            timer.cancel()
+            worker.last_used = time.time()
+            worker.busy = False
+        if not finished:  # the process ended before the result
+            worker.kill()
+            if timed_out.is_set():
+                state["error"] = f"Claude took longer than {TURN_TIMEOUT // 60} minutes and was stopped"
+                return True
+            raise PersistentFailed("process exited")
+        if not state["reply"] and not state["error"]:
+            state["error"] = "Claude finished without an answer"
+        return True
+
+    # ── Persistent processes ──
+
+    def _worker(self, thread, agent, model, effort):
+        key = (agent, model, effort)
+        with self.plock:
+            current = self.workers.get(thread)
+            if current and current.alive() and current.key == key:
+                current.busy = True
+                return current
+            if current:
+                current.kill()  # model/effort changed, or it crashed: restart (with --resume)
+                self.workers.pop(thread, None)
+            while len(self.workers) >= MAX_PERSISTENT:
+                idle = [(w.last_used, t) for t, w in self.workers.items() if not w.busy]
+                if not idle:
+                    raise PersistentFailed("too many persistent processes")
+                self.workers.pop(min(idle)[1]).kill()
+            try:
+                proc = self._spawn(self.command_for(agent, self._session_of(thread), model, effort, persistent=True))
+            except OSError as e:
+                raise PersistentFailed(str(e))
+            worker = Worker(proc, key)
+            worker.busy = True
+            self.workers[thread] = worker
+            if not self.reaper:
+                self.reaper = threading.Thread(target=self._reap_loop, daemon=True)
+                self.reaper.start()
+            return worker
+
+    def reap_idle(self, now=None):
+        now = now or time.time()
+        with self.plock:
+            for thread in list(self.workers):
+                w = self.workers[thread]
+                if not w.alive() or (not w.busy and now - w.last_used > IDLE_TIMEOUT):
+                    w.kill()
+                    del self.workers[thread]
+
+    def _reap_loop(self):
+        while True:
+            time.sleep(30)
+            self.reap_idle()
+
+    def shutdown(self):
+        with self.plock:
+            for w in self.workers.values():
+                w.kill()
+            self.workers.clear()
 
     def search(self, query):
         """Web search by Claude Code (WebSearch tool only), for Lumi's general questions. Returns [{title,url,snippet}]."""
@@ -572,6 +774,10 @@ class Agents:
 
     def forget(self, thread):
         """Starts the thread over (a new Claude session on the next message)."""
+        with self.plock:
+            worker = self.workers.pop(thread, None)
+            if worker:
+                worker.kill()
         if self.config.get("threads", {}).pop(thread, None) is not None:
             self.save_config()
 
@@ -740,6 +946,9 @@ class Handler(BaseHTTPRequestHandler):
             if self.phone():
                 self.send_json(200, {"ok": True, "host": socket.gethostname(), "agents": self.agents.available(),
                                      "status": self.agents.status(), "uptime_seconds": int(time.time() - START_TIME)})
+        elif path == "/agents/options":
+            if self.phone():
+                self.send_json(200, self.agents.options())
         elif path == "/events":
             if self.phone():
                 self.stream_events(query)
@@ -752,7 +961,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if self.path == "/mcp":
                 return self.mcp()
-            if self.path not in ("/answer", "/chat", "/forget", "/search"):
+            if self.path not in ("/answer", "/chat", "/turn", "/forget", "/search", "/agents/options"):
                 return self.send_json(404, {"error": "not_found"})
             if not self.phone():
                 return
@@ -763,8 +972,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(200 if ok else 410, {"ok": ok})
             if self.path == "/search":
                 return self.send_json(200, {"hits": self.agents.search(body.get("query"))})
-            if self.path == "/chat":
-                turn = self.agents.start_turn(str(body.get("thread", "")), str(body.get("agent", "claude")), body.get("text"))
+            if self.path == "/agents/options":
+                return self.send_json(200, {"defaults": self.agents.set_defaults(body.get("model"), body.get("effort"))})
+            if self.path in ("/chat", "/turn"):
+                turn = self.agents.start_turn(str(body.get("thread", "")), str(body.get("agent", "claude")), body.get("text"),
+                                              body.get("model"), body.get("effort"))
                 return self.send_json(202, {"ok": True, "turn": turn})
             self.agents.forget(str(body.get("thread", "")))
             return self.send_json(200, {"ok": True})
@@ -897,6 +1109,7 @@ def cmd_serve(args):
     except KeyboardInterrupt:
         pass
     finally:
+        agents.shutdown()
         if not args.dev_no_tailscale:
             run(["tailscale", "serve", f"--https={args.https_port}", "off"])
         print("Lumi Hub stopped.")
