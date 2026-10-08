@@ -1,0 +1,50 @@
+name: Release
+
+# Push a tag like v1.1.6 (after bumping versionName/versionCode in app/build.gradle.kts) and this builds the APK and
+# publishes the GitHub release. Release APKs are debug-signed with the author's debug key, kept in the DEBUG_KEYSTORE_B64
+# secret, so updates install over earlier builds (a different key would be rejected by Android).
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Tag must match versionName
+        run: |
+          v=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          if [ "v$v" != "${GITHUB_REF_NAME}" ]; then echo "Tag ${GITHUB_REF_NAME} does not match versionName $v"; exit 1; fi
+
+      - name: Restore the debug signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then echo "DEBUG_KEYSTORE_B64 secret is missing"; exit 1; fi
+          mkdir -p ~/.android
+          echo "$KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
+
+      - name: Unit tests and APK
+        run: |
+          chmod +x gradlew
+          ./gradlew -Dorg.gradle.java.home="$JAVA_HOME" testDebugUnitTest assembleDebug --console=plain
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk "lumi-${GITHUB_REF_NAME#v}.apk"
+          gh release create "$GITHUB_REF_NAME" "lumi-${GITHUB_REF_NAME#v}.apk" \
+            --title "Lumi ${GITHUB_REF_NAME#v}" --generate-notes
