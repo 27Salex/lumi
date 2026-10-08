@@ -185,7 +185,8 @@ class PersistentTest(unittest.TestCase):
         agents.start_turn("orbit-1", "claude", "a")
         first = self.wait(hub, 0)
         self.assertEqual("n=1 a", first["text"])
-        deltas = [e["text"] for e in hub.since(0) if e["type"] == "turn_delta"]
+        deltas = [e["text"] for e in hub.deltas]
+        self.assertEqual([], [e for e in hub.since(0) if e["type"] == "turn_delta"])  # live only: never replayed
         self.assertEqual(["Hel", "lo"], deltas)
         agents.start_turn("orbit-1", "claude", "b")
         self.assertEqual("n=2 b", self.wait(hub, first["id"])["text"])  # same process: counter continued

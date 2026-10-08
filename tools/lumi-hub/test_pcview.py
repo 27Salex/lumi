@@ -228,12 +228,22 @@ class PcHttpTest(unittest.TestCase):
         self.assertEqual("disabled", json.loads(self.call("GET", "/pc/status", self.headers())[1])["state"])
         self.assertEqual(403, self.call("POST", "/pc/unlock", self.headers())[0])
 
-    def test_repeated_bad_credentials_lock_out(self):
-        for _ in range(p.FAIL_LIMIT):
+    def test_only_bad_unlock_tokens_from_the_phone_lock_out(self):
+        # strangers (wrong phone token / wrong owner) can never lock the real phone out
+        for _ in range(p.FAIL_LIMIT * 2):
             self.call("POST", "/pc/unlock", self.headers(phone="wrong"))
+            self.call("GET", "/pc/status", self.headers(login="x@y.com"))
+        self.assertEqual(200, self.call("POST", "/pc/unlock", self.headers())[0])
+        # the phone itself with bad unlock tokens does
+        for _ in range(p.FAIL_LIMIT):
+            self.call("GET", "/pc/monitors", self.headers("bogus"))
         status, body, _ = self.call("POST", "/pc/unlock", self.headers())
         self.assertEqual((429, "locked_out"), (status, json.loads(body)["error"]))
         self.assertEqual(200, self.call("POST", "/pc/lock", self.headers())[0])  # locking is always possible
+
+    def test_bad_content_length_is_refused(self):
+        h = dict(self.headers(), **{"Content-Length": "abc"})
+        self.assertEqual(400, self.call("POST", "/pc/lock", h)[0])
 
 
 if __name__ == "__main__":

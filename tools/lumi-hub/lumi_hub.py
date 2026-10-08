@@ -56,6 +56,8 @@ MAX_NOTIFY_TITLE = 100
 MAX_NOTIFY_TEXT = 500
 MAX_SOURCE = 60
 EVENTS_KEPT = 500
+DELTAS_KEPT = 200
+DENIED_READS = ("Read(~/.lumi-hub.json)", "Read(~/.lumi-hub.json.*)", "Read(~/.ssh/**)", "Read(~/.aws/**)", "Read(~/.claude/.credentials.json)")
 ASK_DEFAULT_TIMEOUT = 600
 ASK_MAX_TIMEOUT = 3_600
 EVENTS_PER_MINUTE = 30
@@ -137,6 +139,7 @@ class Hub:
         self.clock = clock
         self.lock = threading.Condition()
         self.events = []
+        self.deltas = []  # turn_delta events: live only, never replayed and never evicting the buffered events
         # Ids keep growing across restarts (milliseconds at start), so a phone resuming with its last id never
         # skips the events of a restarted hub
         self.next_id = int(clock() * 1000)
@@ -151,8 +154,12 @@ class Hub:
             event["id"] = self.next_id
             event["at"] = int(self.clock() * 1000)
             self.next_id += 1
-            self.events.append(event)
-            del self.events[:-EVENTS_KEPT]
+            if event.get("type") == "turn_delta":
+                self.deltas.append(event)
+                del self.deltas[:-DELTAS_KEPT]
+            else:
+                self.events.append(event)
+                del self.events[:-EVENTS_KEPT]
             self.lock.notify_all()
         if self.on_publish:
             try:
@@ -174,9 +181,9 @@ class Hub:
     def wait_events(self, last_id, timeout):
         """New events after [last_id], waiting up to [timeout] seconds for one."""
         with self.lock:
-            if not any(e["id"] > last_id for e in self.events):
+            if not any(e["id"] > last_id for e in self.events) and not any(e["id"] > last_id for e in self.deltas):
                 self.lock.wait(timeout)
-            return [e for e in self.events if e["id"] > last_id]
+            return sorted([e for e in self.events + self.deltas if e["id"] > last_id], key=lambda e: e["id"])
 
     def listening(self, delta):
         with self.lock:
@@ -532,6 +539,9 @@ class Agents:
         args += lumi_agent_args()
         # Non-interactive turns can't ask for permission, so read-only web tools must be pre-approved
         args += ["--allowedTools", "WebSearch", "WebFetch"]
+        # Defence in depth against prompt injection (the agent file also forbids it): never read the hub config (phone
+        # token) or ssh keys. Read rules also cover Grep/Glob. MCP and PC-control tools are untouched.
+        args += ["--disallowedTools", *DENIED_READS]
         if session:
             args += ["--resume", session]
         return args
@@ -591,13 +601,14 @@ class Agents:
         )
 
     def _run(self, thread, agent, turn, text, model=None, effort=None):
-        state = {"reply": "", "session": None, "error": None}
+        state = {"reply": "", "session": None, "error": None, "seen": False}
 
         def handle(line):
             """Applies one stream-json line to [state]; returns True when the turn's result arrived."""
             parsed = parse_stream_line(line)
             if not parsed:
                 return False
+            state["seen"] = True
             kind, value = parsed
             if kind == "session":
                 state["session"] = value
@@ -624,20 +635,31 @@ class Agents:
                 try:
                     done = self._turn_persistent(thread, agent, text, model, effort, handle, state)
                 except PersistentFailed:
-                    state.update(reply="", error=None)  # nothing usable came out: retry the old way
+                    if state["seen"]:
+                        # It already streamed or ran tools: running the message again would repeat its effects
+                        state["error"] = state["error"] or "Claude stopped before finishing; send the message again if you want it re-run"
+                        done = True
+                    else:
+                        state.update(reply="", error=None)  # nothing came out at all: retry the old way
             if not done:
                 self._turn_oneshot(thread, agent, text, model, effort, handle, state)
         except OSError as e:
             state["error"] = f"could not start Claude on the PC: {e}"
         finally:
             session, reply, error = state["session"], state["reply"], state["error"]
-            if session and SESSION_ID.match(session):
-                self.config.setdefault("threads", {})[thread] = {"agent": agent, "session": session}
-                self.save_config()
+            # The chat must never stay on "still answering": free it and publish the reply BEFORE saving, and a failing
+            # save (Windows file lock, concurrent edit) is only logged
             with self.lock:
                 self.running.pop(thread, None)
             self.hub.publish({"type": "reply", "thread": thread, "agent": agent, "turn": turn,
                               "text": reply[-MAX_TEXT * 4:], "done": True, "error": error})
+            if session and SESSION_ID.match(session):
+                try:
+                    with getattr(self.config, "lock", threading.RLock()):
+                        self.config.setdefault("threads", {})[thread] = {"agent": agent, "session": session}
+                    self.save_config()
+                except Exception as e:  # noqa: BLE001
+                    print("could not save the session id:", e, flush=True)
 
     def _turn_oneshot(self, thread, agent, text, model, effort, handle, state):
         args = self.command_for(agent, self._session_of(thread), model, effort)
@@ -788,7 +810,7 @@ class Agents:
 class Config:
     def __init__(self, path=CONFIG_PATH):
         self.path = Path(path)
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()  # every mutation of [data] from other threads takes it too
         if self.path.exists():
             self.data = json.loads(self.path.read_text(encoding="utf-8"))
         else:
@@ -807,14 +829,14 @@ class Config:
             # the CLI (enable-pc-view / pc-lock) edits these two keys from another process: never overwrite them
             enabled, epoch = pcview.read_flags(self.path)
             self.data["pc_view_enabled"], self.data["pc_lock_epoch"] = enabled, epoch
-            tmp = self.path.with_suffix(".tmp")
-            tmp.write_text(json.dumps(self.data, indent=2), encoding="utf-8")
-            os.replace(tmp, self.path)
+            text = json.dumps(self.data, indent=2)  # a copy taken under the lock; mutators take it as well
+            pcview.write_atomic(self.path, text)
 
     def add_client(self, name):
         name = clean_text(name, MAX_SOURCE, "name")
         token = "lh_" + secrets.token_urlsafe(32)
-        self.data["clients"][token] = name
+        with self.lock:
+            self.data["clients"][token] = name
         self.save()
         return token
 
@@ -849,6 +871,9 @@ def client_allowed(headers, owner, config):
     caller = headers.get("Tailscale-User-Login")
     if caller is not None and owner is not None and caller.lower() != owner.lower():
         return None
+    # Traffic that came through tailscale serve / Funnel but has no login (tagged nodes, Funnel) is NOT local
+    if caller is None and owner is not None and (headers.get("X-Forwarded-For") or headers.get("Tailscale-Funnel-Request")):
+        return None
     return config.client_for(bearer(headers))
 
 
@@ -871,10 +896,18 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
-    def read_json(self):
-        length = int(self.headers.get("Content-Length", "0") or 0)
+    def content_length(self):
+        """The validated Content-Length (0..MAX_BODY); anything else is refused before a byte is read."""
+        raw = (self.headers.get("Content-Length", "0") or "0").strip()
+        if not raw.isdigit():
+            raise HubError("bad Content-Length", 400)
+        length = int(raw)
         if length > MAX_BODY:
             raise HubError("body too large", 413)
+        return length
+
+    def read_json(self):
+        length = self.content_length()
         try:
             return json.loads(self.rfile.read(length) or b"{}")
         except (ValueError, UnicodeDecodeError):
@@ -899,12 +932,11 @@ class Handler(BaseHTTPRequestHandler):
     def pc_route(self, method, path, query):
         """My PC (view only). Owner + phone token first (failures are counted and can lock out), then the unlock token."""
         pc = self.pc
-        if method == "POST":  # the endpoints take no body: drain it so the keep-alive connection stays clean
-            self.rfile.read(min(int(self.headers.get("Content-Length", "0") or 0), MAX_BODY))
         try:
+            if method == "POST":  # the endpoints take no body: drain it so the keep-alive connection stays clean
+                self.rfile.read(self.content_length())
             if path == "/pc/lock" and method == "POST":  # always allowed to an authorised phone, even locked out
                 if not phone_allowed(self.headers, self.owner, self.config.data["phone_token"]):
-                    pc.note_failure("bad phone credentials")
                     return self.send_json(401, {"error": "unauthorized"})
                 pc.lock_now("phone")
                 return self.send_json(200, {"ok": True})
@@ -912,9 +944,9 @@ class Handler(BaseHTTPRequestHandler):
                 left = pc.status().get("retry_after")
                 if left:
                     return self.send_json(429, {"error": "locked_out", "retry_after": left})
+            # Only requests that pass owner + phone token can count towards (and trigger) the lockout: anyone else on the
+            # tailnet or on this PC must not be able to keep the real phone locked out
             if not phone_allowed(self.headers, self.owner, self.config.data["phone_token"]):
-                if pc.enabled():
-                    pc.note_failure("bad phone credentials")
                 return self.send_json(401, {"error": "unauthorized"})
             token = self.headers.get("X-Lumi-Unlock", "")
             params = dict(p.split("=", 1) for p in query.split("&") if "=" in p)
@@ -937,6 +969,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(404, {"error": "not_found"})
         except pcview.PcError as e:
             self.send_json(e.code, {"error": str(e), **e.extra})
+        except HubError as e:
+            self.close_connection = True  # an unread body would corrupt the keep-alive connection
+            self.send_json(e.code, {"error": str(e)})
 
     def do_GET(self):
         path, _, query = self.path.partition("?")

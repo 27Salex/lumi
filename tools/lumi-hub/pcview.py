@@ -8,6 +8,7 @@ Never logs tokens or screen content (the audit log only records events).
 import hashlib
 import hmac
 import json
+import os
 import secrets
 import sys
 import threading
@@ -265,6 +266,28 @@ class AuditLog:
 # -- Flags shared with the CLI (the CLI runs in another process; the hub re-reads the file) -----------------------
 
 
+def write_atomic(path, text):
+    """Writes [text] to [path] through a temp file with a UNIQUE name (the hub and the CLI both write this file),
+    retrying the replace a few times (on Windows another process reading the file makes it fail briefly)."""
+    path = Path(path)
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.{secrets.token_hex(4)}.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    try:
+        for attempt in range(6):
+            try:
+                os.replace(tmp, path)
+                return
+            except PermissionError:
+                if attempt == 5:
+                    raise
+                time.sleep(0.05 * (attempt + 1))
+    finally:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+
+
 def read_flags(path):
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -284,9 +307,7 @@ def write_flags(path, enabled=None, lock_now=False, clock=time.time):
         data["pc_view_enabled"] = bool(enabled)
     if lock_now:
         data["pc_lock_epoch"] = clock()
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    tmp.replace(path)
+    write_atomic(path, json.dumps(data, indent=2))
 
 
 class FileFlags:
