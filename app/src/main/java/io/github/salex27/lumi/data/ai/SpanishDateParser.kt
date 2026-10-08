@@ -50,7 +50,8 @@ object SpanishDateParser {
         var text = " $input "
         var date: LocalDate? = null
         var time: LocalTime? = null
-        var dayPeriod: String? = null // "manana" | "tarde" | "noche"
+        var dayPeriod: String? = null // "manana" | "tarde" | "noche" | "madrugada"
+        var midnight = false
 
         fun consume(regex: Regex, onMatch: (MatchResult) -> Unit): Boolean {
             val m = regex.find(text) ?: return false
@@ -72,9 +73,10 @@ object SpanishDateParser {
         consume(Regex("$I\\s${DEADLINE_PREFIX}pasado\\s+$MANANA\\b")) { date = now.toLocalDate().plusDays(2) }
 
         // Part of day: "por la mañana", "esta tarde", "de la noche" (before "mañana" = tomorrow)
-        consume(Regex("$I\\s(?:por|de|en|esta)\\s+(?:la\\s+)?($MANANA|tarde|noche)\\b")) { m ->
-            val p = m.groupValues[1].lowercase()
-            dayPeriod = if (p.startsWith("ma")) "manana" else p
+        // "de mañana" / "antes de mañana" is TOMORROW, so for the morning the article is required ("de la mañana")
+        consume(Regex("$I\\s(?:(?:por|de|en|esta)\\s+(?:la\\s+)?(tarde|noche|madrugada)|(?:(?:por|de|en)\\s+la|esta)\\s+($MANANA))\\b")) { m ->
+            val p = m.groupValues[1].ifBlank { m.groupValues[2] }.lowercase()
+            dayPeriod = if (p.startsWith("ma") && p != "madrugada") "manana" else p
             if (m.value.trim().lowercase().startsWith("esta") && date == null) date = now.toLocalDate()
         }
 
@@ -112,7 +114,7 @@ object SpanishDateParser {
         if (time == null) consume(Regex("$I\\s(?:a\\s+)?(?:las?\\s+)?mediod[ií]a\\b")) { time = LocalTime.NOON }
         // Only accepted as a time with a clear marker, so loose numbers aren't mistaken ("comprar 3 panes"):
         // "a las 5", "sobre la una", "17:30", "5pm". Groups: 1=hour, 2=minutes, 3=am/pm, 4=part of day.
-        val period = "(?:\\s+(?:de\\s+la|por\\s+la)\\s+($MANANA|tarde|noche))?(?=[\\s,.;!?]|$)"
+        val period = "(?:\\s+(?:de\\s+la|por\\s+la)\\s+($MANANA|tarde|noche|madrugada))?(?=[\\s,.;!?]|$)"
         val timePatterns = listOf(
             Regex("$I\\s(?:a|sobre|hacia)\\s+las?\\s+(\\d{1,2}|una)(?:[:.h](\\d{2}))?\\s*(am|pm|h)?$period"),
             Regex("$I\\s(\\d{1,2})[:.h](\\d{2})\\s*(am|pm|h)?$period"),
@@ -122,9 +124,11 @@ object SpanishDateParser {
             var h = if (m.groupValues[1].lowercase() == "una") 1 else m.groupValues[1].toInt()
             val min = m.groupValues[2].toIntOrNull() ?: 0
             val suffix = m.groupValues[3].lowercase()
-            val period = m.groupValues[4].lowercase().ifBlank { null }?.let { if (it.startsWith("ma")) "manana" else it }
+            val period = m.groupValues[4].lowercase().ifBlank { null }?.let { if (it.startsWith("ma") && it != "madrugada") "manana" else it }
             if (period != null) dayPeriod = period
             when {
+                // "a las 12 de la noche" is midnight (the end of that day); "las 12 de la madrugada" too
+                suffix.isBlank() && h == 12 && (dayPeriod == "noche" || dayPeriod == "madrugada") -> { h = 0; midnight = true }
                 suffix.startsWith("p") && h < 12 -> h += 12
                 suffix.startsWith("a") && h == 12 -> h = 0
                 (dayPeriod == "tarde" || dayPeriod == "noche") && h < 12 -> h += 12
@@ -134,11 +138,13 @@ object SpanishDateParser {
         }
 
         if (time == null && dayPeriod != null) {
-            time = when (dayPeriod) { "manana" -> LocalTime.of(9, 0); "tarde" -> LocalTime.of(16, 0); else -> LocalTime.of(21, 0) }
+            time = when (dayPeriod) { "manana" -> LocalTime.of(9, 0); "tarde" -> LocalTime.of(16, 0); "madrugada" -> LocalTime.of(6, 0); else -> LocalTime.of(21, 0) }
         }
 
         if (date == null && time == null) return null
 
+        // "mañana a las 12 de la noche" = the midnight at the END of tomorrow
+        if (midnight && date != null) date = date!!.plusDays(1)
         val resolvedDate = date ?: run {
             // Time only: today if it hasn't passed yet, otherwise tomorrow
             if (time!!.isAfter(now.toLocalTime())) now.toLocalDate() else now.toLocalDate().plusDays(1)

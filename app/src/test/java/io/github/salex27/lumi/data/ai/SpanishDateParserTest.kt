@@ -88,4 +88,23 @@ class SpanishDateParserTest {
     fun `no date returns null`() {
         assertNull(parse("comprar leche"))
     }
+
+    @Test
+    fun `de manana and antes de manana mean tomorrow, not the morning`() {
+        val a = parse("entregar el informe antes de mañana")!!
+        assertEquals(java.time.LocalDate.of(2026, 9, 29), a.dateTime.toLocalDate())
+        assertFalse(a.hasTime)
+        val b = parse("reunión de mañana a las 5")!!
+        assertEquals(LocalDateTime.of(2026, 9, 29, 17, 0), b.dateTime)
+        // with the article it is still the morning
+        assertEquals(LocalDateTime.of(2026, 9, 29, 9, 0), parse("ir al banco mañana de la mañana")!!.dateTime)
+    }
+
+    @Test
+    fun `12 at night is midnight and madrugada is early morning`() {
+        assertEquals(LocalDateTime.of(2026, 9, 29, 0, 0), parse("despertar a las 12 de la noche")!!.dateTime)
+        assertEquals(LocalDateTime.of(2026, 9, 30, 0, 0), parse("fiesta mañana a las 12 de la noche")!!.dateTime)
+        assertEquals(LocalDateTime.of(2026, 9, 29, 3, 0), parse("vuelo mañana a las 3 de la madrugada")!!.dateTime)
+        assertEquals(LocalDateTime.of(2026, 9, 29, 23, 0), parse("cena mañana a las 11 de la noche")!!.dateTime)
+    }
 }
