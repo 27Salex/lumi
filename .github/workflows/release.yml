@@ -1,18 +1,21 @@
 name: Release
 
 # Push a tag like v1.1.6 (after bumping versionName/versionCode in app/build.gradle.kts) and this builds the APK and
-# publishes the GitHub release. Release APKs are debug-signed with the author's debug key, kept in the DEBUG_KEYSTORE_B64
+# publishes the GitHub release. The release build (non-debuggable) is signed with the author's key (the old debug key), kept in the DEBUG_KEYSTORE_B64
 # secret, so updates install over earlier builds (a different key would be rejected by Android).
 on:
   push:
     tags: ['v*']
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    # Only the job that publishes needs to write: it creates the GitHub release
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -39,12 +42,12 @@ jobs:
       - name: Unit tests and APK
         run: |
           chmod +x gradlew
-          ./gradlew -Dorg.gradle.java.home="$JAVA_HOME" testDebugUnitTest assembleDebug --console=plain
+          ./gradlew -Dorg.gradle.java.home="$JAVA_HOME" testDebugUnitTest assembleRelease --console=plain
 
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk "lumi-${GITHUB_REF_NAME#v}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "lumi-${GITHUB_REF_NAME#v}.apk"
           gh release create "$GITHUB_REF_NAME" "lumi-${GITHUB_REF_NAME#v}.apk" \
             --title "Lumi ${GITHUB_REF_NAME#v}" --generate-notes

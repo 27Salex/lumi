@@ -23,9 +23,24 @@ android {
         }
     }
 
+    // Releases are signed with the SAME key as the debug builds (~/.android/debug.keystore) so updates install over
+    // the builds already on the phone. A missing keystore fails the build (it never silently makes a new key).
+    signingConfigs {
+        create("release") {
+            storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
+            isDebuggable = false
+            signingConfig = signingConfigs.getByName("release")
+            // No shrinking on purpose: LiteRT/LiteRT-LM/Vosk/Room rely on reflection and JNI names
             isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
