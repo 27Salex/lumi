@@ -143,20 +143,22 @@ class TaskRepositoryImpl(
         val updated = withCompletion(task).copy(updatedAt = System.currentTimeMillis())
         // mergeFrom keeps the Google Tasks / Calendar ids
         taskDao.updateTask(existing?.mergeFrom(updated) ?: updated.toEntity())
+        val justCompleted = existing != null && existing.status != TaskStatus.COMPLETED && updated.status == TaskStatus.COMPLETED
+        // Read the custom reminders BEFORE schedule(): for a completed task it deletes them, and the next occurrence needs them
+        val customOffsets = if (justCompleted && updated.recurrence != null)
+            reminders.remindersFor(task.id).filter { it.kind == TaskReminder.Kind.CUSTOM }.mapNotNull { it.offsetMinutes } else emptyList()
         reminders.schedule(updated) // recomputes the reminders (or cancels them if no longer active)
         notifySaved(task.id)
 
         // A recurring task just completed → create the next occurrence
-        val justCompleted = existing != null && existing.status != TaskStatus.COMPLETED && updated.status == TaskStatus.COMPLETED
-        if (justCompleted) updated.recurrence?.let { spawnNext(updated, it) }
+        if (justCompleted) updated.recurrence?.let { spawnNext(updated, it, customOffsets) }
     }
 
-    private suspend fun spawnNext(done: Task, recurrence: Recurrence) {
+    private suspend fun spawnNext(done: Task, recurrence: Recurrence, customOffsets: List<Int>) {
         val baseDate = done.dueAt?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() } ?: LocalDate.now()
         val nextDate = recurrence.next(maxOf(baseDate, LocalDate.now().minusDays(1)))
         val time = done.dueAt?.takeIf { done.dueHasTime }?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalTime() }
         val nextDue = (time?.let { nextDate.atTime(it) } ?: nextDate.atTime(9, 0)).atZone(zone).toInstant().toEpochMilli()
-        val customOffsets = reminders.remindersFor(done.id).filter { it.kind == TaskReminder.Kind.CUSTOM }.mapNotNull { it.offsetMinutes }
 
         val next = done.copy(
             id = 0, status = TaskStatus.TODO, completedAt = null, dueAt = nextDue,
@@ -575,6 +577,17 @@ class TaskRepositoryImpl(
                     )
                 }
             }
+        }
+        // A call or message the LLM came up with (its context includes untrusted text): ask first. The confirmed copy
+        // goes through executeCommand with the rules' engine name, so it runs. Rule-matched commands run as before.
+        if (engine != assistant.rulesName && !command.device.isNullOrBlank()) {
+            val ask = when (val c = cmd) {
+                is DeviceCommand.Call -> t("Voy a llamar a ${c.contact}. ¿Sigo?", "I'm going to call ${c.contact}. Continue?")
+                is DeviceCommand.Message -> t("Voy a escribir a ${c.contact}: «${c.text}». ¿Sigo?", "I'm going to message ${c.contact}: «${c.text}». Continue?")
+                is DeviceCommand.ReplyMessage -> t("Voy a responder a ${c.contact}: «${c.text}». ¿Lo envío?", "I'm going to reply to ${c.contact}: «${c.text}». Send it?")
+                else -> null
+            }
+            if (ask != null) return AIProcessingResult.AskFollowUp(command.copy(device = cmd.serialize()), "confirm", ask, usedEngine)
         }
         // Other people will see the location: ask first (the confirmed copy skips this)
         (cmd as? DeviceCommand.ShareLocation)?.takeIf { !it.confirmed }?.let {
