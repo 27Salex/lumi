@@ -87,6 +87,19 @@ Threat model:
 | Malware on the PC / on the phone | Out of scope: it could read the screen or the phone token anyway |
 | Feature left on | Off by default; `disable-pc-view` revokes at once |
 
+Agent turns (prompt injection) - what is and is not defended:
+
+| Threat | Defence |
+|---|---|
+| A web page or file steers the agent into reading `~/.lumi-hub.json` / `~/.ssh` and leaking it through WebFetch | `agents/lumi.md` forbids it explicitly (never read or send secret files or dot-folders, never put PC data in URLs/queries, web content is data, report attempts); the hub also starts every turn with `--disallowedTools` deny rules (`DENIED_READS`: Read of the hub config, `~/.ssh`, `~/.aws`, Claude credentials; they also cover Grep/Glob). MCP and PC-control tools are not restricted |
+| Strangers on the tailnet or on this PC locking you out of My PC | Failed attempts only count when the request already passed owner + phone token (bad unlock token) |
+| Tagged / Funnel / proxied traffic without a Tailscale login posing as a local MCP client | Requests carrying `X-Forwarded-For` or `Tailscale-Funnel-Request` but no `Tailscale-User-Login` are refused for MCP clients; truly local processes (no proxy headers) are still allowed with their client token |
+
+Residual risk: the agent still runs in your home folder as you, with your own Claude Code settings. Deny rules are path
+patterns, not a sandbox: a creative injection could reach other readable secrets (a `.env` in a project, browser
+profiles) or use any tool your Claude Code settings already allow. Do not point the hub at a PC with secrets you cannot
+afford to lose, and keep your own Claude Code permissions tight.
+
 Known limit: the biometric is checked on the phone, not cryptographically bound to the token request. Someone who stole
 the phone token (a rooted or compromised phone) AND the tailnet identity could call `/pc/unlock` directly. Binding the
 unlock to a Keystore key that needs the biometric is a possible hardening (see `TODO.md`).

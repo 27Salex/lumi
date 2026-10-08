@@ -97,7 +97,7 @@ Requires Android 10+. Built and tested on a Samsung Galaxy S25 (Android 16) and 
 
 **My PC (view only).** With Lumi Hub on your PC, Lumi can show your PC screens on the phone (Home, desktop icon). It is off by default (`lumi_hub.py enable-pc-view` on the PC), needs your fingerprint or screen lock for each session, and never controls the PC. See `tools/lumi-hub/README.md`.
 
-**Updates.** Lumi checks the latest GitHub release when it opens (at most every 12 hours; Settings, Updates has "Check now") and offers to download and install it. Release APKs are debug-signed, so an update only installs over a Lumi signed with the same key; otherwise Lumi says so before opening the installer (uninstall first, after exporting a backup).
+**Updates.** Lumi checks the latest GitHub release when it opens (at most every 12 hours; Settings, Updates has "Check now") and offers to download and install it. Release APKs are non-debuggable release builds signed with the same key as earlier builds, so an update installs over them; a Lumi signed with another key is refused otherwise Lumi says so before opening the installer (uninstall first, after exporting a backup).
 
 **Chats.** The Chats tab in the bottom bar holds one history of every conversation (Lumi chats, Orbit threads, agent inboxes) grouped by day, with search, rename and delete (long-press). Agents and "what Lumi learned" are under Manage agents. "New chat" always starts a fresh thread with Lumi or any agent.
 
@@ -107,7 +107,7 @@ Requires Android 10+. Built and tested on a Samsung Galaxy S25 (Android 16) and 
 
 **Claude speed.** In Orbit's Claude chat you can pick the model and reasoning level (default Sonnet, medium); the Hub keeps one Claude process warm per chat and streams the answer as it is written. `lumi` (see `tools/lumi-hub/README.md`) starts the Hub and SearXNG on the PC.
 
-The APK is debug-signed; it is a personal project, not a Play Store app.
+The APK is signed with a personal key (not Play Store); it is built by the GitHub Action from `v*` tags, not by hand; it is a personal project, not a Play Store app.
 
 ## Build
 

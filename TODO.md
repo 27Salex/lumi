@@ -14,6 +14,10 @@ Pending work. Finished items are removed; their history is in `MEMORY.md` and gi
 - [x] versionCode 1 / versionName 1.0.0, build, APK to Drive, tag `v1.0.0`
 - [x] Published: https://github.com/27Salex/lumi (release v1.0.0 with the APK)
 
+## 1.1.7 security fixes: real-device checks
+- [ ] S25: a reminder notification action (Text/Call), morning "Listen", widget/tile/wake word still open the assistant; Share text to Lumi asks before acting; locked phone: "read my messages" asks to unlock, timer works
+- [ ] Update from v1.1.6 (debug build) to the release build with the in-app updater; My PC left while unlocking locks at once
+
 ## 1.1.2 pending real-device checks
 - [ ] Chats tab, Settings groups, Servers (test per service), on-device search, model picker + streaming against the new hub, My PC on a weak link (real device)
 - [ ] Keyboard pushes the Home SmartBar, assistant pill and Orbit input up; New chat creates separate threads; SearXNG answers over the tailnet

@@ -166,3 +166,17 @@ tools/gemma_batch.sh           # Runs a batch of phrases through the real Gemma 
 
 ### 10. Saving AI requests
 - The daily summary is cached (`BriefStore`, per day and language) and not regenerated on every app start; stats never call the AI.
+
+---
+
+## Releases and trust boundaries (v1.1.7)
+
+- **Releases are built by the GitHub Action (`.github/workflows/release.yml`) from `v*` tags, not by hand.** It runs
+  `assembleRelease` (non-debuggable, same signing key as the debug keystore, restored from `DEBUG_KEYSTORE_B64`) and
+  publishes `lumi-<version>.apk`. Locally `assembleRelease` needs only `~/.android/debug.keystore`.
+- `AssistantActivity` is exported (ASSIST / VOICE_COMMAND / SEND) and **ignores every internal extra**. Anything internal
+  (notifications, widgets, tiles, wake word, reminders) must start `InternalAssistantActivity` (not exported) through
+  `AssistantActivity.intent(...)`. Text from SEND is untrusted: actions derived from it need confirmation.
+- Over the lock screen, results that expose private data (Messages, Memory, Claude hand-off, chat history actions) wait
+  for an unlock (`AssistantViewModel.unlockGate`).
+- A Call/Message/Reply that the LLM came up with (engine != rules) asks for confirmation first.

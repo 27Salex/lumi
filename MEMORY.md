@@ -6,6 +6,15 @@ translated when the project went public; version numbers before 1.0.0 refer to t
 
 ---
 
+## 2026-10-08 - Security review fixes (v1.1.7)
+- C1: `AssistantActivity` (exported) ignores device/prompt/done_task/speak/wake extras; new non-exported `InternalAssistantActivity` (subclass, `trusted = true`) is the target of every internal producer via `AssistantActivity.intent`. SEND text -> `sendUntrusted` -> Device results become a confirm AskFollowUp, Agent hand-off refused, routine devices dropped. Checked on the emulator: explicit `am start` with `--es device CALL|...` opens only the greeting; starting the internal one from adb is denied; the in-app logo opens it.
+- H1: `release` buildType (isDebuggable=false, no minify, signing = the debug keystore, SHA-256 C3:5C:B2:69...8E:E9 verified). `adb install -r` over a debug build worked without uninstalling. CI runs `assembleRelease`.
+- H2: `unlockGate` in the ViewModel (Agent/Messages/Memory results) + session open/rename/delete and ReplyMessage require unlock when locked; timers/weather/questions still work.
+- H3: `agents/lumi.md` rules + `--disallowedTools Read(~/.lumi-hub.json)...` verified with a real `claude -p` turn (Read and Grep denied, normal turn fine). Residual risk in the hub README.
+- M1 LLM Call/Message/ReplyMessage confirm (only when the engine is not the rules and the LLM supplied the device string). M2 `visible` flag in PcViewViewModel. M3-M6 hub (publish before save, live-only deltas in `Hub.deltas`, no re-run after any stream line, lockout only after owner+phone). M7 offsets read before `schedule`. M8 "de manana" needs "la" for the morning, "12 de la noche" = midnight (end of the named day), madrugada.
+- LOW: body length validation, proxied-without-login refused for MCP, unique tmp names (`pcview.write_atomic`), search never gets the hub token, legacy `hub` prefs cleared after migration, zip-slip separator, `BackupPrefsValidator`, update sha off main, hub notification ids from 1_500_000_000.
+- Not done: M9. Assistant understanding (rules/IntentRouter/prompts) untouched; only the date parser changed (M8).
+
 ## 2026-10-08 - Good-night reminder, alarm sets and phone control
 
 - **Alarm sets.** "Me levanto a las 7, pon 3 alarmas cada 10 minutos" / "wake me at 6:30 with 4 alarms every 5 minutes" / "desde las 7 cada 15 hasta las 8" -> `AlarmSetParser` (pure, typo tolerant) -> `DeviceCommand.AlarmSet`. DECISION: the clock app route (`ACTION_SET_ALARM` + `EXTRA_SKIP_UI`, one intent per alarm), not Lumi's own exact alarms: it rings through Doze, reboot and DND rules with the user's sound, needs no exact-alarm permission and no custom full-screen UI. Limit: Android has no snooze extra, so "no snooze" cannot be enforced; Lumi says the clock decides it. Created alarms are logged (`AlarmSetStore`, prefs `alarm_sets`, 25 h) for "quita las alarmas" and Settings > Notifications > Wake-up alarms (delete via DELETE_ALARM, fallback DISMISS_ALARM by time). Deleting from the clock is unverified on Samsung Clock.
