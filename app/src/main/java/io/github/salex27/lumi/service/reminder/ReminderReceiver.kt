@@ -61,6 +61,7 @@ class ReminderReceiver : BroadcastReceiver() {
                         app.placeReminders.resyncAll()
                         app.liveUpdates.refresh()
                         app.checkIn.schedule()
+                        app.bedtime.schedule()
                     }
                 }
             } finally {

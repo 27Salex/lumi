@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="prompt_good_night">buenas noches</string>
+    <string name="bedtime_title">Hora de acostarse</string>
+    <string name="bedtime_body">Es hora de desconectar: toca para empezar tu rutina de buenas noches.</string>
+    <string name="bedtime_action">Buenas noches</string>
+    <string name="set_bedtime">Aviso para acostarte</string>
+    <string name="set_bedtime_sub">Una notificación diaria que inicia tu rutina de buenas noches. También puedes decir «recuérdame cada día a las 23:30 que me acueste».</string>
+    <string name="set_bedtime_toggle">Avisarme para acostarme</string>
+    <string name="set_bedtime_toggle_sub">Desactivado por defecto</string>
+    <string name="set_bedtime_time">Hora</string>
+    <string name="set_wake_alarms">Alarmas para despertar</string>
+    <string name="set_wake_alarms_sub">Alarmas que Lumi puso en tu reloj (por ejemplo «me levanto a las 7, pon 3 alarmas cada 10 minutos»). Borrarlas aquí las quita del reloj.</string>
+    <string name="set_wake_alarms_none">Lumi no ha puesto alarmas.</string>
+</resources>

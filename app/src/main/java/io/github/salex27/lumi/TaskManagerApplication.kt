@@ -156,6 +156,12 @@ class TaskManagerApplication : Application() {
     val checkIn: io.github.salex27.lumi.service.checkin.CheckInScheduler by lazy {
         io.github.salex27.lumi.service.checkin.CheckInScheduler(this, settings)
     }
+    val bedtime: io.github.salex27.lumi.service.checkin.BedtimeScheduler by lazy {
+        io.github.salex27.lumi.service.checkin.BedtimeScheduler(this, settings)
+    }
+    val alarmSets: io.github.salex27.lumi.service.checkin.AlarmSetStore by lazy {
+        io.github.salex27.lumi.service.checkin.AlarmSetStore(this)
+    }
     val morning: io.github.salex27.lumi.service.checkin.MorningScheduler by lazy {
         io.github.salex27.lumi.service.checkin.MorningScheduler(this, settings)
     }
@@ -260,6 +266,7 @@ class TaskManagerApplication : Application() {
         appScope.launch { liveUpdates.refresh() }
         checkIn.schedule()
         morning.schedule()
+        bedtime.schedule()
     }
 
     /** Keeps [ReplyLanguage.app] in sync with the language the app is shown in (system or per-app setting). */

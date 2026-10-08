@@ -51,7 +51,7 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
             else -> ReplyLanguage.t("Hecho. «${request.task.title}» queda con prioridad ${request.task.priority.label.lowercase()}.", "Done. «${request.task.title}» is now ${request.task.priority.label.lowercase()} priority.")
         }
         is ReplyRequest.DayPlan -> replyPlan(request)
-        is ReplyRequest.Briefing -> replyBriefing(request.tasks, request.now)
+        is ReplyRequest.Briefing -> replyBriefing(request.tasks, request.now, request.events)
         is ReplyRequest.Messages -> request.digest
     }
 
@@ -62,6 +62,7 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
         if (text.isBlank()) return TaskAICommand(action = TaskAICommand.PLAN_DAY)
         // Places near me (both languages, typo tolerant): before phone actions, "busca una farmacia" is a places search
         AssistantIntents.nearby(text)?.let { return it }
+        io.github.salex27.lumi.domain.assistant.PhoneControl.parse(text, now)?.let { return TaskAICommand(action = TaskAICommand.DEVICE, device = it.serialize()) }
         // English has its own parser (same commands, English grammar)
         if (LanguageDetector.detect(text, ReplyLanguage.app) == Lang.EN) return EnglishCommands.parse(text, now)
         val lower = text.lowercase()
@@ -473,8 +474,21 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
         return sb.toString()
     }
 
-    private fun replyBriefing(tasks: List<Task>, now: LocalDateTime): String {
+    /** Today's events still to come (and all-day ones) in time order, as one sentence; "" when none. */
+    private fun calendarLine(events: List<io.github.salex27.lumi.domain.model.AgendaEvent>, now: LocalDateTime): String {
+        val nowMs = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val todo = events.filter { it.allDay || it.end > nowMs }.sortedWith(compareBy({ !it.allDay }, { it.begin }))
+        if (todo.isEmpty()) return ""
+        val shown = todo.take(4).joinToString(", ") { AssistantPrompts.eventLine(it) }
+        val more = todo.size - 4
+        return (if (en) " On your calendar: " else " En tu calendario: ") + shown +
+            (if (more > 0) (if (en) " and $more more." else " y $more más.") else ".")
+    }
+
+    private fun replyBriefing(tasks: List<Task>, now: LocalDateTime, events: List<io.github.salex27.lumi.domain.model.AgendaEvent> = emptyList()): String {
         val greeting = DueDateFormatter.greeting(now)
+        val cal = calendarLine(events, now)
+        if (tasks.isEmpty() && cal.isNotEmpty()) return if (en) "$greeting. Your task list is empty.$cal" else "$greeting. Tu lista de tareas está vacía.$cal"
         if (tasks.isEmpty()) return if (en) "$greeting. Your list is empty. Tell me what's on your mind and I'll organize it for you."
             else "$greeting. Tu lista está vacía. Cuéntame qué tienes en mente y lo organizo por ti."
 
@@ -497,6 +511,7 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
             if (overdue.isNotEmpty()) parts += " Heads up: «${overdue.first().title}» is overdue" + (if (overdue.size > 1) " (and ${overdue.size - 1} more)." else ".")
             if (high.isNotEmpty()) parts += " The priority: ${high.take(2).joinToString(" and ") { "«${it.title}»" }}."
             next?.let { parts += " Next due is «${it.title}», ${DueDateFormatter.format(it.dueAt!!, it.dueHasTime, now)}." }
+            if (cal.isNotEmpty()) parts += cal.trim()
             if (inProgress.isNotEmpty()) parts += " You're in the middle of «${inProgress.first().title}»; finishing it today would clear your head."
             busiest?.takeIf { it.value.size >= 3 }?.let { parts += "Most of the load is in ${it.key.label} (${it.value.size})." }
             return parts.joinToString(" ")
@@ -510,6 +525,7 @@ class RuleBasedEngine(private val random: Random = Random.Default) : AssistantEn
             (if (overdue.size > 1) " (y ${overdue.size - 1} más)." else ".")
         if (high.isNotEmpty()) parts += " Lo prioritario: ${high.take(2).joinToString(" y ") { "«${it.title}»" }}."
         next?.let { parts += " Lo próximo que vence es «${it.title}», ${DueDateFormatter.format(it.dueAt!!, it.dueHasTime, now)}." }
+        if (cal.isNotEmpty()) parts += cal.trim()
         if (inProgress.isNotEmpty()) parts += " Tienes en marcha «${inProgress.first().title}»; cerrarla hoy te dejaría la mente más libre."
         busiest?.takeIf { it.value.size >= 3 }?.let {
             parts += "La mayor carga está en ${it.key.label} (${it.value.size})."

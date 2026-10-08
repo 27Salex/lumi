@@ -22,6 +22,9 @@ Pending work. Finished items are removed; their history is in `MEMORY.md` and gi
 - [ ] On the S25: `lumi_hub.py enable-pc-view`, restart `lumi`, re-link, My PC: unlock prompt, monitors, pinch/pan, fit, full screen/landscape, Lock now, locks when leaving the app
 - [ ] Bind the unlock to a Keystore key that needs the biometric (today the biometric only gates the request); show the cursor in frames
 
+## Alarm sets, bedtime and phone control: real-device checks
+- [ ] S25: alarm sets in Samsung Clock, delete from Lumi, bedtime notification and boot, brightness/volume/media/share location
+
 ## Lumi Hub (#3) follow-ups
 - [ ] Claude Code Channels (`claude/channel`) to push into a running interactive session
 - [ ] Files in `lumi_send`; Codex / Gemini CLI as wake-per-message agents (`Agents.command_for`)

@@ -22,6 +22,7 @@ import io.github.salex27.lumi.domain.ai.ReplyRequest
 import io.github.salex27.lumi.domain.assistant.AlarmPlanner
 import io.github.salex27.lumi.domain.assistant.CommandSplitter
 import io.github.salex27.lumi.domain.assistant.ConversationContext
+import io.github.salex27.lumi.domain.assistant.CalendarEvents
 import io.github.salex27.lumi.domain.assistant.DayBriefComposer
 import io.github.salex27.lumi.domain.assistant.DeviceCommand
 import io.github.salex27.lumi.domain.assistant.DeviceCommandParser
@@ -575,6 +576,13 @@ class TaskRepositoryImpl(
                 }
             }
         }
+        // Other people will see the location: ask first (the confirmed copy skips this)
+        (cmd as? DeviceCommand.ShareLocation)?.takeIf { !it.confirmed }?.let {
+            return AIProcessingResult.AskFollowUp(
+                command.copy(device = DeviceCommand.ShareLocation(true).serialize()), "confirm",
+                t("Voy a abrir el menú para compartir tu ubicación actual. ¿Sigo?", "I will open the share sheet with your current location. Continue?"), usedEngine
+            )
+        }
         val engineName = usedEngine
         val reply = when (val c = cmd) {
             is DeviceCommand.OpenApp -> t("Abriendo ${c.name}.", "Opening ${c.name}.")
@@ -590,6 +598,37 @@ class TaskRepositoryImpl(
             is DeviceCommand.Flashlight -> if (c.on) t("Linterna encendida.", "Flashlight on.") else t("Linterna apagada.", "Flashlight off.")
             is DeviceCommand.DoNotDisturb -> if (c.on) t("No molestar activado.", "Do Not Disturb is on.") else t("No molestar desactivado.", "Do Not Disturb is off.")
             is DeviceCommand.ReplyMessage -> t("Enviado a ${c.contact}.", "Sent to ${c.contact}.")
+            is DeviceCommand.AlarmSet -> {
+                val list = io.github.salex27.lumi.domain.assistant.AlarmLog.summary(c.times)
+                val noSnooze = if (c.snooze == false) t(" El reloj decide la repetición: si quieres, desactívala allí.", " The clock app controls snooze: turn it off there if you want.") else ""
+                t("Alarmas a las $list.", "Alarms at $list.") + noSnooze + t(" Di «quita las alarmas» para deshacerlo.", " Say \"remove the alarms\" to undo it.")
+            }
+            DeviceCommand.CancelAlarms -> t("Quitando las alarmas que puse.", "Removing the alarms I set.")
+            is DeviceCommand.BedtimeReminder -> t(
+                "Hecho: te avisaré ${io.github.salex27.lumi.domain.assistant.BedtimeParser.daysLabel(c.days, true)} a las %02d:%02d para irte a la cama.",
+                "Done: I will remind you ${io.github.salex27.lumi.domain.assistant.BedtimeParser.daysLabel(c.days, false)} at %02d:%02d to go to bed."
+            ).format(c.minutes / 60, c.minutes % 60)
+            is DeviceCommand.Volume -> t("Volumen: ", "Volume: ") + when (c.action) {
+                DeviceCommand.VolumeAction.UP -> t("subido.", "up.")
+                DeviceCommand.VolumeAction.DOWN -> t("bajado.", "down.")
+                DeviceCommand.VolumeAction.SET -> "${c.percent} %."
+                DeviceCommand.VolumeAction.MUTE -> t("silenciado.", "muted.")
+                DeviceCommand.VolumeAction.UNMUTE -> t("con sonido.", "unmuted.")
+                DeviceCommand.VolumeAction.SILENT -> t("móvil en silencio.", "phone on silent.")
+                DeviceCommand.VolumeAction.VIBRATE -> t("móvil en vibración.", "phone on vibrate.")
+                DeviceCommand.VolumeAction.RINGER -> t("sonido normal.", "ringer on.")
+            }
+            is DeviceCommand.Brightness -> t("Ajustando el brillo.", "Adjusting the brightness.")
+            is DeviceCommand.Media -> when (c.action) {
+                DeviceCommand.MediaAction.NEXT -> t("Siguiente canción.", "Next track.")
+                DeviceCommand.MediaAction.PREVIOUS -> t("Canción anterior.", "Previous track.")
+                DeviceCommand.MediaAction.PAUSE -> t("Pausado.", "Paused.")
+                else -> t("Reproduciendo.", "Playing.")
+            }
+            is DeviceCommand.PhoneInfo -> t("Mirando el móvil.", "Checking the phone.")
+            is DeviceCommand.CalendarEvent -> t("Abriendo el calendario con «${c.title}».", "Opening the calendar with «${c.title}».")
+            DeviceCommand.Stopwatch -> t("Abriendo el reloj: Android no deja a otras apps iniciar el cronómetro, pulsa Cronómetro.", "Opening the clock: Android does not let apps start the stopwatch, tap Stopwatch.")
+            is DeviceCommand.ShareLocation -> t("Abriendo el menú para compartir tu ubicación.", "Opening the share sheet with your location.")
         }
         return AIProcessingResult.Device(cmd, reply, engineName)
     }
@@ -953,9 +992,18 @@ class TaskRepositoryImpl(
 
     override suspend fun generateDailyBriefing(): AIProcessingResult {
         val tasks = taskDao.getAllTasksSnapshot().map { it.toDomain() }
-        val (reply, engine) = assistant.reply(ReplyRequest.Briefing(tasks, LocalDateTime.now()))
+        val now = LocalDateTime.now()
+        val (reply, engine) = assistant.reply(ReplyRequest.Briefing(tasks, now, todaysEvents(now.toLocalDate())))
         return AIProcessingResult.Summary(reply, engine)
     }
+
+    /** Today's phone-calendar events without the ones Lumi created for its own tasks; empty without permission. */
+    private suspend fun todaysEvents(date: LocalDate): List<AgendaEvent> {
+        val linked = taskDao.linkedCalendarEventIds().toSet()
+        return calendar?.eventsOn(date).orEmpty().filter { it.id !in linked }
+    }
+
+    override suspend fun calendarSignature(): Int = CalendarEvents.signature(todaysEvents(LocalDate.now()))
 
     /** When an LLM understood the intent but the rules wrote the reply, show the LLM. */
     private fun preferLlm(interpretEngine: String, replyEngine: String) =

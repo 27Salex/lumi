@@ -3,6 +3,7 @@
 
     <!-- Gemma download and Gemini cloud (optional) -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- In-app update (#11): hands the downloaded APK to the system installer -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -32,6 +33,8 @@
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
     <!-- Routines: "good night" turns on Do Not Disturb (the user grants access once) -->
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+    <!-- "Set the brightness": granted by the user on a system screen (Modify system settings) -->
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" />
 
     <!-- Speech recognition: needed to query the service on Android 11+ -->
     <queries>
@@ -174,6 +177,10 @@
 
         <receiver
             android:name=".service.checkin.MorningReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".service.checkin.BedtimeReceiver"
             android:exported="false" />
 
         <!-- "What did they write to me?": reads message notifications (only if the user grants access) -->

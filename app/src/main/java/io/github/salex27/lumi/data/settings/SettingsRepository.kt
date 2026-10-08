@@ -50,6 +50,10 @@ data class AppSettings(
     val morningEnabled: Boolean = true,
     /** Morning summary time in minutes from midnight (8:00 = 480). */
     val morningMinutes: Int = 8 * 60,
+    /** Daily "time to go to bed" reminder (minutes from midnight; days = bit mask, bit 0 = Monday). */
+    val bedtimeEnabled: Boolean = false,
+    val bedtimeMinutes: Int = 23 * 60,
+    val bedtimeDays: Int = 127,
     /** Smart alarm: minutes to get ready and to travel. */
     val alarmPrepMinutes: Int = 60,
     val alarmTravelMinutes: Int = 30,
@@ -100,6 +104,8 @@ class SettingsRepository(context: Context) {
                 reminderLeadMinutes = it.reminderLeadMinutes.coerceIn(0, 24 * 60),
                 checkInHour = it.checkInHour.coerceIn(17, 23),
                 morningMinutes = it.morningMinutes.coerceIn(5 * 60, 11 * 60 + 45),
+                bedtimeMinutes = it.bedtimeMinutes.coerceIn(0, 24 * 60 - 1),
+                bedtimeDays = it.bedtimeDays and 127,
                 alarmPrepMinutes = it.alarmPrepMinutes.coerceIn(10, 180),
                 alarmTravelMinutes = it.alarmTravelMinutes.coerceIn(0, 180),
                 voicePauseMs = it.voicePauseMs.coerceIn(700, 4_000)
@@ -130,6 +136,9 @@ class SettingsRepository(context: Context) {
             .putInt(K_CHECKIN_HOUR, new.checkInHour)
             .putBoolean(K_MORNING, new.morningEnabled)
             .putInt(K_MORNING_MIN, new.morningMinutes)
+            .putBoolean(K_BEDTIME, new.bedtimeEnabled)
+            .putInt(K_BEDTIME_MIN, new.bedtimeMinutes)
+            .putInt(K_BEDTIME_DAYS, new.bedtimeDays)
             .putInt(K_ALARM_PREP, new.alarmPrepMinutes)
             .putInt(K_ALARM_TRAVEL, new.alarmTravelMinutes)
             .putBoolean(K_ALARM_WORK, new.alarmUsesWorkHours)
@@ -165,6 +174,9 @@ class SettingsRepository(context: Context) {
         checkInHour = prefs.getInt(K_CHECKIN_HOUR, 20),
         morningEnabled = prefs.getBoolean(K_MORNING, true),
         morningMinutes = prefs.getInt(K_MORNING_MIN, 8 * 60),
+        bedtimeEnabled = prefs.getBoolean(K_BEDTIME, false),
+        bedtimeMinutes = prefs.getInt(K_BEDTIME_MIN, 23 * 60),
+        bedtimeDays = prefs.getInt(K_BEDTIME_DAYS, 127),
         alarmPrepMinutes = prefs.getInt(K_ALARM_PREP, 60),
         alarmTravelMinutes = prefs.getInt(K_ALARM_TRAVEL, 30),
         alarmUsesWorkHours = prefs.getBoolean(K_ALARM_WORK, true),
@@ -198,6 +210,9 @@ class SettingsRepository(context: Context) {
         const val K_CHECKIN_HOUR = "check_in_hour"
         const val K_MORNING = "morning_brief"
         const val K_MORNING_MIN = "morning_minutes"
+        const val K_BEDTIME = "bedtime_enabled"
+        const val K_BEDTIME_MIN = "bedtime_minutes"
+        const val K_BEDTIME_DAYS = "bedtime_days"
         const val K_ALARM_PREP = "alarm_prep"
         const val K_ALARM_TRAVEL = "alarm_travel"
         const val K_ALARM_WORK = "alarm_work"

@@ -8,7 +8,17 @@ import android.app.SearchManager
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.media.AudioManager
+import android.os.BatteryManager
+import android.os.Environment
+import android.os.StatFs
+import android.view.KeyEvent
+import android.location.LocationManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.provider.CalendarContract
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.net.Uri
@@ -68,9 +78,36 @@ object DeviceActions {
                 DeviceCommand.SettingsPanel.GENERAL -> Intent(Settings.ACTION_SETTINGS)
                 DeviceCommand.SettingsPanel.NOTIFICATION_ACCESS -> LumiNotificationListener.settingsIntent(context)
                 DeviceCommand.SettingsPanel.DND_ACCESS -> Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
+                DeviceCommand.SettingsPanel.AIRPLANE -> Intent(Settings.ACTION_AIRPLANE_MODE_SETTINGS)
+                DeviceCommand.SettingsPanel.LOCATION -> Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                DeviceCommand.SettingsPanel.NFC -> Intent(Settings.Panel.ACTION_NFC)
+                DeviceCommand.SettingsPanel.HOTSPOT -> Intent("android.settings.TETHER_SETTINGS")
+                DeviceCommand.SettingsPanel.MOBILE_DATA -> Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY)
             })
             is DeviceCommand.Flashlight -> flashlight(context, command.on)
             is DeviceCommand.DoNotDisturb -> doNotDisturb(context, command.on)
+            is DeviceCommand.AlarmSet -> alarmSet(context, command)
+            DeviceCommand.CancelAlarms -> cancelAlarms(context)
+            is DeviceCommand.BedtimeReminder -> {
+                val app = context.applicationContext as io.github.salex27.lumi.TaskManagerApplication
+                app.settings.update { it.copy(bedtimeEnabled = true, bedtimeMinutes = command.minutes, bedtimeDays = command.days) }
+                app.bedtime.schedule()
+                Outcome.Done()
+            }
+            is DeviceCommand.Volume -> volume(context, command)
+            is DeviceCommand.Brightness -> brightness(context, command)
+            is DeviceCommand.Media -> media(context, command.action)
+            is DeviceCommand.PhoneInfo -> Outcome.Done(phoneInfo(context, command.kind))
+            is DeviceCommand.CalendarEvent -> start(context, Intent(Intent.ACTION_INSERT, CalendarContract.Events.CONTENT_URI)
+                .putExtra(CalendarContract.Events.TITLE, command.title)
+                .apply {
+                    command.startIso?.let {
+                        val begin = java.time.LocalDateTime.parse(it).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, begin).putExtra(CalendarContract.EXTRA_EVENT_END_TIME, begin + 3_600_000L)
+                    }
+                })
+            DeviceCommand.Stopwatch -> start(context, Intent(AlarmClock.ACTION_SHOW_ALARMS)) // Android has no stopwatch intent: the clock opens
+            is DeviceCommand.ShareLocation -> shareLocation(context)
             is DeviceCommand.ReplyMessage ->
                 if (LumiNotificationListener.reply(context, command.key, command.text)) Outcome.Done()
                 // The notification is gone (read on the phone): WhatsApp/SMS opens with the text written
@@ -264,6 +301,143 @@ object DeviceActions {
             ?: return Outcome.Failed(ReplyLanguage.t("Este móvil no tiene linterna.", "This phone has no flashlight."))
         cm.setTorchMode(id, on)
         return Outcome.Done()
+    }
+
+    // ── Alarm sets (the clock app keeps them: it rings through Doze, reboot and Do Not Disturb rules) ──
+
+    private fun alarmSet(context: Context, command: DeviceCommand.AlarmSet): Outcome {
+        val app = context.applicationContext as io.github.salex27.lumi.TaskManagerApplication
+        val done = mutableListOf<Int>()
+        for (minutes in command.times) {
+            val r = start(context, io.github.salex27.lumi.service.checkin.AlarmSetStore.setIntent(minutes, "Lumi"))
+            if (r is Outcome.Failed) { if (done.isNotEmpty()) app.alarmSets.add(done); return r }
+            done += minutes
+            Thread.sleep(150) // the clock app handles them in order
+        }
+        app.alarmSets.add(done)
+        return Outcome.Done()
+    }
+
+    private fun cancelAlarms(context: Context): Outcome {
+        val app = context.applicationContext as io.github.salex27.lumi.TaskManagerApplication
+        val entries = app.alarmSets.live()
+        if (entries.isEmpty()) return Outcome.Done(ReplyLanguage.t("No tengo alarmas mías pendientes que quitar.", "I have no alarms of mine to remove."))
+        for (e in entries) {
+            io.github.salex27.lumi.service.checkin.AlarmSetStore.delete(context, e.minutes)
+            Thread.sleep(150)
+        }
+        app.alarmSets.clear()
+        return Outcome.Done(ReplyLanguage.t("Quitadas: ", "Removed: ") + io.github.salex27.lumi.domain.assistant.AlarmLog.summary(entries.map { it.minutes }) +
+            ReplyLanguage.t(". Si alguna sigue en el reloj, bórrala allí.", ". If one is still in the clock app, delete it there."))
+    }
+
+    // ── Volume, brightness, media, info ──────────────────────────────────────
+
+    private fun volume(context: Context, c: DeviceCommand.Volume): Outcome {
+        val am = context.getSystemService(AudioManager::class.java)
+        val stream = AudioManager.STREAM_MUSIC
+        val max = am.getStreamMaxVolume(stream)
+        val flags = AudioManager.FLAG_SHOW_UI
+        when (c.action) {
+            DeviceCommand.VolumeAction.UP -> am.setStreamVolume(stream, (am.getStreamVolume(stream) + maxOf(1, max / 7)).coerceAtMost(max), flags)
+            DeviceCommand.VolumeAction.DOWN -> am.setStreamVolume(stream, (am.getStreamVolume(stream) - maxOf(1, max / 7)).coerceAtLeast(0), flags)
+            DeviceCommand.VolumeAction.SET -> am.setStreamVolume(stream, Math.round(max * (c.percent ?: 50) / 100f), flags)
+            DeviceCommand.VolumeAction.MUTE -> am.adjustStreamVolume(stream, AudioManager.ADJUST_MUTE, flags)
+            DeviceCommand.VolumeAction.UNMUTE -> am.adjustStreamVolume(stream, AudioManager.ADJUST_UNMUTE, flags)
+            DeviceCommand.VolumeAction.VIBRATE -> am.ringerMode = AudioManager.RINGER_MODE_VIBRATE
+            DeviceCommand.VolumeAction.RINGER -> am.ringerMode = AudioManager.RINGER_MODE_NORMAL
+            DeviceCommand.VolumeAction.SILENT -> {
+                // Silent needs the Do Not Disturb access on Android 7+
+                if (!context.getSystemService(NotificationManager::class.java).isNotificationPolicyAccessGranted) {
+                    return Outcome.NeedsAccess(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS),
+                        ReplyLanguage.t("Para silenciar el móvil necesito el acceso a No molestar: activa Lumi y vuelve a pedírmelo.", "To silence the phone I need Do Not Disturb access: enable Lumi and ask me again."))
+                }
+                am.ringerMode = AudioManager.RINGER_MODE_SILENT
+            }
+        }
+        return Outcome.Done()
+    }
+
+    private fun brightness(context: Context, c: DeviceCommand.Brightness): Outcome {
+        if (!Settings.System.canWrite(context)) {
+            return Outcome.NeedsAccess(
+                Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:${context.packageName}")),
+                ReplyLanguage.t("Para cambiar el brillo necesito el permiso «Modificar ajustes del sistema»: actívalo para Lumi y vuelve a pedírmelo.", "To change the brightness I need the «Modify system settings» permission: enable it for Lumi and ask me again.")
+            )
+        }
+        val resolver = context.contentResolver
+        val current = Settings.System.getInt(resolver, Settings.System.SCREEN_BRIGHTNESS, 128)
+        val target = when (c.action) {
+            DeviceCommand.VolumeAction.UP -> current + 40
+            DeviceCommand.VolumeAction.DOWN -> current - 40
+            else -> Math.round(255 * (c.percent ?: 50) / 100f)
+        }.coerceIn(5, 255)
+        Settings.System.putInt(resolver, Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
+        Settings.System.putInt(resolver, Settings.System.SCREEN_BRIGHTNESS, target)
+        return Outcome.Done(ReplyLanguage.t("Brillo al ${target * 100 / 255} %.", "Brightness at ${target * 100 / 255}%."))
+    }
+
+    private fun media(context: Context, action: DeviceCommand.MediaAction): Outcome {
+        val am = context.getSystemService(AudioManager::class.java)
+        val key = when (action) {
+            DeviceCommand.MediaAction.PLAY -> KeyEvent.KEYCODE_MEDIA_PLAY
+            DeviceCommand.MediaAction.PAUSE -> KeyEvent.KEYCODE_MEDIA_PAUSE
+            DeviceCommand.MediaAction.TOGGLE -> KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
+            DeviceCommand.MediaAction.NEXT -> KeyEvent.KEYCODE_MEDIA_NEXT
+            DeviceCommand.MediaAction.PREVIOUS -> KeyEvent.KEYCODE_MEDIA_PREVIOUS
+        }
+        am.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, key))
+        am.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, key))
+        return Outcome.Done()
+    }
+
+    private fun batteryLine(context: Context): String {
+        val b = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val level = b?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val scale = b?.getIntExtra(BatteryManager.EXTRA_SCALE, 100) ?: 100
+        val status = b?.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+        val charging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+        if (level < 0) return ReplyLanguage.t("No puedo leer la batería.", "I can't read the battery.")
+        val pct = level * 100 / scale
+        return ReplyLanguage.t("Batería al $pct %" + if (charging) ", cargando." else ", sin cargar.", "Battery at $pct%" + if (charging) ", charging." else ", not charging.")
+    }
+
+    private fun storageLine(): String {
+        val st = StatFs(Environment.getDataDirectory().path)
+        val free = st.availableBytes / 1e9
+        val total = st.totalBytes / 1e9
+        return ReplyLanguage.t("Almacenamiento: %.1f GB libres de %.0f GB.", "Storage: %.1f GB free of %.0f GB.").format(free, total)
+    }
+
+    private fun phoneInfo(context: Context, kind: DeviceCommand.InfoKind): String = when (kind) {
+        DeviceCommand.InfoKind.BATTERY -> batteryLine(context)
+        DeviceCommand.InfoKind.STORAGE -> storageLine()
+        DeviceCommand.InfoKind.STATUS -> {
+            val cm = context.getSystemService(ConnectivityManager::class.java)
+            val caps = runCatching { cm.getNetworkCapabilities(cm.activeNetwork) }.getOrNull()
+            val net = when {
+                caps == null -> ReplyLanguage.t("sin conexión", "offline")
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "Wi-Fi"
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> ReplyLanguage.t("datos móviles", "mobile data")
+                else -> ReplyLanguage.t("conectado", "connected")
+            }
+            val dnd = context.getSystemService(NotificationManager::class.java).currentInterruptionFilter != NotificationManager.INTERRUPTION_FILTER_ALL
+            batteryLine(context) + " " + ReplyLanguage.t("Red: $net. ", "Network: $net. ") + storageLine() + " " +
+                ReplyLanguage.t(if (dnd) "No molestar activado." else "No molestar desactivado.", if (dnd) "Do Not Disturb is on." else "Do Not Disturb is off.")
+        }
+    }
+
+    @android.annotation.SuppressLint("MissingPermission")
+    private fun shareLocation(context: Context): Outcome {
+        if (!granted(context, Manifest.permission.ACCESS_FINE_LOCATION) && !granted(context, Manifest.permission.ACCESS_COARSE_LOCATION)) {
+            return Outcome.NeedsPermission(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        }
+        val lm = context.getSystemService(LocationManager::class.java)
+        val loc = lm.getProviders(true).mapNotNull { runCatching { lm.getLastKnownLocation(it) }.getOrNull() }.maxByOrNull { it.time }
+            ?: return Outcome.Failed(ReplyLanguage.t("Aún no sé dónde estás: abre un mapa un momento y vuelve a pedírmelo.", "I don't know where you are yet: open a map for a moment and ask me again."))
+        val link = "https://maps.google.com/?q=${loc.latitude},${loc.longitude}"
+        val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, ReplyLanguage.t("Estoy aquí: ", "I am here: ") + link)
+        return start(context, Intent.createChooser(send, null))
     }
 
     // ── Utilities ───────────────────────────────────────────────────────────

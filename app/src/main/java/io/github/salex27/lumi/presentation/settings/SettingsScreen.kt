@@ -376,6 +376,8 @@ if (page == SettingsPage.ASSISTANT) {
 if (page == SettingsPage.NOTIFICATIONS) {
         assistantSection()
 SmartAlarmSettings(app)
+BedtimeSettings(app)
+WakeAlarmsSettings(app)
 }
 
 if (page == SettingsPage.ASSISTANT) {

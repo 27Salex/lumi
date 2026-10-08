@@ -26,6 +26,7 @@ object EnglishCommands {
         val lower = text.lowercase()
 
         AssistantIntents.nearby(text)?.let { return it }
+        io.github.salex27.lumi.domain.assistant.PhoneControl.parse(text, now)?.let { return TaskAICommand(action = TaskAICommand.DEVICE, device = it.serialize()) }
         followUp(text, now)?.let { return it }
         navigate(text)?.let { return it }
         edit(text, now)?.let { return it }
@@ -127,6 +128,7 @@ object EnglishCommands {
 
     fun device(text: String): DeviceCommand? {
         val t = text.trim().trimEnd('?', '.', '!')
+        io.github.salex27.lumi.domain.assistant.PhoneControl.parse(t)?.let { return it }
         // Timer: "set a timer for 10 minutes", "timer 5 minutes", "remind me in 20 minutes"
         Regex("$I^(?:set\\s+|start\\s+)?(?:a\\s+)?timer\\s+(?:for\\s+)?(\\d+|a|an|one|two|three|five|ten|fifteen|twenty|thirty)\\s+(seconds?|secs?|minutes?|mins?|hours?)(?:\\s+(?:for|to)\\s+(.+))?$").find(t)?.let { m ->
             val n = number(m.groupValues[1]) ?: return@let

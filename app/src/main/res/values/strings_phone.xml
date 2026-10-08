@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="prompt_good_night">good night</string>
+    <string name="bedtime_title">Time to go to bed</string>
+    <string name="bedtime_body">Wind down: tap to start your good night routine.</string>
+    <string name="bedtime_action">Good night</string>
+    <string name="set_bedtime">Bedtime reminder</string>
+    <string name="set_bedtime_sub">A daily notification that starts your good night routine. You can also say \"remind me to go to bed at 11:30 every day\".</string>
+    <string name="set_bedtime_toggle">Remind me to go to bed</string>
+    <string name="set_bedtime_toggle_sub">Off by default</string>
+    <string name="set_bedtime_time">Time</string>
+    <string name="set_wake_alarms">Wake-up alarms</string>
+    <string name="set_wake_alarms_sub">Alarms Lumi set in your clock app (for example \"wake me at 7 with 3 alarms every 10 minutes\"). Deleting here removes them from the clock.</string>
+    <string name="set_wake_alarms_none">No alarms set by Lumi.</string>
+</resources>

@@ -6,6 +6,15 @@ translated when the project went public; version numbers before 1.0.0 refer to t
 
 ---
 
+## 2026-10-08 - Good-night reminder, alarm sets and phone control
+
+- **Alarm sets.** "Me levanto a las 7, pon 3 alarmas cada 10 minutos" / "wake me at 6:30 with 4 alarms every 5 minutes" / "desde las 7 cada 15 hasta las 8" -> `AlarmSetParser` (pure, typo tolerant) -> `DeviceCommand.AlarmSet`. DECISION: the clock app route (`ACTION_SET_ALARM` + `EXTRA_SKIP_UI`, one intent per alarm), not Lumi's own exact alarms: it rings through Doze, reboot and DND rules with the user's sound, needs no exact-alarm permission and no custom full-screen UI. Limit: Android has no snooze extra, so "no snooze" cannot be enforced; Lumi says the clock decides it. Created alarms are logged (`AlarmSetStore`, prefs `alarm_sets`, 25 h) for "quita las alarmas" and Settings > Notifications > Wake-up alarms (delete via DELETE_ALARM, fallback DISMISS_ALARM by time). Deleting from the clock is unverified on Samsung Clock.
+- **Bedtime reminder.** Settings `bedtimeEnabled/Minutes/Days` (off by default), `BedtimeScheduler` (inexact `setWindow`, rescheduled on fire, app start and boot via ReminderReceiver), notification action starts the "good night" routine through the assistant prompt. Voice: "recuerdame cada dia a las 23:30 que me acueste" (needs a recurrence word, otherwise it stays a task).
+- **Phone control** (`PhoneControl`, ES+EN, runs before the other rules): volume up/down/set/mute/silent/vibrate, brightness (WRITE_SETTINGS, guides to the permission screen), media keys, battery/storage/status answers, panels (airplane, location, NFC, hotspot, mobile data, Wi-Fi, Bluetooth; Android 10+ cannot toggle them), calendar event (opens the new-event screen), stopwatch (opens the clock), share location (asks first). Silent ringer needs DND access.
+- **Not verified on device:** clock-app alarm deletion, real notification at bedtime, brightness/volume on the S25.
+
+---
+
 ## 2026-10-08 — Chats tab, grouped Settings, Servers, on-device search, model picker, My PC robustness
 
 - **Nav.** Chats is the 5th bottom tab (Home header pill removed; My PC icon stays). A thread or Manage agents takes the whole screen without the tab bar (own IME handling). `ChatsScreen(embedded=true)` skips the nav-bar inset.

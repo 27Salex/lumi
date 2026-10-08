@@ -209,6 +209,7 @@ class AssistantActivity : ComponentActivity() {
                     }
                     when (val outcome = io.github.salex27.lumi.presentation.agent.DeviceActions.execute(this@AssistantActivity, cmd, contact, app.contactAliases)) {
                         is io.github.salex27.lumi.presentation.agent.DeviceActions.Outcome.Done -> {
+                            outcome.note?.let { viewModel.say(it, isError = false) }
                             // Routine: next action. If nothing is left and the action opened another app (call, WhatsApp…),
                             // the pill goes away. In lifecycleScope: clearing the state restarts this effect and would cancel the wait.
                             lifecycleScope.launch {
