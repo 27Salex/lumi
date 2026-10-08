@@ -21,15 +21,38 @@ sealed interface DeviceCommand {
     /** Reply to a message from its notification without opening the app (like Android Auto). */
     data class ReplyMessage(val key: String, val contact: String, val text: String, val app: String) : DeviceCommand
 
+    /** Several wake-up alarms at once ([times] = minutes from midnight). [snooze] null = not said. */
+    data class AlarmSet(val times: List<Int>, val snooze: Boolean?) : DeviceCommand
+    /** Removes the alarms Lumi created. */
+    data object CancelAlarms : DeviceCommand
+    /** Daily "time to go to bed" notification ([days] bit 0 = Monday). */
+    data class BedtimeReminder(val minutes: Int, val days: Int) : DeviceCommand
+    data class Volume(val action: VolumeAction, val percent: Int?) : DeviceCommand
+    data class Brightness(val action: VolumeAction, val percent: Int?) : DeviceCommand
+    data class Media(val action: MediaAction) : DeviceCommand
+    data class PhoneInfo(val kind: InfoKind) : DeviceCommand
+    /** Opens the calendar's new-event screen filled in ([startIso] "2026-10-09T17:00" or null). */
+    data class CalendarEvent(val title: String, val startIso: String?) : DeviceCommand
+    data object Stopwatch : DeviceCommand
+    /** Share sheet with the current location. Lumi asks first ([confirmed] false) because other people see it. */
+    data class ShareLocation(val confirmed: Boolean) : DeviceCommand
+
+    enum class VolumeAction { UP, DOWN, SET, MUTE, UNMUTE, SILENT, VIBRATE, RINGER }
+    enum class MediaAction { PLAY, PAUSE, TOGGLE, NEXT, PREVIOUS }
+    enum class InfoKind { BATTERY, STORAGE, STATUS }
+
     enum class SettingsPanel(private val es: String, private val en: String) {
         WIFI("el wifi", "Wi-Fi"), BLUETOOTH("el Bluetooth", "Bluetooth"), VOLUME("el volumen", "volume"), GENERAL("los ajustes", "settings"),
-        NOTIFICATION_ACCESS("el acceso a notificaciones", "notification access"), DND_ACCESS("el acceso a No molestar", "Do Not Disturb access");
+        NOTIFICATION_ACCESS("el acceso a notificaciones", "notification access"), DND_ACCESS("el acceso a No molestar", "Do Not Disturb access"),
+        AIRPLANE("el modo avión", "airplane mode"), LOCATION("la ubicación", "location"), NFC("el NFC", "NFC"),
+        HOTSPOT("el punto de acceso", "hotspot"), MOBILE_DATA("los datos móviles", "mobile data");
 
         val label: String get() = ReplyLanguage.t(es, en)
     }
 
     /** Stays in Lumi (doesn't open another app): in a routine these go first. */
-    val staysInLumi: Boolean get() = this is Alarm || this is Timer || this is Flashlight || this is DoNotDisturb || this is ReplyMessage
+    val staysInLumi: Boolean get() = this is Alarm || this is Timer || this is Flashlight || this is DoNotDisturb || this is ReplyMessage ||
+        this is AlarmSet || this is CancelAlarms || this is BedtimeReminder || this is Volume || this is Brightness || this is Media || this is PhoneInfo
 
     /** Stable key (stored in TaskAICommand.device) → "OPEN_APP|Spotify". */
     fun serialize(): String = when (this) {
@@ -46,6 +69,16 @@ sealed interface DeviceCommand {
         is DoNotDisturb -> "DND|$on"
         // A notification key contains "|" (0|com.whatsapp|1|…), so it is URL-encoded
         is ReplyMessage -> "REPLY|${enc(key)}|${enc(contact)}|${enc(app)}|$text"
+        is AlarmSet -> "ALARMSET|${snooze ?: ""}|${times.joinToString(",")}"
+        CancelAlarms -> "ALARMCANCEL"
+        is BedtimeReminder -> "BEDTIME|$minutes|$days"
+        is Volume -> "VOLUME|${action.name}|${percent ?: ""}"
+        is Brightness -> "BRIGHTNESS|${action.name}|${percent ?: ""}"
+        is Media -> "MEDIA|${action.name}"
+        is PhoneInfo -> "INFO|${kind.name}"
+        is CalendarEvent -> "CALENDAR|${startIso.orEmpty()}|$title"
+        Stopwatch -> "STOPWATCH"
+        is ShareLocation -> "SHARELOC|$confirmed"
     }
 
     companion object {
@@ -68,6 +101,16 @@ sealed interface DeviceCommand {
                     "FLASHLIGHT" -> Flashlight(p[1].toBoolean())
                     "DND" -> DoNotDisturb(p[1].toBoolean())
                     "REPLY" -> ReplyMessage(dec(p[1]), dec(p[2]), p.drop(4).joinToString("|"), dec(p[3]))
+                    "ALARMSET" -> AlarmSet(p[2].split(',').map { it.toInt() }.also { require(it.isNotEmpty()) }, p[1].toBooleanStrictOrNull())
+                    "ALARMCANCEL" -> CancelAlarms
+                    "BEDTIME" -> BedtimeReminder(p[1].toInt(), p[2].toInt())
+                    "VOLUME" -> Volume(VolumeAction.valueOf(p[1]), p[2].toIntOrNull())
+                    "BRIGHTNESS" -> Brightness(VolumeAction.valueOf(p[1]), p[2].toIntOrNull())
+                    "MEDIA" -> Media(MediaAction.valueOf(p[1]))
+                    "INFO" -> PhoneInfo(InfoKind.valueOf(p[1]))
+                    "CALENDAR" -> CalendarEvent(p.drop(2).joinToString("|"), p[1].ifBlank { null })
+                    "STOPWATCH" -> Stopwatch
+                    "SHARELOC" -> ShareLocation(p[1].toBoolean())
                     else -> null
                 }
             }.getOrNull()
@@ -86,7 +129,7 @@ object DeviceCommandParser {
 
     fun parse(input: String): DeviceCommand? {
         val t = input.trim().trimEnd('.', '!', '?').replace(Regex("^¿"), "").trim()
-        return timer(t) ?: alarm(t) ?: flashlight(t) ?: doNotDisturb(t) ?: settings(t) ?: message(t) ?: call(t) ?: music(t) ?: search(t) ?: openApp(t)
+        return PhoneControl.parse(t) ?: timer(t) ?: alarm(t) ?: flashlight(t) ?: doNotDisturb(t) ?: settings(t) ?: message(t) ?: call(t) ?: music(t) ?: search(t) ?: openApp(t)
     }
 
     private fun num(s: String): Int? = s.toIntOrNull() ?: NUM[s.lowercase()]
