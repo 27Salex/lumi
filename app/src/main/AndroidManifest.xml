@@ -129,6 +129,17 @@
             </intent-filter>
         </activity>
 
+        <!-- Same assistant, NOT exported: the only one that honours the internal extras (device action, prompt…) -->
+        <activity
+            android:name=".presentation.assistant.InternalAssistantActivity"
+            android:exported="false"
+            android:label="@string/assistant_label"
+            android:theme="@style/Theme.Lumi.Assistant"
+            android:taskAffinity=".assistant"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize" />
+
         <!-- Quick Settings tile -->
         <service
             android:name=".service.LumiTileService"

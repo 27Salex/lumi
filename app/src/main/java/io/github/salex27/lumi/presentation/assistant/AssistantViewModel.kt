@@ -476,6 +476,41 @@ class AssistantViewModel(
 
     /** Sends a spoken request (opened from the morning notification with "Listen"): the reply is read aloud. */
     fun sendSpoken(text: String) = send(text, fromVoice = true)
+
+    /** Hook set by the Activity: runs the first callback once the phone is unlocked (asking to unlock if needed). */
+    var unlockGate: ((onUnlocked: () -> Unit, onCancelled: () -> Unit) -> Unit)? = null
+    private var untrustedTurn = false
+
+    /** Text that came from another app (Share → Lumi): whatever it triggers waits for the user's confirmation. */
+    fun sendUntrusted(text: String) {
+        untrustedTurn = true
+        try { send(text) } finally { untrustedTurn = false }
+    }
+
+    /** Results that expose private data or reach the PC: over the lock screen they wait for an unlock. */
+    private fun needsUnlock(r: AIProcessingResult) =
+        r is AIProcessingResult.Agent || r is AIProcessingResult.Messages || r is AIProcessingResult.Memory
+
+    private suspend fun gateOnUnlock(r: AIProcessingResult): AIProcessingResult {
+        val gate = unlockGate ?: return r
+        return kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+            gate(
+                { if (cont.isActive) cont.resumeWith(Result.success(r)) },
+                { if (cont.isActive) cont.resumeWith(Result.success(AIProcessingResult.Error(t("Desbloquea el móvil y vuelve a pedírmelo.", "Unlock the phone and ask me again."), r.engine))) }
+            )
+        }
+    }
+
+    /** Result of a turn that started from shared text: actions are never run silently. */
+    private fun distrust(r: AIProcessingResult): AIProcessingResult = when (r) {
+        is AIProcessingResult.Device -> AIProcessingResult.AskFollowUp(
+            io.github.salex27.lumi.domain.model.TaskAICommand(action = io.github.salex27.lumi.domain.model.TaskAICommand.DEVICE, device = r.command.serialize()),
+            "confirm", t("El texto compartido pide: ${r.reply} ¿Lo hago?", "The shared text asks for this: ${r.reply} Shall I do it?"), r.engine
+        )
+        is AIProcessingResult.Agent -> AIProcessingResult.Error(t("No paso a Claude texto compartido desde otras apps. Escríbelo tú aquí.", "I don't pass text shared from other apps on to Claude. Type it here yourself."), r.engine)
+        is AIProcessingResult.Routine -> if (r.devices.isEmpty()) r else r.copy(devices = emptyList(), navigate = null)
+        else -> r
+    }
     fun retryDevice(command: DeviceCommand, contact: DeviceActions.Contact? = null) = _state.update { it.copy(device = command, deviceContact = contact) }
     fun askContact(command: DeviceCommand, options: List<DeviceActions.Contact>) {
         _state.update { it.copy(contactChoice = ContactChoice(command, options)) }
@@ -503,11 +538,14 @@ class AssistantViewModel(
     }
 
     private fun run(block: suspend () -> AIProcessingResult) {
+        val untrusted = untrustedTurn
         _state.update { it.copy(isThinking = true) }
         viewModelScope.launch {
             ready.await() // the resumed session must be in Lumi's memory before it interprets ("move it")
             val lastBefore = repository.conversation.sessionTurns().lastOrNull()
             val result = runCatching { block() }.getOrElse { AIProcessingResult.Error(t("Algo ha fallado: ", "Something went wrong: ") + it.localizedMessage) }
+                .let { r -> if (untrusted) distrust(r) else r }
+                .let { r -> if (needsUnlock(r)) gateOnUnlock(r) else r }
                 .let { r -> if (r is AIProcessingResult.Agent) handOffReply(r) else r }
             // The repository recorded the turn: its action is kept with the reply for follow-ups after resuming
             val action = repository.conversation.sessionTurns().lastOrNull()?.takeIf { it !== lastBefore }?.action

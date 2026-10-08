@@ -39,7 +39,13 @@ import io.github.salex27.lumi.presentation.theme.LumiAppTheme
  *  2. That way it can register as the system "Digital assistant" (ASSIST intent): a long press of the side button or
  *     the corner gesture opens this panel over any app.
  */
-class AssistantActivity : ComponentActivity() {
+open class AssistantActivity : ComponentActivity() {
+
+    /**
+     * True only for [InternalAssistantActivity] (not exported): the one that honours the internal extras (device
+     * action, prompt, wake-word data, speak). The exported activity ignores them because any app can send them.
+     */
+    protected open val trusted: Boolean = false
 
     private val app get() = application as TaskManagerApplication
     private val viewModel: AssistantViewModel by viewModels {
@@ -63,6 +69,7 @@ class AssistantActivity : ComponentActivity() {
         (application as io.github.salex27.lumi.TaskManagerApplication).updateAppLanguage(resources.configuration)
         // With the phone locked Lumi appears on top (like Gemini/Google Assistant); anything that needs another app
         // asks to unlock first (see whenUnlocked)
+        viewModel.unlockGate = { onOk, onCancel -> if (isLocked()) whenUnlocked(onCancel, onOk) else onOk() }
         setShowWhenLocked(true)
         setTurnScreenOn(true)
         // Android only lets an OPAQUE activity cover ("occlude") the lock screen. A translucent one is drawn on top but the
@@ -78,16 +85,18 @@ class AssistantActivity : ComponentActivity() {
         val firstLaunch = savedInstanceState == null
         val autoListen = firstLaunch && (intent.action == Intent.ACTION_ASSIST ||
             intent.action == Intent.ACTION_VOICE_COMMAND ||
-            intent.getBooleanExtra(EXTRA_START_LISTENING, false))
-        val initialPrompt = if (!firstLaunch) null else intent.getStringExtra(EXTRA_PROMPT) ?: sharedPrompt(intent)
+            (trusted && intent.getBooleanExtra(EXTRA_START_LISTENING, false)))
+        val initialPrompt = if (!firstLaunch) null else (if (trusted) intent.getStringExtra(EXTRA_PROMPT) else null) ?: sharedPrompt(intent)
+        // Text that arrives through SEND comes from another app: nothing it triggers runs without confirmation
+        val promptIsShared = initialPrompt != null && intent.action == Intent.ACTION_SEND && !(trusted && intent.hasExtra(EXTRA_PROMPT))
         // Outside the app (side button, "Oye Lumi", widget, tile) → compact pill; from the app → conversation
-        val compact = intent.getBooleanExtra(EXTRA_COMPACT, intent.action == Intent.ACTION_ASSIST || intent.action == Intent.ACTION_VOICE_COMMAND)
+        val compact = trusted && intent.getBooleanExtra(EXTRA_COMPACT, false) || intent.action == Intent.ACTION_ASSIST || intent.action == Intent.ACTION_VOICE_COMMAND
         // Opened on its own by "Oye Lumi": more caution (confirmation and auto-close if there is no clear command)
-        val fromWakeWord = intent.getBooleanExtra(EXTRA_FROM_WAKE_WORD, false)
+        val fromWakeWord = trusted && intent.getBooleanExtra(EXTRA_FROM_WAKE_WORD, false)
         // Borderline score or other audio playing when it woke: the first voice request is always confirmed (issue #6)
         if (firstLaunch && fromWakeWord && intent.getBooleanExtra(EXTRA_WAKE_CONFIRM, false)) viewModel.confirmNextWakeRequest()
         // Adaptive Voice Match: what the user does next tells whether the wake was really them
-        val wakeId = intent.getLongExtra(EXTRA_WAKE_ID, 0L)
+        val wakeId = if (trusted) intent.getLongExtra(EXTRA_WAKE_ID, 0L) else 0L
         wokeByVoice = fromWakeWord
         if (firstLaunch && fromWakeWord && wakeId != 0L) {
             val profile = app.voiceProfile
@@ -143,11 +152,14 @@ class AssistantActivity : ComponentActivity() {
 
                 LaunchedEffect(Unit) {
                     // A reminder's button ("Text Roberto"): the action runs directly
-                    if (firstLaunch) intent.getStringExtra(EXTRA_DEVICE)?.let { io.github.salex27.lumi.domain.assistant.DeviceCommand.parse(it) }?.let {
+                    if (firstLaunch && trusted) intent.getStringExtra(EXTRA_DEVICE)?.let { io.github.salex27.lumi.domain.assistant.DeviceCommand.parse(it) }?.let {
                         viewModel.runTaskAction(it, intent.getLongExtra(EXTRA_DONE_TASK, 0L))
                         return@LaunchedEffect
                     }
-                    initialPrompt?.let { if (intent.getBooleanExtra(EXTRA_SPEAK, false)) viewModel.sendSpoken(it) else viewModel.send(it) }
+                    initialPrompt?.let {
+                        if (promptIsShared) viewModel.sendUntrusted(it)
+                        else if (trusted && intent.getBooleanExtra(EXTRA_SPEAK, false)) viewModel.sendSpoken(it) else viewModel.send(it)
+                    }
                     if (autoListen && initialPrompt == null) {
                         // Only once the window is really in front: over the lock screen (and when the screen was off)
                         // the Activity is created during the keyguard/turn-on transition, and a recognizer started
@@ -194,7 +206,7 @@ class AssistantActivity : ComponentActivity() {
                     val contact = state.deviceContact
                     viewModel.deviceHandled()
                     // Locked and the action opens another app (call, WhatsApp, Spotify…) → unlock first
-                    if (!cmd.staysInLumi && isLocked()) {
+                    if ((!cmd.staysInLumi || cmd is io.github.salex27.lumi.domain.assistant.DeviceCommand.ReplyMessage) && isLocked()) {
                         whenUnlocked(
                             onUnlocked = { viewModel.retryDevice(cmd, contact) },
                             onCancelled = { viewModel.say(ReplyLanguage.t("Desbloquea el móvil y vuelve a pedírmelo.", "Unlock the phone and ask me again."), isError = true); viewModel.nextDevice() }
@@ -320,12 +332,20 @@ class AssistantActivity : ComponentActivity() {
                     onPickOption = viewModel::pick,
                     onPickNone = viewModel::pickNone,
                     sessionActions = SessionActions(
-                        onNew = viewModel::newSession, onOpen = viewModel::openSession,
-                        onRename = viewModel::renameSession, onDelete = viewModel::deleteSession
+                        onNew = viewModel::newSession,
+                        // The chat history is private: over the lock screen it asks to unlock first
+                        onOpen = { id -> whenUnlocked { viewModel.openSession(id) } },
+                        onRename = { id, name -> whenUnlocked { viewModel.renameSession(id, name) } },
+                        onDelete = { id -> whenUnlocked { viewModel.deleteSession(id) } }
                     )
                 )
             }
         }
+    }
+
+    override fun onDestroy() {
+        viewModel.unlockGate = null
+        super.onDestroy()
     }
 
     private fun isLocked() = getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
@@ -418,7 +438,7 @@ class AssistantActivity : ComponentActivity() {
             context: Context, startListening: Boolean = false, prompt: String? = null, compact: Boolean = false,
             fromWakeWord: Boolean = false, wakeConfirm: Boolean = false, wakeId: Long = 0L
         ) =
-            Intent(context, AssistantActivity::class.java)
+            Intent(context, InternalAssistantActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 .putExtra(EXTRA_START_LISTENING, startListening)
                 .putExtra(EXTRA_COMPACT, compact)
