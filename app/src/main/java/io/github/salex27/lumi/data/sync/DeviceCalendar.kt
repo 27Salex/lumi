@@ -52,7 +52,9 @@ class DeviceCalendar(private val context: Context) {
 
     /** Events (instances, recurring ones included) of a day, from every visible calendar. */
     suspend fun eventsOn(date: LocalDate, zone: ZoneId = ZoneId.systemDefault()): List<AgendaEvent> =
-        eventsBetween(date.atStartOfDay(zone).toInstant().toEpochMilli(), date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli())
+        io.github.salex27.lumi.domain.assistant.CalendarEvents.forDay(
+            eventsBetween(date.atStartOfDay(zone).toInstant().toEpochMilli(), date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()), date, zone
+        )
 
     /** Events (instances) between two instants, e.g. meetings in the next 14 days to link tasks to. */
     suspend fun eventsBetween(start: Long, end: Long): List<AgendaEvent> = withContext(Dispatchers.IO) {
@@ -69,12 +71,15 @@ class DeviceCalendar(private val context: Context) {
             CalendarContract.Instances.ALL_DAY,
             CalendarContract.Instances.DISPLAY_COLOR,
             CalendarContract.Instances.CALENDAR_DISPLAY_NAME,
-            CalendarContract.Instances.EVENT_LOCATION
+            CalendarContract.Instances.EVENT_LOCATION,
+            CalendarContract.Instances.SELF_ATTENDEE_STATUS,
+            CalendarContract.Instances.STATUS
         )
         runCatching {
             context.contentResolver.query(uri, projection, "${CalendarContract.Instances.VISIBLE} = 1", null, CalendarContract.Instances.BEGIN)?.use { c ->
                 buildList {
-                    while (c.moveToNext()) add(
+                    while (c.moveToNext()) if (!c.isNull(8) && c.getInt(8) == CalendarContract.Attendees.ATTENDEE_STATUS_DECLINED ||
+                        !c.isNull(9) && c.getInt(9) == CalendarContract.Events.STATUS_CANCELED) continue else add(
                         AgendaEvent(
                             id = c.getLong(0),
                             title = c.getString(1).orEmpty().ifBlank { "(Sin título)" },

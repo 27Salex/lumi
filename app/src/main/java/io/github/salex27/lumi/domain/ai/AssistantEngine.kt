@@ -53,7 +53,7 @@ sealed interface ReplyRequest {
         /** Free slot starting now (if any) and what to get ahead with in it. */
         val freeSlot: io.github.salex27.lumi.domain.assistant.FreeTimeFinder.FreeSlot? = null
     ) : ReplyRequest
-    data class Briefing(val tasks: List<Task>, override val now: LocalDateTime) : ReplyRequest
+    data class Briefing(val tasks: List<Task>, override val now: LocalDateTime, val events: List<AgendaEvent> = emptyList()) : ReplyRequest
     /** Read unread messages aloud: [digest] is the rule-based summary (the LLM phrases it better). */
     data class Messages(val messages: List<io.github.salex27.lumi.domain.assistant.IncomingMessage>, val digest: String, override val now: LocalDateTime) : ReplyRequest
 }

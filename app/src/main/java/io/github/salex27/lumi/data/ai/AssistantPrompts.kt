@@ -144,7 +144,9 @@ Strict rules:
             is ReplyRequest.Briefing -> buildString {
                 append("EVENT: the user asks for a summary of their situation.\n")
                 append("TASKS: ").append(list(request.tasks, now)).append('\n')
-                append("Write a human, interesting summary: progress, the most urgent thing, and one concrete tip for today.")
+                append("CALENDAR TODAY (meetings from the phone calendar, in time order): ")
+                append(request.events.sortedWith(compareBy({ !it.allDay }, { it.begin })).joinToString(" | ") { eventLine(it) }.ifBlank { "none" }).append('\n')
+                append("Write a human, interesting summary: progress, the most urgent thing, today's meetings if any (mention the first one), and one concrete tip for today.")
             }
         }
         return "$header\n$facts"

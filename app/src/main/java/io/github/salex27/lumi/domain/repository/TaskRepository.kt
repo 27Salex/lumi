@@ -40,6 +40,9 @@ interface TaskRepository {
     /** Conversational summary of the current situation (written by the active AI engine). */
     suspend fun generateDailyBriefing(): AIProcessingResult
 
+    /** Fingerprint of today's calendar events (0 without permission): a cached brief is rewritten when it changes. */
+    suspend fun calendarSignature(): Int
+
     /** "What should I do now?" based on weekday, time of day and due dates. */
     suspend fun planMyDay(): AIProcessingResult
 

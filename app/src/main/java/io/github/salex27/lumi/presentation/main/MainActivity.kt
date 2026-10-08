@@ -384,6 +384,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        viewModel.refreshIfStale()
         settingsViewModel.refreshPermissions()
         agendaViewModel.refresh()
         // New calendar meetings / location permission just granted

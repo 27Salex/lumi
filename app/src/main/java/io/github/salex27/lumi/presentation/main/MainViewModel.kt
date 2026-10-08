@@ -95,14 +95,24 @@ class MainViewModel(
         if (briefLang != ReplyLanguage.app.name) generateDailyBriefing()
     }
 
+    /** Back on screen: rewrite the summary when it is older than the TTL or today's meetings changed (calendar edited, permission granted). */
+    fun refreshIfStale() {
+        if (_briefing.value.isLoading) return
+        viewModelScope.launch {
+            val sig = runCatching { repository.calendarSignature() }.getOrDefault(0)
+            val saved = briefStore.load()
+            if (saved == null || !saved.isFresh(LocalDate.now(), ReplyLanguage.app.name, System.currentTimeMillis(), sig)) generateDailyBriefing()
+        }
+    }
+
     init {
         // The summary is cached: only generated if there is none, it is from another day or in another language (saves AI requests)
         val saved = briefStore.load()
         if (saved != null && saved.date == LocalDate.now() && saved.lang == ReplyLanguage.app.name) {
             _briefing.value = BriefingState(text = saved.text, engine = saved.engine, version = 0)
-        } else {
-            generateDailyBriefing()
         }
+        // Show the cache at once, then check its age and today's meetings (generates when stale or missing)
+        refreshIfStale()
     }
 
     fun setStatusFilter(status: TaskStatus?) = _filters.update { it.copy(status = status) }
@@ -156,8 +166,9 @@ class MainViewModel(
         viewModelScope.launch {
             ReplyLanguage.current = ReplyLanguage.app // the Home summary is in the app's language
             briefLang = ReplyLanguage.app.name
+            val sig = runCatching { repository.calendarSignature() }.getOrDefault(0)
             val result = runCatching { repository.generateDailyBriefing() }.getOrNull()
-            if (result != null) briefStore.save(result.reply, result.engine, ReplyLanguage.app.name)
+            if (result != null) briefStore.save(result.reply, result.engine, ReplyLanguage.app.name, calendarSig = sig)
             _briefing.update {
                 BriefingState(
                     text = result?.reply ?: it.text ?: ReplyLanguage.ui("No he podido preparar el resumen ahora mismo.", "I couldn't prepare the summary right now."),
