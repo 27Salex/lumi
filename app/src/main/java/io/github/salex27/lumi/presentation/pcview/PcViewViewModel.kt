@@ -45,10 +45,13 @@ class PcViewViewModel(private val client: PcViewClient, private val settings: Hu
     val secondsLeft: StateFlow<Int> = _secondsLeft.asStateFlow()
 
     @Volatile private var token: String? = null
+    /** False once the screen left the foreground: an unlock that finishes after that is dropped at once. */
+    @Volatile private var visible = true
     private var job: Job? = null
     private var etag: String? = null
 
     fun refresh() {
+        visible = true
         if (_state.value.phase == PcPhase.VIEWING || _state.value.phase == PcPhase.UNLOCKING) return
         if (!settings.pcConfig.value.isConfigured) { _state.value = PcState(PcPhase.NOT_CONFIGURED); return }
         _state.value = PcState(PcPhase.CHECKING)
@@ -77,6 +80,7 @@ class PcViewViewModel(private val client: PcViewClient, private val settings: Hu
             try {
                 val (t, seconds) = client.unlock()
                 token = t
+                if (!visible) { end(PcState(PcPhase.LOCKED), revoke = true); return@launch } // left while unlocking
                 _monitors.value = client.monitors(t)
                 _monitor.value = _monitors.value.firstOrNull { it.primary }?.id ?: _monitors.value.firstOrNull()?.id ?: 0
                 _paused.value = false
@@ -107,6 +111,8 @@ class PcViewViewModel(private val client: PcViewClient, private val settings: Hu
 
     /** The screen left the foreground: stop capturing and lock, so every viewing starts with an unlock. */
     fun onLeave() {
+        visible = false
+        job?.cancel(); job = null // the capture loop stops whatever state we are in
         if (token != null) end(PcState(PcPhase.LOCKED), revoke = true)
     }
 

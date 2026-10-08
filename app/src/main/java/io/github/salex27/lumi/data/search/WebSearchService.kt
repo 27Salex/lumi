@@ -95,7 +95,11 @@ class WebSearchService(context: Context, private val hub: HubClient, private val
     private fun searxTarget(c: WebSearchConfig): Pair<String, Map<String, String>> {
         val server = servers?.current?.serverFor(ServerService.SEARCH)
         val base = servers?.current?.let { ServerLogic.baseUrl(it, ServerService.SEARCH) } ?: c.searxUrl
-        val headers = server?.token?.takeIf { it.isNotBlank() }?.let { mapOf("Authorization" to "Bearer $it") }.orEmpty()
+        // The hub's phone token must never travel to a search server: a server shared with the hub (after "use for all")
+        // gets no Authorization header (search servers are public/tailnet SearXNG, and the Hub does its own auth elsewhere)
+        val state = servers?.current
+        val sharedWithHub = server != null && state != null && (server.id == state.hub || server.id == state.pcview)
+        val headers = server?.token?.takeIf { it.isNotBlank() && !sharedWithHub }?.let { mapOf("Authorization" to "Bearer $it") }.orEmpty()
         return base to headers
     }
 

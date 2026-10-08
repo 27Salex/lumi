@@ -72,7 +72,14 @@ class UpdateManager(private val context: Context, private val scope: CoroutineSc
         prefs.getString(K_JSON, null)?.let { json ->
             (UpdateLogic.parseRelease(json) as? UpdateLogic.Parsed.Release)?.info
                 ?.takeIf { UpdateLogic.isNewer(it.version, installed) }
-                ?.let { _state.value = readyOrAvailable(it) }
+                ?.let { info ->
+                    // Hashing the downloaded APK takes a moment: offered now, upgraded to "ready" off the main thread
+                    _state.value = UpdateState.Available(info)
+                    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                        val ready = readyOrAvailable(info)
+                        if (ready is UpdateState.Ready && _state.value is UpdateState.Available) _state.value = ready
+                    }
+                }
         }
         // Old downloads (and abandoned partial files) are cleaned after a week
         runCatching { updatesDir().listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 7 * 86_400_000L }?.forEach { it.delete() } }

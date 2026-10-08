@@ -204,7 +204,7 @@ class HubInbox(
 
     companion object {
         const val CHANNEL_ID = "lumi_hub"
-        private const val NOTIFICATION_BASE = 40_000
+        private const val NOTIFICATION_BASE = 1_500_000_000 // far above the task ids ReminderReceiver uses as notification ids
         private const val TAG = "LumiHub"
 
         fun createChannel(context: Context) {

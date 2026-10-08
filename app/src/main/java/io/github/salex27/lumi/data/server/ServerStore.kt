@@ -47,7 +47,8 @@ class ServerStore(private val context: Context) {
             searxUrl = web.getString("searx_url", "").orEmpty(), searxWasChosen = web.getString("backend", null) == "SEARXNG",
             defaultName = context.getString(R.string.server_default_name), searxName = context.getString(R.string.server_searx_name)
         )
-        prefs.edit().putString(KEY, ServerLogic.encode(migrated)).apply()
+        // commit() so the copy is stored before the old one goes: the legacy token must not stay behind in plain prefs
+        if (prefs.edit().putString(KEY, ServerLogic.encode(migrated)).commit()) hub.edit().remove("token").remove("address").apply()
         return migrated
     }
 

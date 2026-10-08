@@ -153,7 +153,7 @@ class VoskModelManager(private val context: Context, private val scope: Coroutin
                     if (relative.isBlank()) continue
                     val out = File(tmp, relative)
                     // Protection against "zip slip"
-                    require(out.canonicalPath.startsWith(tmp.canonicalPath)) { "Invalid zip entry" }
+                    require(out.canonicalPath.startsWith(tmp.canonicalPath + File.separator)) { "Invalid zip entry" }
                     if (entry.isDirectory) out.mkdirs() else {
                         out.parentFile?.mkdirs()
                         out.outputStream().use { zis.copyTo(it) }
