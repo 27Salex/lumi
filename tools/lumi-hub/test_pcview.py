@@ -162,6 +162,44 @@ class FlagsFileTest(unittest.TestCase):
             self.assertFalse(p.FileFlags(path).get()[0])
 
 
+class RemoteInfoTest(unittest.TestCase):
+    def setUp(self):
+        self.clock, self.flags, self.backend = Clock(), Flags(), p.FakeBackend()
+        self.audit = p.AuditLog(clock=self.clock)
+        self.pc = p.PcView(self.flags, self.backend, self.audit, clock=self.clock, sleep=lambda s: None)
+
+    def code(self, fn, *a):
+        with self.assertRaises(p.PcError) as ctx:
+            fn(*a)
+        return ctx.exception.code, str(ctx.exception), ctx.exception.extra
+
+    def test_status_reports_os_remote_and_capture(self):
+        st = self.pc.status()
+        self.assertIn(st["os"], ("windows", "linux", "macos"))
+        self.assertTrue(st["capture"])
+        self.flags.enabled = False
+        self.assertIn("remote", self.pc.status())  # also while disabled
+
+    def test_detect_os_and_remote_methods(self):
+        self.assertEqual("windows", p.detect_os("win32"))
+        self.assertEqual("macos", p.detect_os("darwin"))
+        self.assertEqual("linux", p.detect_os("linux"))
+        self.assertEqual(["rdp"], p.remote_methods("windows"))
+        self.assertIn("vnc", p.remote_methods("macos"))
+        self.assertIn("ssh", p.remote_methods("linux"))
+
+    def test_no_capture_backend_is_a_clean_error(self):
+        backend = p.FakeBackend(monitors=0)
+        backend.name = "unavailable"
+        pc = p.PcView(self.flags, backend, self.audit, clock=self.clock, sleep=lambda s: None, os_name="linux")
+        st = pc.status()
+        self.assertEqual(("linux", False), (st["os"], st["capture"]))
+        self.assertIn("vnc", st["remote"])
+        code, name, _ = self.code(pc.unlock)
+        self.assertEqual((501, "capture_unavailable"), (code, name))
+        self.assertEqual(0, backend.captures)
+
+
 class PcHttpTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

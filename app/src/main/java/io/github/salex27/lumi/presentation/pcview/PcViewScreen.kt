@@ -30,7 +30,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -63,7 +65,12 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.salex27.lumi.R
 import io.github.salex27.lumi.domain.pcview.PcPhase
+import io.github.salex27.lumi.domain.pcview.RemoteControl
 import io.github.salex27.lumi.domain.pcview.ViewTransform
+import io.github.salex27.lumi.domain.server.ServerLogic
+import io.github.salex27.lumi.domain.server.ServerService
+import io.github.salex27.lumi.TaskManagerApplication
+import android.net.Uri
 import io.github.salex27.lumi.domain.pcview.ZoomPan
 import io.github.salex27.lumi.presentation.components.LumiCard
 import io.github.salex27.lumi.presentation.components.PillButton
@@ -92,7 +99,9 @@ fun PcViewScreen(vm: PcViewViewModel, onBack: () -> Unit, onOpenSettings: () -> 
     val frame by vm.frame.collectAsState()
     val paused by vm.paused.collectAsState()
     val secondsLeft by vm.secondsLeft.collectAsState()
+    val os by vm.os.collectAsState()
     var fullscreen by remember { mutableStateOf(false) }
+    var remoteDialog by remember { mutableStateOf<RemoteDialog?>(null) }
     // toolbar -> canvas (which owns the transform): bump to re-fit
     var fitTick by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
     var widthTick by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
@@ -156,7 +165,7 @@ fun PcViewScreen(vm: PcViewViewModel, onBack: () -> Unit, onOpenSettings: () -> 
         }
 
         if (!viewing) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 StatusCard(state.phase, state.retryAfterSeconds, authMessage,
                     onUnlock = unlock, onRetry = { vm.refresh() }, onSettings = onOpenSettings,
                     onSecuritySettings = { runCatching { context.startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } })
@@ -190,6 +199,81 @@ fun PcViewScreen(vm: PcViewViewModel, onBack: () -> Unit, onOpenSettings: () -> 
                 onFit = { fitTick++ }, onFitWidth = { widthTick++ }
             )
         }
+        if (!fullscreen) ActionBar(
+            viewing = viewing, canView = state.phase != PcPhase.NO_CAPTURE,
+            onView = { if (!viewing) { if (state.phase == PcPhase.LOCKED || state.phase == PcPhase.EXPIRED) unlock() else vm.refresh() } },
+            onRemote = {
+                val target = ServerLogic.rdpTarget((context.applicationContext as TaskManagerApplication).servers.current)
+                remoteDialog = if (target == null) RemoteDialog.NoTarget else RemoteDialog.Confirm(target.first, target.second)
+            }
+        )
+    }
+
+    remoteDialog?.let { d ->
+        val dismiss = { remoteDialog = null }
+        when (d) {
+            RemoteDialog.NoTarget -> AlertDialog(
+                onDismissRequest = dismiss, title = { Text(stringResource(R.string.pc_remote_title)) },
+                text = { Text(stringResource(R.string.pc_remote_no_target)) },
+                confirmButton = { TextButton(onClick = { dismiss(); onOpenSettings() }) { Text(stringResource(R.string.pc_open_settings)) } },
+                dismissButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.cancel)) } }
+            )
+            is RemoteDialog.Confirm -> AlertDialog(
+                onDismissRequest = dismiss, title = { Text(stringResource(R.string.pc_remote_title)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(R.string.pc_remote_body, RemoteControl.display(d.host, d.port)))
+                        if (os.isNotBlank() && os != "windows") Text(stringResource(R.string.pc_remote_other_os, os))
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        val uri = RemoteControl.rdpUri(d.host, d.port)
+                        val opened = uri != null && runCatching {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        }.isSuccess
+                        remoteDialog = if (opened) null else RemoteDialog.Missing
+                    }) { Text(stringResource(R.string.pc_remote_open)) }
+                },
+                dismissButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.cancel)) } }
+            )
+            RemoteDialog.Missing -> AlertDialog(
+                onDismissRequest = dismiss, title = { Text(stringResource(R.string.pc_remote_missing_title)) },
+                text = { Text(stringResource(R.string.pc_remote_missing_body)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        dismiss()
+                        // market:// first, the web page when no store app answers
+                        val market = Intent(Intent.ACTION_VIEW, Uri.parse(RemoteControl.MARKET_URI)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        runCatching { context.startActivity(market) }.onFailure {
+                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(RemoteControl.PLAY_URL)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                        }
+                    }) { Text(stringResource(R.string.pc_remote_store)) }
+                },
+                dismissButton = { TextButton(onClick = dismiss) { Text(stringResource(R.string.cancel)) } }
+            )
+        }
+    }
+}
+
+private sealed interface RemoteDialog {
+    data object NoTarget : RemoteDialog
+    data class Confirm(val host: String, val port: Int) : RemoteDialog
+    data object Missing : RemoteDialog
+}
+
+/** Bottom bar: the view-only live view (existing) and the hand-off to a remote desktop app (level 1 remote control). */
+@Composable
+private fun ActionBar(viewing: Boolean, canView: Boolean, onView: () -> Unit, onRemote: () -> Unit) {
+    val c = Lumi.colors
+    Row(
+        Modifier.fillMaxWidth().background(c.surface).padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Box(Modifier.weight(1f)) {
+            PillButton(stringResource(R.string.pc_action_view), style = if (viewing) PillStyle.PRIMARY else PillStyle.SECONDARY, enabled = canView, onClick = onView)
+        }
+        Box(Modifier.weight(1f)) { PillButton(stringResource(R.string.pc_action_remote), style = PillStyle.SECONDARY, onClick = onRemote) }
     }
 }
 
@@ -273,6 +357,7 @@ private fun StatusCard(
         PcPhase.EXPIRED -> Info(R.string.pc_expired_title, R.string.pc_expired_body, R.string.pc_unlock, onUnlock)
         PcPhase.LOCKED_OUT -> Info(R.string.pc_locked_out_title, R.string.pc_locked_out_body, R.string.pc_retry, onRetry)
         PcPhase.NO_SECURE_LOCK -> Info(R.string.pc_no_lock_title, R.string.pc_no_lock_body, R.string.pc_security_settings, onSecuritySettings)
+        PcPhase.NO_CAPTURE -> Info(R.string.pc_no_capture_title, R.string.pc_no_capture_body, null, {})
         PcPhase.VIEWING, PcPhase.RECONNECTING -> Info(R.string.pc_title, null, null, {})
     }
     LumiCard(Modifier.fillMaxWidth()) {

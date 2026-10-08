@@ -65,7 +65,8 @@ class PcViewClient(private val hub: HubClient, private val settings: HubSettings
         var out = PcReply.Status("locked")
         call("GET", "/pc/status") { c ->
             val o = json.parseToJsonElement(text(c)).jsonObject
-            out = PcReply.Status(o["state"]?.jsonPrimitive?.contentOrNull.orEmpty(), o["retry_after"]?.jsonPrimitive?.intOrNull ?: 0)
+            out = PcReply.Status(o["state"]?.jsonPrimitive?.contentOrNull.orEmpty(), o["retry_after"]?.jsonPrimitive?.intOrNull ?: 0,
+                o["capture"]?.jsonPrimitive?.booleanOrNull ?: true, HubSafety.plain(o["os"]?.jsonPrimitive?.contentOrNull.orEmpty()).take(16))
         }
         out
     }

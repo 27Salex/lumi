@@ -31,6 +31,21 @@ MAX_FRAME_BYTES = 1_500_000
 MAX_MONITORS = 8
 
 
+def detect_os(platform=None):
+    """'windows' | 'linux' | 'macos' (anything else is reported as linux: a POSIX desktop)."""
+    platform = platform or sys.platform
+    if platform.startswith("win"):
+        return "windows"
+    if platform == "darwin":
+        return "macos"
+    return "linux"
+
+
+def remote_methods(os_name):
+    """Advisory only: which standard remote-access methods usually fit this system. The hub never runs any of them."""
+    return {"windows": ["rdp"], "macos": ["vnc", "ssh"]}.get(os_name, ["vnc", "ssh", "rdp"])
+
+
 class PcError(Exception):
     def __init__(self, message, code=400, extra=None):
         super().__init__(message)
@@ -346,7 +361,8 @@ def clamp(value, low, high, default):
 class PcView:
     """Owner-only, off by default, unlock per session. All checks happen here so they are unit-testable."""
 
-    def __init__(self, flags, backend, audit, clock=time.time, sleep=time.sleep, ttl=UNLOCK_TTL):
+    def __init__(self, flags, backend, audit, clock=time.time, sleep=time.sleep, ttl=UNLOCK_TTL, os_name=None):
+        self.os_name = os_name or detect_os()
         self.flags, self.backend, self.audit, self.clock, self.sleep, self.ttl = flags, backend, audit, clock, sleep, ttl
         self.lock = threading.RLock()
         self.records = {}          # digest -> {"issued", "expires", "hard", "revoked", "last_frame"}
@@ -415,8 +431,20 @@ class PcView:
         if left:
             raise PcError("locked_out", 429, {"retry_after": left})
 
+    def capture_available(self):
+        return getattr(self.backend, "name", "") != "unavailable"
+
+    def _require_capture(self):
+        if not self.capture_available():
+            raise PcError("capture_unavailable", 501, {"message": "Screen capture is not available on this system."})
+
     # public operations
     def status(self):
+        out = self._status()
+        out.update({"os": self.os_name, "remote": remote_methods(self.os_name), "capture": self.capture_available()})
+        return out
+
+    def _status(self):
         with self.lock:
             self._sweep_viewers()
             if not self.enabled():
@@ -436,6 +464,7 @@ class PcView:
         """Phone authentication already passed; the phone checked its biometric / device credential."""
         with self.lock:
             self.check_open()
+            self._require_capture()
             now = self.clock()
             while self.unlocks and now - self.unlocks[0] > 60:
                 self.unlocks.popleft()
@@ -491,6 +520,7 @@ class PcView:
     def monitors(self, token):
         with self.lock:
             self._authorise(token)
+            self._require_capture()
         try:
             return [m.public() for m in self.backend.list_monitors()]
         except PcError:
@@ -502,6 +532,7 @@ class PcView:
         """Returns (jpeg bytes | None for 'unchanged', info dict). Capture happens only here, only for a valid token."""
         with self.lock:
             record = self._authorise(token)
+            self._require_capture()
             now = self.clock()
             wait = MIN_FRAME_INTERVAL - (now - record["last_frame"])
             if 0 < wait <= MIN_FRAME_INTERVAL:

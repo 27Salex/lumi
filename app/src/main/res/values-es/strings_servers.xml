@@ -103,4 +103,21 @@
     <string name="server_err_pc_routes">Este puerto sirve un Lumi Hub sin las rutas de Mi PC: actualiza el hub en el PC (git pull) y reinicia lumi.</string>
     <string name="server_err_pc_disabled">La vista Mi PC está desactivada en el PC: ejecuta lumi_hub.py enable-pc-view y reinicia lumi.</string>
     <string name="server_err_unauthorized_pc">El hub rechazó este teléfono (token o cuenta de Tailscale). Vincula el teléfono de nuevo con el token del PC.</string>
+    <string name="svc_remote">Control remoto</string>
+    <string name="svc_remote_sub">El escritorio remoto (RDP) del PC, que se abre en la app Microsoft Remote Desktop. Usa el servidor de Mi PC salvo que elijas otro.</string>
+    <string name="svc_full_hostport">Destino: %1$s</string>
+    <string name="server_test_ok_rdp">El puerto de escritorio remoto responde (%1$s).</string>
+    <string name="server_err_rdp_closed">El puerto de escritorio remoto está cerrado. Activa el Escritorio remoto en el PC (mira el README del hub) y comprueba que Tailscale está activo en los dos dispositivos.</string>
+    <string name="pc_action_view">Ver pantalla</string>
+    <string name="pc_action_remote">Control remoto</string>
+    <string name="pc_no_capture_title">La vista de pantalla no está disponible</string>
+    <string name="pc_no_capture_body">El sistema de este PC no puede compartir su pantalla con Lumi (funciona en Windows). Aun así puedes controlarlo con una app de escritorio remoto.</string>
+    <string name="pc_remote_title">Control remoto</string>
+    <string name="pc_remote_body">Lumi abrirá la app Microsoft Remote Desktop apuntando a %1$s. El control se hace en esa app, no en Lumi (esta pantalla sigue siendo solo de vista).</string>
+    <string name="pc_remote_other_os">Este PC usa %1$s: allí RDP necesita xrdp. VNC o SSH por Tailscale también sirven con otras apps.</string>
+    <string name="pc_remote_open">Abrir</string>
+    <string name="pc_remote_no_target">Configura primero la dirección del PC: Ajustes, Servidores y PC.</string>
+    <string name="pc_remote_missing_title">No se encuentra la app Remote Desktop</string>
+    <string name="pc_remote_missing_body">Ninguna app de este móvil gestiona enlaces de escritorio remoto (rdp://). Instala Microsoft Remote Desktop (Windows App) e inténtalo de nuevo.</string>
+    <string name="pc_remote_store">Abrir Play Store</string>
 </resources>

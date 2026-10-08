@@ -73,6 +73,7 @@ Pending work. Finished items are removed; their history is in `MEMORY.md` and gi
 - [ ] Backup: export on 3.7.5, import on 1.0.0
 
 ## Ideas
+- [ ] Remote control level 2: embedded RDP client with FreeRDP (inside Lumi, no hand-off)
 - [ ] Break a task into steps (subtasks with Gemma)
 - [ ] Focus mode (Pomodoro tied to a task)
 - [ ] Tasks from screenshots (on-device OCR)

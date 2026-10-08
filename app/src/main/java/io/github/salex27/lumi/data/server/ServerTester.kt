@@ -29,6 +29,10 @@ object ServerTester {
     suspend fun test(service: ServerService, state: ServerState): ServerTestResult = withContext(Dispatchers.IO) {
         val server = state.serverFor(service)
         if (server == null) return@withContext ServerTestResult.Failed(ServerTestError.NOT_CONFIGURED)
+        if (service == ServerService.REMOTE) {
+            val (host, port) = ServerLogic.rdpTarget(state) ?: return@withContext ServerTestResult.Failed(ServerTestError.BAD_URL)
+            return@withContext tcp(host, port)
+        }
         val full = ServerLogic.baseUrl(state, service) ?: return@withContext ServerTestResult.Failed(ServerTestError.BAD_URL)
         val base = when (service) {
             ServerService.SEARCH -> ServerLogic.normalizeSearchUrl(full)
@@ -39,6 +43,7 @@ object ServerTester {
             ServerService.HUB -> "/health"
             ServerService.PCVIEW -> "/pc/status"
             ServerService.SEARCH -> "/search?q=lumi&format=json&categories=general"
+            ServerService.REMOTE -> ""
         }
         try {
             val (code, body) = get(base + path, server.token)
@@ -65,7 +70,20 @@ object ServerTester {
             HubSafety.plain(listOf(host, agents.joinToString()).filter { it.isNotBlank() }.joinToString(" · ")).take(120)
         }
         ServerService.PCVIEW -> HubSafety.plain(json.parseToJsonElement(body).jsonObject["state"]?.jsonPrimitive?.content.orEmpty()).take(40)
+        ServerService.REMOTE -> ""
         ServerService.SEARCH -> SearchParsers.searx(body).size.toString() // throws on non-JSON: reported as a bad answer
+    }
+
+    /** Only checks that the TCP port accepts a connection (short timeout); nothing is sent. */
+    private fun tcp(host: String, port: Int): ServerTestResult = try {
+        java.net.Socket().use { it.connect(java.net.InetSocketAddress(host, port), 3_000) }
+        ServerTestResult.Ok("$host:$port")
+    } catch (e: java.net.SocketTimeoutException) {
+        ServerTestResult.Failed(ServerTestError.TIMEOUT)
+    } catch (e: java.net.UnknownHostException) {
+        ServerTestResult.Failed(ServerTestError.UNREACHABLE)
+    } catch (e: java.io.IOException) {
+        ServerTestResult.Failed(ServerTestError.RDP_CLOSED) // refused / no route: RDP off or blocked on the PC
     }
 
     private fun get(url: String, token: String): Pair<Int, String> {

@@ -4,7 +4,7 @@ import kotlin.math.max
 import kotlin.math.min
 
 /** Where the "My PC" screen is. View only: nothing here sends input to the PC. */
-enum class PcPhase { NOT_CONFIGURED, CHECKING, HUB_OFFLINE, DISABLED, LOCKED, UNLOCKING, VIEWING, EXPIRED, LOCKED_OUT, RECONNECTING, NO_SECURE_LOCK, HUB_OLD, UNAUTHORIZED }
+enum class PcPhase { NOT_CONFIGURED, CHECKING, HUB_OFFLINE, DISABLED, LOCKED, UNLOCKING, VIEWING, EXPIRED, LOCKED_OUT, RECONNECTING, NO_SECURE_LOCK, HUB_OLD, UNAUTHORIZED, NO_CAPTURE }
 
 data class PcState(
     val phase: PcPhase = PcPhase.CHECKING,
@@ -14,7 +14,7 @@ data class PcState(
 
 /** What the hub answered (or that it could not be reached). */
 sealed interface PcReply {
-    data class Status(val state: String, val retryAfter: Int = 0) : PcReply
+    data class Status(val state: String, val retryAfter: Int = 0, val capture: Boolean = true, val os: String = "") : PcReply
     data class Failure(val httpCode: Int, val error: String, val reason: String = "", val retryAfter: Int = 0) : PcReply
     data object Unreachable : PcReply
 }
@@ -32,10 +32,20 @@ object PcViewLogic {
         is PcReply.Status -> when (reply.state) {
             "disabled" -> PcState(PcPhase.DISABLED)
             "locked_out" -> PcState(PcPhase.LOCKED_OUT, retryAfterSeconds = reply.retryAfter)
+            else -> if (!reply.capture) PcState(PcPhase.NO_CAPTURE) else statusRest(reply, previous)
+        }
+        is PcReply.Failure -> when {
+            reply.error == "capture_unavailable" -> PcState(PcPhase.NO_CAPTURE)
+            else -> fromFailure(reply, previous)
+        }
+    }
+
+    private fun statusRest(reply: PcReply.Status, previous: PcState): PcState = when (reply.state) {
             "unlocked" -> if (previous.phase == PcPhase.VIEWING) previous else PcState(PcPhase.LOCKED)
             else -> PcState(PcPhase.LOCKED)
         }
-        is PcReply.Failure -> when {
+
+    private fun fromFailure(reply: PcReply.Failure, previous: PcState): PcState = when {
             reply.error == "disabled" || reply.httpCode == 403 -> PcState(PcPhase.DISABLED)
             reply.error == "locked_out" || reply.httpCode == 429 -> PcState(PcPhase.LOCKED_OUT, retryAfterSeconds = reply.retryAfter)
             reply.error == "unlock_required" && reply.reason == "expired" -> PcState(PcPhase.EXPIRED)
@@ -45,7 +55,6 @@ object PcViewLogic {
             reply.httpCode == 404 -> PcState(PcPhase.HUB_OLD) // a hub (or other server) on this port without the /pc routes
             else -> if (previous.phase == PcPhase.VIEWING || previous.phase == PcPhase.RECONNECTING) PcState(PcPhase.RECONNECTING, previous.expiresAtMs) else previous
         }
-    }
 
     fun unlocked(nowMs: Long, expiresInSeconds: Int) = PcState(PcPhase.VIEWING, expiresAtMs = nowMs + expiresInSeconds * 1000L)
 

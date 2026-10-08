@@ -103,4 +103,21 @@
     <string name="server_err_pc_routes">This port serves a Lumi Hub without the My PC routes: update the hub on the PC (git pull) and restart lumi.</string>
     <string name="server_err_pc_disabled">My PC view is off on the PC: run lumi_hub.py enable-pc-view and restart lumi.</string>
     <string name="server_err_unauthorized_pc">The hub refused this phone (token or Tailscale account). Link the phone again with the token from the PC.</string>
+    <string name="svc_remote">Remote control</string>
+    <string name="svc_remote_sub">The remote desktop (RDP) of the PC, opened in the Microsoft Remote Desktop app. Uses the My PC server unless you pick another.</string>
+    <string name="svc_full_hostport">Target: %1$s</string>
+    <string name="server_test_ok_rdp">The remote desktop port answers (%1$s).</string>
+    <string name="server_err_rdp_closed">The remote desktop port is closed. Turn on Remote Desktop on the PC (see the hub README) and make sure Tailscale is on in both devices.</string>
+    <string name="pc_action_view">View screen</string>
+    <string name="pc_action_remote">Remote control</string>
+    <string name="pc_no_capture_title">Screen view is not available</string>
+    <string name="pc_no_capture_body">This PC\'s system can\'t share its screen with Lumi (it works on Windows). You can still take control with a remote desktop app.</string>
+    <string name="pc_remote_title">Remote control</string>
+    <string name="pc_remote_body">Lumi will open the Microsoft Remote Desktop app pointed at %1$s. Control happens in that app, not in Lumi (this screen stays view only).</string>
+    <string name="pc_remote_other_os">This PC runs %1$s: RDP needs xrdp there. VNC or SSH over Tailscale also work with other apps.</string>
+    <string name="pc_remote_open">Open</string>
+    <string name="pc_remote_no_target">Set up the PC address first: Settings, Servers and PC.</string>
+    <string name="pc_remote_missing_title">Remote Desktop app not found</string>
+    <string name="pc_remote_missing_body">No app on this phone handles remote desktop links (rdp://). Install Microsoft Remote Desktop (Windows App) and try again.</string>
+    <string name="pc_remote_store">Open Play Store</string>
 </resources>

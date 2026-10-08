@@ -42,6 +42,11 @@ delete the file (or one client entry) and restart the hub.
 mapping. Install: copy `lumi.cmd` to a folder on your PATH (for example `%USERPROFILE%\.local\bin`), next to your own
 `lumi-search.cmd` and `lumi-hub.cmd`, then run `lumi` from any terminal.
 
+## The launcher on Linux/macOS
+
+`./lumi.sh` is the equivalent of `lumi.cmd`: it starts SearXNG when a local install exists at `~/searxng` and then the hub
+(`python3 lumi_hub.py serve ...`); `./lumi.sh status` shows what is running. My PC screen capture is Windows only.
+
 ## Security
 
 - The hub listens on **127.0.0.1 only**; the phone reaches it through `tailscale serve` (HTTPS with a real *.ts.net
@@ -62,7 +67,7 @@ mapping. Install: copy `lumi.cmd` to a folder on your PATH (for example `%USERPR
 ## My PC (view only)
 
 Lumi can show your PC screens on the phone. **View only: there is no mouse, keyboard, terminal or command execution, and
-none will be added** (use Tailscale SSH or RDP for that). Windows only, no installs (GDI + GDI+ through `ctypes`).
+none will be added** (use Tailscale SSH or RDP for that). Screen capture is Windows only, no installs (GDI + GDI+ through `ctypes`); on Linux/macOS the hub says capture is not available and the app offers Remote control instead.
 
 - **Off by default.** Turn it on once, on the PC: `python lumi_hub.py enable-pc-view` (`disable-pc-view` turns it off and
   revokes everything). The flag lives in `~/.lumi-hub.json` and is re-read on every request, so no restart is needed.
@@ -106,6 +111,35 @@ unlock to a Keystore key that needs the biometric is a possible hardening (see `
 
 If something fails: `My PC view unavailable` at startup means the GDI backend could not load (not Windows). A black image
 usually means the PC is locked (Windows does not allow capturing the lock screen) or a secure desktop is showing.
+
+## Remote control (hand-off to a remote desktop app)
+
+The **Remote control** button on the My PC screen only opens a standard remote desktop app on the phone (Microsoft Remote
+Desktop / Windows App) with this PC's Tailscale address and port (default 3389, editable in Settings > Servers and PC).
+Lumi sends no input, the hub has no terminal and runs no commands, and the token is never part of the link. `/pc/status`
+reports `os` (`windows`, `linux` or `macos`), `remote` (advisory methods such as `rdp`, `vnc`, `ssh`) and `capture`
+(false on systems where the view-only screen is not implemented: Lumi then says so and still offers Remote control).
+
+Rule for every system: reach it **only through Tailscale**. Never forward or expose port 3389 (or VNC/SSH) to the internet.
+
+### Windows 11 Pro
+1. Settings > System > Remote Desktop > On (Home editions cannot host RDP). Keep "Require devices to use Network Level
+   Authentication" on.
+2. The Windows account you connect with needs a password (RDP rejects blank passwords).
+3. Optional: `enable-rdp.ps1` does steps 1 and NLA plus a firewall rule for TCP 3389 limited to `100.64.0.0/10` (the
+   Tailscale range). It is never run automatically: read it and run it yourself from an elevated PowerShell;
+   `-Undo` reverses it.
+4. On the phone install Microsoft Remote Desktop (Windows App) and use Remote control in Lumi.
+
+### Linux
+Use `xrdp` (RDP, works with the same button) or a VNC server (`x11vnc` on X11, `wayvnc` on wlroots/Wayland), bound to the
+Tailscale address, or plain SSH over Tailscale. Allow the port only on `tailscale0` (for example
+`ufw allow in on tailscale0 to any port 3389`). Start the hub with `./lumi.sh`.
+
+### macOS
+System Settings > General > Sharing > **Screen Sharing** (VNC) and/or **Remote Login** (SSH). Use a VNC client on the
+phone pointed at the Tailscale name; the Remote control button targets RDP, so on macOS it is only useful with an RDP
+server you installed yourself. Start the hub with `./lumi.sh`.
 
 ## Endpoints
 

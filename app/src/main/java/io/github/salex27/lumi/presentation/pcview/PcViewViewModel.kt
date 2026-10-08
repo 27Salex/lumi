@@ -44,6 +44,10 @@ class PcViewViewModel(private val client: PcViewClient, private val settings: Hu
     private val _secondsLeft = MutableStateFlow(0)
     val secondsLeft: StateFlow<Int> = _secondsLeft.asStateFlow()
 
+    /** Operating system the hub reported ("windows", "linux", "macos"; empty = unknown / old hub). */
+    private val _os = MutableStateFlow("")
+    val os: StateFlow<String> = _os.asStateFlow()
+
     @Volatile private var token: String? = null
     /** False once the screen left the foreground: an unlock that finishes after that is dropped at once. */
     @Volatile private var visible = true
@@ -57,7 +61,7 @@ class PcViewViewModel(private val client: PcViewClient, private val settings: Hu
         _state.value = PcState(PcPhase.CHECKING)
         viewModelScope.launch {
             _state.value = try {
-                PcViewLogic.fromReply(client.status(), _state.value)
+                client.status().let { _os.value = it.os; PcViewLogic.fromReply(it, _state.value) }
             } catch (e: PcException) {
                 PcViewLogic.fromReply(e.reply, _state.value)
             } catch (e: IOException) {

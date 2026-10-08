@@ -95,7 +95,7 @@ Read [`AGENTS.md`](AGENTS.md) for the architecture and rules, and [`MEMORY.md`](
 
 Requires Android 10+. Built and tested on a Samsung Galaxy S25 (Android 16) and the Android emulator.
 
-**My PC (view only).** With Lumi Hub on your PC, Lumi can show your PC screens on the phone (Home, desktop icon). It is off by default (`lumi_hub.py enable-pc-view` on the PC), needs your fingerprint or screen lock for each session, and never controls the PC. See `tools/lumi-hub/README.md`.
+**My PC (view only).** With Lumi Hub on your PC, Lumi can show your PC screens on the phone (Home, desktop icon). It is off by default (`lumi_hub.py enable-pc-view` on the PC), needs your fingerprint or screen lock for each session, and never controls the PC. A **Remote control** button next to it hands off to the Microsoft Remote Desktop app (RDP over Tailscale, port editable in Servers & PC): Lumi itself sends no input. The hub also runs on Linux/macOS (`lumi.sh`; screen view is Windows only). See `tools/lumi-hub/README.md`.
 
 **Updates.** Lumi checks the latest GitHub release when it opens (at most every 12 hours; Settings, Updates has "Check now") and offers to download and install it. Release APKs are non-debuggable release builds signed with the same key as earlier builds, so an update installs over them; a Lumi signed with another key is refused otherwise Lumi says so before opening the installer (uninstall first, after exporting a backup).
 

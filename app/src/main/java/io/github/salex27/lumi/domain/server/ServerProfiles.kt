@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /** The PC-side services the phone can point at a server. */
-enum class ServerService { HUB, SEARCH, PCVIEW }
+enum class ServerService { HUB, SEARCH, PCVIEW, REMOTE }
 
 /**
  * One server (a PC) the user defined: a name, a [scheme] + [host] and an optional token (the Lumi Hub phone token).
@@ -31,18 +31,23 @@ data class ServerState(
     val hubEp: ServiceEndpoint? = null,
     val searchEp: ServiceEndpoint? = null,
     val pcEp: ServiceEndpoint? = null,
+    /** Remote control (RDP): optional own server (null = the My PC server) and port (null = 3389). Added in 1.1.8, absent in older states. */
+    val remote: String? = null,
+    val remoteEp: ServiceEndpoint? = null,
     val ver: Int = 1
 ) {
     fun endpointFor(service: ServerService): ServiceEndpoint = when (service) {
         ServerService.HUB -> hubEp ?: ServiceEndpoint(ServerLogic.DEFAULT_HUB_PORT)
         ServerService.PCVIEW -> pcEp ?: hubEp ?: ServiceEndpoint(ServerLogic.DEFAULT_HUB_PORT) // My PC lives on the hub
         ServerService.SEARCH -> searchEp ?: ServiceEndpoint(ServerLogic.DEFAULT_SEARCH_PORT)
+        ServerService.REMOTE -> remoteEp ?: ServiceEndpoint(ServerLogic.DEFAULT_RDP_PORT)
     }
 
     fun idFor(service: ServerService): String? = when (service) {
         ServerService.HUB -> hub
         ServerService.SEARCH -> search
         ServerService.PCVIEW -> pcview
+        ServerService.REMOTE -> remote ?: pcview ?: hub // remote control follows My PC unless set
     }
 
     fun serverFor(service: ServerService): ServerProfile? = idFor(service)?.let { id -> servers.firstOrNull { it.id == id } }
@@ -54,6 +59,7 @@ object ServerLogic {
     const val SEARX_ID = "searxng"
     const val DEFAULT_HUB_PORT = 8443
     const val DEFAULT_SEARCH_PORT = 8444
+    const val DEFAULT_RDP_PORT = 3389
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     private val PARSE = Regex("^(?:([a-z][a-z0-9+.-]*)://)?([A-Za-z0-9.-]+)(?::([0-9]{1,5}))?(/[^ ?#]*)?/?$", RegexOption.IGNORE_CASE)
@@ -72,8 +78,18 @@ object ServerLogic {
     /** The full base URL of [service] (scheme://host:port/path), or null when no server is assigned / the host is invalid. */
     fun baseUrl(state: ServerState, service: ServerService): String? {
         val server = state.serverFor(service) ?: return null
+        if (service == ServerService.REMOTE) return rdpTarget(state)?.let { "${it.first}:${it.second}" }
         val ep = state.endpointFor(service)
         return compose(server.scheme, server.host.ifBlank { splitUrl(server.url)?.host.orEmpty() }, ep.port, if (service == ServerService.SEARCH) ep.path else "")
+    }
+
+    /** Host (never the token) and port of the PC's remote desktop, or null when no server / invalid host. */
+    fun rdpTarget(state: ServerState): Pair<String, Int>? {
+        val server = state.serverFor(ServerService.REMOTE) ?: return null
+        val host = server.host.ifBlank { splitUrl(server.url)?.host.orEmpty() }
+        val port = state.endpointFor(ServerService.REMOTE).port
+        if (host.isBlank() || !Regex("^[A-Za-z0-9.-]+$").matches(host) || port !in 1..65535) return null
+        return host to port
     }
 
     fun compose(scheme: String, host: String, port: Int, path: String = ""): String? {
@@ -129,6 +145,7 @@ object ServerLogic {
             ServerService.HUB -> state.copy(hub = valid)
             ServerService.SEARCH -> state.copy(search = valid)
             ServerService.PCVIEW -> state.copy(pcview = valid)
+        ServerService.REMOTE -> state.copy(remote = valid)
         }
     }
 
@@ -147,13 +164,14 @@ object ServerLogic {
     /** Removing a server unassigns every service that used it (web search then falls back to the phone). */
     fun remove(state: ServerState, id: String): ServerState = state.copy(
         servers = state.servers.filterNot { it.id == id },
-        hub = state.hub.takeIf { it != id }, search = state.search.takeIf { it != id }, pcview = state.pcview.takeIf { it != id }
+        hub = state.hub.takeIf { it != id }, search = state.search.takeIf { it != id }, pcview = state.pcview.takeIf { it != id }, remote = state.remote.takeIf { it != id }
     )
 
     fun setEndpoint(state: ServerState, service: ServerService, ep: ServiceEndpoint?): ServerState = when (service) {
         ServerService.HUB -> state.copy(hubEp = ep)
         ServerService.SEARCH -> state.copy(searchEp = ep)
         ServerService.PCVIEW -> state.copy(pcEp = ep)
+        ServerService.REMOTE -> state.copy(remoteEp = ep)
     }
 
     fun newId(state: ServerState): String {
@@ -177,7 +195,7 @@ object ServerLogic {
 }
 
 /** Why a connection test failed; every value has a localized message in the UI. */
-enum class ServerTestError { NOT_CONFIGURED, BAD_URL, UNREACHABLE, TIMEOUT, TLS, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, SERVER_ERROR, BAD_ANSWER, PC_ROUTES_MISSING, PC_DISABLED, OTHER }
+enum class ServerTestError { NOT_CONFIGURED, BAD_URL, UNREACHABLE, TIMEOUT, TLS, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, SERVER_ERROR, BAD_ANSWER, PC_ROUTES_MISSING, PC_DISABLED, RDP_CLOSED, OTHER }
 
 object ServerTestErrors {
     /** [httpCode] when the server answered, [error] when it did not. */

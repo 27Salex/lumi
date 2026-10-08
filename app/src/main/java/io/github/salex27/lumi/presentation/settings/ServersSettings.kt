@@ -46,6 +46,7 @@ private fun serviceName(s: ServerService) = stringResource(when (s) {
     ServerService.HUB -> R.string.svc_hub
     ServerService.SEARCH -> R.string.svc_search
     ServerService.PCVIEW -> R.string.svc_pcview
+    ServerService.REMOTE -> R.string.svc_remote
 })
 
 /** The localized message of a failed connection test (what to check, not a stack trace). */
@@ -63,6 +64,7 @@ internal fun serverErrorText(e: ServerTestError, service: ServerService): String
     ServerTestError.BAD_ANSWER -> R.string.server_err_bad_answer
     ServerTestError.PC_ROUTES_MISSING -> R.string.server_err_pc_routes
     ServerTestError.PC_DISABLED -> R.string.server_err_pc_disabled
+    ServerTestError.RDP_CLOSED -> R.string.server_err_rdp_closed
     ServerTestError.OTHER -> R.string.server_err_other
 })
 
@@ -73,6 +75,7 @@ private fun TestLine(result: ServerTestResult, service: ServerService) {
         is ServerTestResult.Ok -> StatusText(
             when (service) {
                 ServerService.SEARCH -> stringResource(R.string.server_test_ok_search, result.detail)
+                ServerService.REMOTE -> stringResource(R.string.server_test_ok_rdp, result.detail)
                 else -> if (result.detail.isBlank()) stringResource(R.string.server_test_ok) else stringResource(R.string.server_test_ok_detail, result.detail)
             }, c.success
         )
@@ -139,7 +142,7 @@ fun ServersSettingsSection() {
                         val p = parsedUrl!!
                         app.servers.upsert(e.copy(name = name.trim().ifBlank { e.name }, host = p.host, scheme = if (url.contains("://")) p.scheme else e.scheme, token = token.trim()))
                         // a pasted port is the user's explicit choice: it becomes the endpoint of every service that uses this server
-                        if (p.port != null) ServerService.entries.filter { app.servers.current.idFor(it) == e.id }.forEach { sv ->
+                        if (p.port != null) ServerService.entries.filter { it != ServerService.REMOTE && app.servers.current.idFor(it) == e.id }.forEach { sv ->
                             app.servers.update { ServerLogic.setEndpoint(it, sv, ServiceEndpoint(p.port, if (sv == ServerService.SEARCH) p.path else "")) }
                         }
                         results.clear(); editing = null
@@ -168,6 +171,7 @@ fun ServersSettingsSection() {
                     ServerService.HUB -> R.string.svc_hub_sub
                     ServerService.SEARCH -> R.string.svc_search_sub
                     ServerService.PCVIEW -> R.string.svc_pcview_sub
+                    ServerService.REMOTE -> R.string.svc_remote_sub
                 }), style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Segment(stringResource(if (service == ServerService.SEARCH) R.string.svc_search_phone else R.string.svc_none), assigned == null) {
@@ -192,7 +196,7 @@ fun ServersSettingsSection() {
                         }
                     }
                     Text(
-                        stringResource(R.string.svc_full_url, ServerLogic.baseUrl(state, service) ?: "-"),
+                        stringResource(if (service == ServerService.REMOTE) R.string.svc_full_hostport else R.string.svc_full_url, ServerLogic.baseUrl(state, service) ?: "-"),
                         style = MaterialTheme.typography.bodySmall, color = c.textSecondary
                     )
                 }
