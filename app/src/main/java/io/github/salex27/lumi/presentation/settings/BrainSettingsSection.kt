@@ -83,6 +83,7 @@ fun BrainSettingsSection() {
                     Field(draft.compatibleKey, { draft = draft.copy(compatibleKey = it) }, stringResource(R.string.brain_compatible_key), secret = true)
                     Field(draft.compatibleModel, { draft = draft.copy(compatibleModel = it) }, stringResource(R.string.brain_compatible_model))
                 }
+                BrainChoice.PC_CLAUDE -> Text(stringResource(R.string.brain_pc_note), style = MaterialTheme.typography.bodySmall, color = c.textTertiary)
                 BrainChoice.GEMINI_CLOUD -> Text(stringResource(R.string.brain_gemini_note), style = MaterialTheme.typography.bodySmall, color = c.textTertiary)
                 else -> Unit
             }
@@ -117,6 +118,7 @@ private fun label(choice: BrainChoice) = stringResource(when (choice) {
     BrainChoice.ANTHROPIC -> R.string.brain_anthropic
     BrainChoice.OPENAI -> R.string.brain_openai
     BrainChoice.OPENAI_COMPATIBLE -> R.string.brain_compatible
+    BrainChoice.PC_CLAUDE -> R.string.brain_pc
 })
 
 @Composable

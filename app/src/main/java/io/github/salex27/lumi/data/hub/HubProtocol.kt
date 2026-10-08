@@ -240,6 +240,17 @@ data class ModelChoice(val model: String? = null, val effort: String? = null) {
         else ModelChoice(model?.takeIf { m -> options.models.any { it.id == m } }, effort?.takeIf { it in options.efforts })
 
     companion object {
+        /**
+         * The fast, cheap end of what the hub offers (PC brain: interpretation and phrasing only): the lightest model
+         * by name (haiku, then sonnet) and the lowest reasoning level. Empty on an older hub (nothing is sent).
+         */
+        fun fast(options: AgentOptions?): ModelChoice {
+            if (options == null) return ModelChoice()
+            val model = listOf("haiku", "sonnet").firstNotNullOfOrNull { k -> options.models.firstOrNull { it.id.contains(k, ignoreCase = true) } }
+            val effort = listOf("low", "minimal").firstOrNull { it in options.efforts }
+            return ModelChoice(model?.id, effort)
+        }
+
         /** Thread choice wins field by field over the settings default. */
         fun resolve(thread: ModelChoice, default: ModelChoice, options: AgentOptions?): ModelChoice {
             if (options == null) return ModelChoice() // older hub: send nothing

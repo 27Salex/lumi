@@ -247,7 +247,11 @@ sealed interface AIProcessingResult {
     ) : AIProcessingResult
 
     /** The request is for an AI agent ([agent], e.g. "claude"): the assistant hands [request] over through Lumi Hub. */
-    data class Agent(val agent: String, val request: String, override val reply: String, override val engine: String) : AIProcessingResult
+    data class Agent(
+        val agent: String, val request: String, override val reply: String, override val engine: String,
+        /** A secretary job Lumi chose to hand over (not named by the user): the answer comes back in this chat. */
+        val secretary: Boolean = false
+    ) : AIProcessingResult
 
     /** Lumi isn't sure what kind of request [text] is: it offers [options] (e.g. task or agent) instead of guessing. */
     data class Clarify(

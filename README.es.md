@@ -90,6 +90,8 @@ El APK va firmado en modo depuración: es un proyecto personal, no una app de Pl
 
 **Búsqueda web.** Por defecto funciona en el propio móvil (SearXNG público opcional, luego DuckDuckGo y Wikipedia); tu SearXNG, Brave o Claude por el Hub son opciones. Las peticiones de sitios («dónde puedo comer barato») usan tu ubicación y listan sitios cercanos con enlaces a Google Maps.
 
+**Modo secretaria.** Los encargos claros de secretaria («redacta un correo al casero», «organízame el viaje a Valencia», «búscame un vuelo barato», «mira si hay algo importante en mis correos») se pasan solos a Claude en tu PC, sin decir «Claude», y su respuesta aparece en el mismo chat del asistente; todo lo que envíe o cambie algo vuelve como borrador. Lo rápido (alarmas, tareas, llamadas, temporizadores, preguntas) sigue en el móvil. «Claude en mi PC (por Hub)» también se puede elegir como cerebro de Lumi.
+
 **Velocidad de Claude.** En el chat de Claude de Orbit eliges modelo y nivel de razonamiento (por defecto Sonnet, medio); el Hub mantiene un proceso de Claude activo por chat y muestra la respuesta según se escribe. `lumi` (ver `tools/lumi-hub/README.md`) arranca el Hub y SearXNG en el PC.
 
 ## Compilar

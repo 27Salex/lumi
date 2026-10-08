@@ -105,6 +105,8 @@ Requires Android 10+. Built and tested on a Samsung Galaxy S25 (Android 16) and 
 
 **Web search.** By default it runs on the phone itself (optional public SearXNG, then DuckDuckGo, then Wikipedia); your own SearXNG, Brave or Claude through the Hub are options. Place requests ("where can I eat cheap") use your location and list nearby places with Google Maps links.
 
+**Secretary mode.** Clear secretary jobs ("write an email to my landlord", "plan my trip to Valencia", "find me a cheap flight", "check my inbox for anything important") are handed to Claude on your PC automatically, without saying "Claude", and its answer appears in the same assistant chat; anything that sends or changes something comes back as a draft. Quick things (alarms, tasks, calls, timers, questions) stay on the phone. "Claude on my PC (via Hub)" is also selectable as Lumi's brain.
+
 **Claude speed.** In Orbit's Claude chat you can pick the model and reasoning level (default Sonnet, medium); the Hub keeps one Claude process warm per chat and streams the answer as it is written. `lumi` (see `tools/lumi-hub/README.md`) starts the Hub and SearXNG on the PC.
 
 The APK is signed with a personal key (not Play Store); it is built by the GitHub Action from `v*` tags, not by hand; it is a personal project, not a Play Store app.

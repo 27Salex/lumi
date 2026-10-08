@@ -54,6 +54,34 @@ class TaskManagerApplication : Application() {
     val openAiEngine by lazy { io.github.salex27.lumi.data.ai.OpenAiEngine({ brainSettings.current }, compatible = false) }
     val compatibleEngine by lazy { io.github.salex27.lumi.data.ai.OpenAiEngine({ brainSettings.current }, compatible = true) }
 
+    val pcBrainEngine by lazy {
+        io.github.salex27.lumi.data.ai.PcBrainEngine(
+            io.github.salex27.lumi.data.hub.HubBrainTransport(hubClient, hubSettings, agentChoices, hubConnection.replies)
+        )
+    }
+
+    /** Secretary hand-off to Claude on the PC; the answer lands in the same assistant chat. */
+    val assistantDelegate by lazy {
+        io.github.salex27.lumi.data.orbit.AssistantDelegate(
+            hubClient, hubSettings, agentChoices, chatStore, appScope, hubConnection.replies,
+            canReadTasks = {
+                database.orbitDao().agents().firstOrNull { it.backend == io.github.salex27.lumi.domain.orbit.AgentBackendKind.CLAUDE_PC.name }?.canReadTasks == true
+            },
+            todayLines = {
+                val end = java.time.LocalDate.now().plusDays(1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                val fmt = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
+                val zone = java.time.ZoneId.systemDefault()
+                val tasks = database.taskDao().getAllTasksSnapshot()
+                    .filter { it.status != io.github.salex27.lumi.domain.model.TaskStatus.COMPLETED && (it.dueAt ?: Long.MAX_VALUE) < end }
+                    .map { it.title }
+                val meetings = repository.upcomingMeetings(1).filter { it.begin < end }.take(6).map {
+                    "meeting " + java.time.Instant.ofEpochMilli(it.begin).atZone(zone).toLocalTime().format(fmt) + " " + it.title
+                }
+                meetings + tasks
+            }
+        )
+    }
+
     val assistant: AssistantOrchestrator by lazy {
         AssistantOrchestrator(
             engineChain = {
@@ -66,7 +94,9 @@ class TaskManagerApplication : Application() {
                     io.github.salex27.lumi.domain.ai.EngineId.ANTHROPIC to (anthropicEngine to 45_000L),
                     io.github.salex27.lumi.domain.ai.EngineId.OPENAI to (openAiEngine to 45_000L),
                     // Local servers (Ollama on a laptop) can be slow
-                    io.github.salex27.lumi.domain.ai.EngineId.OPENAI_COMPATIBLE to (compatibleEngine to 130_000L)
+                    io.github.salex27.lumi.domain.ai.EngineId.OPENAI_COMPATIBLE to (compatibleEngine to 130_000L),
+                    // Claude on the PC through the Hub: short timeout, steps aside while the PC is unreachable
+                    io.github.salex27.lumi.domain.ai.EngineId.PC to (pcBrainEngine to 20_000L)
                 )
                 io.github.salex27.lumi.domain.ai.BrainChain.order(brainSettings.current.choice).mapNotNull { byId[it] }
             },

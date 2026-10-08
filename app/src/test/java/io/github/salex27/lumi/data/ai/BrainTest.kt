@@ -21,7 +21,7 @@ class BrainTest {
         assertEquals(BrainChain.DEFAULT_ORDER, BrainChain.order(BrainChoice.AUTO))
         val claude = BrainChain.order(BrainChoice.ANTHROPIC)
         assertEquals(EngineId.ANTHROPIC, claude.first())
-        assertEquals(listOf(EngineId.NANO, EngineId.GEMMA, EngineId.GEMINI_CLOUD, EngineId.OPENAI, EngineId.OPENAI_COMPATIBLE), claude.drop(1))
+        assertEquals(listOf(EngineId.NANO, EngineId.GEMMA, EngineId.GEMINI_CLOUD, EngineId.OPENAI, EngineId.OPENAI_COMPATIBLE, EngineId.PC), claude.drop(1))
         BrainChoice.entries.forEach { assertEquals(EngineId.entries.size, BrainChain.order(it).toSet().size) }
     }
 

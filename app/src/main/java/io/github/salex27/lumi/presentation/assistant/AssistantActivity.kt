@@ -56,6 +56,8 @@ open class AssistantActivity : ComponentActivity() {
                 if (!app.hubSettings.config.value.isConfigured) false
                 else { app.orbits.send(app.orbits.chatWithClaude(), request); true }
             },
+            delegate = { request, turns, handle -> app.assistantDelegate.send(request, turns, handle) },
+            delegateAnswers = app.assistantDelegate.answers,
             searching = app.webSearch.searching
         )
     }

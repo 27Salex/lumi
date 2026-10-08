@@ -8,6 +8,8 @@
     <string name="brain_gemini">Gemini (Google AI Studio key)</string>
     <string name="brain_anthropic">Claude (Anthropic API key)</string>
     <string name="brain_openai">ChatGPT models (OpenAI API key)</string>
+    <string name="brain_pc">Claude on my PC (via Lumi Hub)</string>
+    <string name="brain_pc_note">Uses the Hub server from Settings. If the PC is off or slow, Lumi falls back to the other brains.</string>
     <string name="brain_compatible">OpenAI-compatible server (Ollama, LM Studio, OpenRouter, Groq…)</string>
     <string name="brain_speed_varies">Private and free; speed depends on the phone</string>
     <string name="brain_speed_device">Private and free; a few seconds per request on a fast phone</string>

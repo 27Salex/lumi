@@ -96,6 +96,7 @@ data class AssistantUiState(
 internal fun routeLabel(route: io.github.salex27.lumi.domain.assistant.IntentRoute): String = when (route) {
     io.github.salex27.lumi.domain.assistant.IntentRoute.TASK -> ReplyLanguage.t("Apúntalo como tarea", "Add it as a task")
     io.github.salex27.lumi.domain.assistant.IntentRoute.AGENT -> ReplyLanguage.t("Pásaselo a Claude", "Send it to Claude")
+    io.github.salex27.lumi.domain.assistant.IntentRoute.DELEGATE -> ReplyLanguage.t("Pásaselo a Claude", "Send it to Claude")
     else -> route.name
 }
 
@@ -156,6 +157,10 @@ class AssistantViewModel(
     private val chatMemory: ChatMemory? = null,
     /** Hands a request to Claude on the PC (Orbit 1:1 through Lumi Hub); false when the Hub isn't set up. */
     private val handOff: suspend (String) -> Boolean = { false },
+    /** Secretary hand-off: (request, recent turns, this chat) → sent or unreachable. Null in previews/tests. */
+    private val delegate: (suspend (String, List<Pair<String, String>>, ChatStore.Handle) -> io.github.salex27.lumi.data.orbit.AssistantDelegate.Outcome)? = null,
+    /** Claude's answers to hand-offs (already stored in their chat); this chat shows its own. */
+    delegateAnswers: kotlinx.coroutines.flow.Flow<io.github.salex27.lumi.data.orbit.AssistantDelegate.Answer> = kotlinx.coroutines.flow.emptyFlow(),
     searchingFlow: StateFlow<Boolean> = MutableStateFlow(false)
 ) : ViewModel() {
 
@@ -175,6 +180,11 @@ class AssistantViewModel(
     init {
         _state.update { it.copy(messages = listOf(greeting())) }
         viewModelScope.launch { orchestrator.refreshActiveEngine() }
+        viewModelScope.launch {
+            delegateAnswers.collect { a ->
+                if (a.handle === handle) append(ChatMessage.Assistant(id = nextId++, text = a.text, engine = "Claude · PC", isError = a.isError), persist = false)
+            }
+        }
         viewModelScope.launch { searchingFlow.collect { s -> _state.update { it.copy(searching = s) } } }
         val store = chatStore
         if (store == null) ready.complete(Unit) else {
@@ -603,6 +613,19 @@ class AssistantViewModel(
 
     /** Sends the request to Claude (Orbit 1:1 through the Hub) and says what happened. */
     private suspend fun handOffReply(r: AIProcessingResult.Agent): AIProcessingResult {
+        val send = delegate
+        if (r.secretary && send != null) {
+            val turns = repository.conversation.sessionTurns().dropLast(1).map { it.user to it.reply }
+            val outcome = runCatching { send(r.request, turns, handle) }.getOrNull()
+            if (outcome is io.github.salex27.lumi.data.orbit.AssistantDelegate.Outcome.Sent) return r
+            // Hub off or unreachable: say so and offer to keep it as a task instead
+            return AIProcessingResult.Clarify(
+                r.request, listOf(io.github.salex27.lumi.domain.assistant.IntentRoute.TASK),
+                t("No llego a Claude en tu PC ahora mismo (¿Lumi Hub y Tailscale activos?). ¿Lo guardo como tarea para más tarde?",
+                    "I can't reach Claude on your PC right now (are Lumi Hub and Tailscale on?). Should I save it as a task for later?"),
+                r.engine
+            )
+        }
         val sent = runCatching { handOff(r.request) }.getOrDefault(false)
         return r.copy(reply = if (sent) t(
             "Se lo he pasado a Claude en tu PC. Su respuesta aparecerá en Orbit (arriba a la derecha en Inicio).",
@@ -614,8 +637,9 @@ class AssistantViewModel(
     }
 
     /** Shows a message and stores it in the session ([action] = the command a reply executed, for follow-ups). */
-    private fun append(message: ChatMessage, action: String? = null) {
+    private fun append(message: ChatMessage, action: String? = null, persist: Boolean = true) {
         _state.update { st -> st.copy(messages = st.messages.filter { it.id != GREETING_ID } + message) }
+        if (!persist) return
         val store = chatStore ?: return
         val entity = when (message) {
             is ChatMessage.User -> ChatMessageEntity(sessionId = 0, role = ChatMessageEntity.ROLE_USER, text = message.text, createdAt = store.stamp())
@@ -640,10 +664,12 @@ class AssistantViewModel(
         private val chatStore: ChatStore? = null,
         private val chatMemory: ChatMemory? = null,
         private val handOff: suspend (String) -> Boolean = { false },
+        private val delegate: (suspend (String, List<Pair<String, String>>, ChatStore.Handle) -> io.github.salex27.lumi.data.orbit.AssistantDelegate.Outcome)? = null,
+        private val delegateAnswers: kotlinx.coroutines.flow.Flow<io.github.salex27.lumi.data.orbit.AssistantDelegate.Answer> = kotlinx.coroutines.flow.emptyFlow(),
         private val searching: StateFlow<Boolean> = MutableStateFlow(false)
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T = AssistantViewModel(repository, orchestrator, speak, chatStore, chatMemory, handOff, searching) as T
+        override fun <T : ViewModel> create(modelClass: Class<T>): T = AssistantViewModel(repository, orchestrator, speak, chatStore, chatMemory, handOff, delegate, delegateAnswers, searching) as T
     }
 }
 

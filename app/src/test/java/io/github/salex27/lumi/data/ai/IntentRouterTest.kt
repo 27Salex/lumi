@@ -30,6 +30,26 @@ class IntentRouterTest {
         assertTrue("${wrong.size} of ${rows.size} wrong:\n" + wrong.joinToString("\n"), wrong.isEmpty())
     }
 
+    /** Secretary set (secretary_eval.tsv): clear secretary jobs go to Claude, everything Lumi does itself is left alone. */
+    @Test
+    fun `secretary evaluation set`() {
+        val rows = javaClass.classLoader!!.getResource("secretary_eval.tsv")!!.readText().lines()
+            .filter { it.isNotBlank() && !it.startsWith("#") }
+            .map { it.split('	').let { (label, text) -> IntentRoute.valueOf(label) to text } }
+        assertTrue(rows.size >= 60)
+        val ruled = setOf(IntentRoute.DELEGATE, IntentRoute.AGENT, IntentRoute.OPINION, IntentRoute.UNSURE)
+        val wrong = rows.mapNotNull { (label, text) ->
+            val expected = label.takeIf { it in ruled }
+            val got = IntentRouter.classify(text, now)
+            if (got != expected) "«$text»: expected $expected, got $got" else null
+        }
+        val delegates = rows.filter { it.first == IntentRoute.DELEGATE }
+        val caught = delegates.count { IntentRouter.classify(it.second, now) == IntentRoute.DELEGATE }
+        val falsePositives = rows.count { it.first != IntentRoute.DELEGATE && IntentRouter.classify(it.second, now) == IntentRoute.DELEGATE }
+        println("SECRETARY_EVAL delegate recall $caught/${delegates.size}, false delegations $falsePositives, correct ${rows.size - wrong.size}/${rows.size}")
+        assertTrue("${wrong.size} of ${rows.size} wrong:\n" + wrong.joinToString("\n"), wrong.isEmpty())
+    }
+
     @Test
     fun `the agent gets the request without its name`() {
         assertEquals("Quiero hacer una nueva web", IntentRouter.agentRequest("Quiero hacer una nueva web con Claude"))

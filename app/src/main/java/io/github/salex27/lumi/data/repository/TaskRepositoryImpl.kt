@@ -32,6 +32,7 @@ import io.github.salex27.lumi.domain.assistant.Lang
 import io.github.salex27.lumi.domain.assistant.IntentRoute
 import io.github.salex27.lumi.domain.assistant.LanguageDetector
 import io.github.salex27.lumi.data.ai.IntentRouter
+import io.github.salex27.lumi.data.ai.SecretaryRouter
 import io.github.salex27.lumi.domain.search.WebAnswers
 import io.github.salex27.lumi.domain.assistant.MemoryRetriever
 import io.github.salex27.lumi.domain.assistant.MessageDigest
@@ -238,11 +239,21 @@ class TaskRepositoryImpl(
                 val request = IntentRouter.agentRequest(sentence) ?: sentence
                 AIProcessingResult.Agent("claude", request, t("Se lo paso a Claude en tu PC.", "Passing it to Claude on your PC."), assistant.rulesName)
             }
+            IntentRoute.DELEGATE -> {
+                lastAction = ACTION_AGENT
+                AIProcessingResult.Agent(
+                    "claude", sentence,
+                    t("Se lo paso a Claude en tu PC; te contesto aquí en cuanto tenga la respuesta.", "Passing it to Claude on your PC; I'll answer here as soon as I have the reply."),
+                    assistant.rulesName, secretary = true
+                )
+            }
             IntentRoute.OPINION -> { lastAction = TaskAICommand.ASK; answer(sentence, now, assistant.rulesName) }
             IntentRoute.UNSURE -> {
                 lastAction = ACTION_CLARIFY
                 AIProcessingResult.Clarify(
-                    sentence, listOf(IntentRoute.TASK, IntentRoute.AGENT),
+                    sentence,
+                    // A secretary-style job with a date: the second option answers in this chat instead of in Orbit
+                    listOf(IntentRoute.TASK, if (SecretaryRouter.judge(sentence, now) != null) IntentRoute.DELEGATE else IntentRoute.AGENT),
                     t("¿Lo apunto como tarea o se lo paso a Claude?", "Should I add it as a task or send it to Claude?"), assistant.rulesName
                 )
             }

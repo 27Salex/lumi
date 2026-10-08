@@ -173,6 +173,8 @@ python -m unittest discover tools/lumi-hub
 
 ## Lumi agent
 
+`agents/lumi.md` also has a "Secretary mode" section (the phone hands over email drafts, summaries, planning and research on thread `lumi-assistant`; sending or changing anything outside Lumi comes back as a draft, irreversible steps go through `lumi_ask`).
+
 Every Claude session the hub starts (`claude -p`, new or resumed) uses the `lumi` agent defined in `agents/lumi.md`
 (`--agents` + `--agent lumi`): how to reply on a phone, when to ask first with `lumi_ask`, and the safety rules for
 untrusted text. Edit that file to change how Claude behaves in Lumi; if it is missing, the hub runs plain Claude Code.

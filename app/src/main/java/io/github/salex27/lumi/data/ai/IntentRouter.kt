@@ -9,6 +9,8 @@ import java.time.LocalDateTime
  * - AGENT: the request names an agent as the doer ("…con Claude", «dile a Claude que…», "ask Claude to…",
  *   "Claude, …"). [agentRequest] extracts what the agent should do.
  * - OPINION: asking for an opinion («¿qué opinas de…?», "do you think…") → answered, never turned into a task.
+ * - DELEGATE: a clear secretary job (write or answer an email, summarise, plan a trip, research, check the inbox) →
+ *   Claude on the PC ([SecretaryRouter]); the same job with a date is UNSURE (task or Claude?).
  * - UNSURE: a wish to build something with no date («me gustaría programar una web», "I'd like to build an app") →
  *   Lumi asks: task or agent?
  */
@@ -23,6 +25,11 @@ object IntentRouter {
         if (agentRequest(t, agents) != null) return IntentRoute.AGENT
         if (OPINION.containsMatchIn(t)) return IntentRoute.OPINION
         if (WISH.containsMatchIn(t) && !hasDate(t, now)) return IntentRoute.UNSURE
+        when (SecretaryRouter.judge(t, now)) {
+            SecretaryRouter.Verdict.DELEGATE -> return IntentRoute.DELEGATE
+            SecretaryRouter.Verdict.AMBIGUOUS -> return IntentRoute.UNSURE
+            null -> {}
+        }
         return null
     }
 

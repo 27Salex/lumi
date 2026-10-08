@@ -42,7 +42,9 @@ Pending work. Finished items are removed; their history is in `MEMORY.md` and gi
 
 ## Intent routing (#1) follow-ups
 - [ ] Run `tools/intent_eval.sh` with Gemma on the S25 and with the cloud engine; grow the set from real logcat
-- [ ] Show Claude's answer inside the assistant chat (today it lands in Orbit); remember "task or Claude?" preferences
+- [x] Claude's answer for secretary-style requests shows inside the assistant chat (`AssistantDelegate`); explicit "...with Claude" still goes to Orbit
+- [ ] Remember "task or Claude?" preferences; notify when a hand-off answer arrives with the chat closed
+- [ ] Secretary mode on the S25/PC: phrases from `secretary_eval.tsv` by voice, offline Hub falls back to "save as task", PC brain chosen with the PC off, can_read_tasks on/off in the hand-off, drafts come back unsent
 
 ## Routing (#12, #13) follow-ups
 
