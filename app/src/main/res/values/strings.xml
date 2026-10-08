@@ -459,7 +459,7 @@
     <string name="pc_offline_title">Cannot reach your PC</string>
     <string name="pc_offline_body">Check that the PC is on, Lumi Hub is running (the lumi command) and Tailscale is connected on both devices. If it was working before, the phone token may have changed.</string>
     <string name="pc_disabled_title">My PC is off on your PC</string>
-    <string name="pc_disabled_body">For your safety it is off by default. To turn it on, run this once on the PC: lumi_hub.py enable-pc-view</string>
+    <string name="pc_disabled_body">My PC view is off on the PC: run this once on the PC, then restart lumi: python lumi_hub.py enable-pc-view</string>
     <string name="pc_locked_title">Locked</string>
     <string name="pc_locked_body">Unlock with your fingerprint, face or screen lock to see your PC screen. It is view only: you cannot control the PC from here.</string>
     <string name="pc_expired_title">Unlock expired</string>
@@ -472,4 +472,8 @@
     <string name="pc_biometric_sub">Confirm it is you to view your PC screen (view only)</string>
     <string name="pc_auth_cancelled">Unlock cancelled.</string>
     <string name="pc_monitor_n">Screen %1$d</string>
+    <string name="pc_old_title">This port does not serve My PC</string>
+    <string name="pc_old_body">The server on this address answered, but it has no My PC routes. Check the port of My PC in Settings > Servers (the hub is usually 8443), and update the hub on the PC (git pull) and restart lumi.</string>
+    <string name="pc_unauth_title">The hub refused this phone</string>
+    <string name="pc_unauth_body">The token is wrong or this is not the Tailscale account that owns the PC. Link the phone again with the token the PC shows.</string>
 </resources>

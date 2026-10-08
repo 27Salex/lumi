@@ -36,12 +36,12 @@
     <string name="server_searx_name">SearXNG</string>
     <string name="server_new_name">Server %1$d</string>
     <string name="servers_title">Servers</string>
-    <string name="servers_sub">Define the PCs or services Lumi talks to once, then choose which one each feature uses.</string>
+    <string name="servers_sub">Define each PC once (name, host, token). Then choose which one each service uses and its port; pasting a full URL splits it.</string>
     <string name="servers_none">No servers yet. Add one to connect Lumi Hub, My PC or web search.</string>
     <string name="server_add">Add server</string>
     <string name="server_edit">Edit</string>
     <string name="server_name">Name</string>
-    <string name="server_url">Address (https://…)</string>
+    <string name="server_url">Host or address (laptop.example.ts.net)</string>
     <string name="server_token">Token (the Lumi Hub phone token; optional for search)</string>
     <string name="server_use_all">Use for everything</string>
     <string name="server_used_by">Used for: %1$s</string>
@@ -96,4 +96,11 @@
     <string name="web_server_assigned">Server: %1$s (%2$s)</string>
     <string name="web_server_none">No search server assigned. Choose or add one, or type an address here.</string>
     <string name="web_manage_servers">Choose in Servers &amp; PC</string>
+    <string name="svc_port">Port</string>
+    <string name="svc_path">Path (optional)</string>
+    <string name="svc_full_url">Address: %1$s</string>
+    <string name="server_err_bad_port">The port must be a number from 1 to 65535.</string>
+    <string name="server_err_pc_routes">This port serves a Lumi Hub without the My PC routes: update the hub on the PC (git pull) and restart lumi.</string>
+    <string name="server_err_pc_disabled">My PC view is off on the PC: run lumi_hub.py enable-pc-view and restart lumi.</string>
+    <string name="server_err_unauthorized_pc">The hub refused this phone (token or Tailscale account). Link the phone again with the token from the PC.</string>
 </resources>

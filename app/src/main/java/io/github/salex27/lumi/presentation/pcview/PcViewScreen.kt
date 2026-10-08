@@ -265,6 +265,8 @@ private fun StatusCard(
         PcPhase.NOT_CONFIGURED -> Info(R.string.pc_not_configured_title, R.string.pc_not_configured_body, R.string.pc_open_settings, onSettings)
         PcPhase.CHECKING -> Info(R.string.pc_checking, null, null, {})
         PcPhase.HUB_OFFLINE -> Info(R.string.pc_offline_title, R.string.pc_offline_body, R.string.pc_retry, onRetry)
+        PcPhase.HUB_OLD -> Info(R.string.pc_old_title, R.string.pc_old_body, R.string.pc_open_settings, onSettings)
+        PcPhase.UNAUTHORIZED -> Info(R.string.pc_unauth_title, R.string.pc_unauth_body, R.string.pc_open_settings, onSettings)
         PcPhase.DISABLED -> Info(R.string.pc_disabled_title, R.string.pc_disabled_body, R.string.pc_retry, onRetry)
         PcPhase.LOCKED -> Info(R.string.pc_locked_title, R.string.pc_locked_body, R.string.pc_unlock, onUnlock)
         PcPhase.UNLOCKING -> Info(R.string.pc_unlocking, null, null, {})

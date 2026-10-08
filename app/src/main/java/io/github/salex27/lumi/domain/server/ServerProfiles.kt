@@ -6,9 +6,20 @@ import kotlinx.serialization.json.Json
 /** The PC-side services the phone can point at a server. */
 enum class ServerService { HUB, SEARCH, PCVIEW }
 
-/** One server the user defined: a name, a base URL and an optional token (the Lumi Hub phone token, or none). */
+/**
+ * One server (a PC) the user defined: a name, a [scheme] + [host] and an optional token (the Lumi Hub phone token).
+ * The port (and path) belong to each service, see [ServiceEndpoint]. [url] is the 1.1.4 full address, kept only so a
+ * migration never loses data (it is not used any more once [host] is filled).
+ */
 @Serializable
-data class ServerProfile(val id: String, val name: String, val url: String, val token: String = "")
+data class ServerProfile(val id: String, val name: String, val url: String = "", val token: String = "", val scheme: String = "https", val host: String = "")
+
+/** The port and optional path one service uses on its server. */
+@Serializable
+data class ServiceEndpoint(val port: Int, val path: String = "")
+
+/** A URL split into its parts. */
+data class ParsedUrl(val scheme: String, val host: String, val port: Int?, val path: String)
 
 /** All servers plus which one each service uses (null = none; web search then runs on the phone). */
 @Serializable
@@ -16,8 +27,18 @@ data class ServerState(
     val servers: List<ServerProfile> = emptyList(),
     val hub: String? = null,
     val search: String? = null,
-    val pcview: String? = null
+    val pcview: String? = null,
+    val hubEp: ServiceEndpoint? = null,
+    val searchEp: ServiceEndpoint? = null,
+    val pcEp: ServiceEndpoint? = null,
+    val ver: Int = 1
 ) {
+    fun endpointFor(service: ServerService): ServiceEndpoint = when (service) {
+        ServerService.HUB -> hubEp ?: ServiceEndpoint(ServerLogic.DEFAULT_HUB_PORT)
+        ServerService.PCVIEW -> pcEp ?: hubEp ?: ServiceEndpoint(ServerLogic.DEFAULT_HUB_PORT) // My PC lives on the hub
+        ServerService.SEARCH -> searchEp ?: ServiceEndpoint(ServerLogic.DEFAULT_SEARCH_PORT)
+    }
+
     fun idFor(service: ServerService): String? = when (service) {
         ServerService.HUB -> hub
         ServerService.SEARCH -> search
@@ -31,7 +52,55 @@ data class ServerState(
 object ServerLogic {
     const val DEFAULT_ID = "default"
     const val SEARX_ID = "searxng"
+    const val DEFAULT_HUB_PORT = 8443
+    const val DEFAULT_SEARCH_PORT = 8444
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+
+    private val PARSE = Regex("^(?:([a-z][a-z0-9+.-]*)://)?([A-Za-z0-9.-]+)(?::([0-9]{1,5}))?(/[^ ?#]*)?/?$", RegexOption.IGNORE_CASE)
+
+    /** Splits what the user pasted ("host", "host:8444", "https://host:8443/x/") into scheme, host, port and path; null if not http(s). */
+    fun splitUrl(input: String): ParsedUrl? {
+        val m = PARSE.matchEntire(input.trim()) ?: return null
+        val scheme = m.groupValues[1].lowercase().ifEmpty { "https" }
+        if (scheme != "http" && scheme != "https") return null
+        val port = m.groupValues[3].takeIf { it.isNotEmpty() }?.toInt()
+        if (port != null && port !in 1..65535) return null
+        val path = m.groupValues[4].trimEnd('/')
+        return ParsedUrl(scheme, m.groupValues[2], port, path)
+    }
+
+    /** The full base URL of [service] (scheme://host:port/path), or null when no server is assigned / the host is invalid. */
+    fun baseUrl(state: ServerState, service: ServerService): String? {
+        val server = state.serverFor(service) ?: return null
+        val ep = state.endpointFor(service)
+        return compose(server.scheme, server.host.ifBlank { splitUrl(server.url)?.host.orEmpty() }, ep.port, if (service == ServerService.SEARCH) ep.path else "")
+    }
+
+    fun compose(scheme: String, host: String, port: Int, path: String = ""): String? {
+        if (host.isBlank() || !Regex("^[A-Za-z0-9.-]+$").matches(host) || port !in 1..65535) return null
+        val p = path.trim().trim('/').let { if (it.isEmpty()) "" else "/$it" }
+        return "${if (scheme == "http") "http" else "https"}://$host:$port$p"
+    }
+
+    /** 1.1.4 stored one full URL (usually with its port) per server: split it, give each assigned service that port. */
+    fun upgrade(state: ServerState): ServerState {
+        if (state.ver >= 2) return state
+        val servers = state.servers.map { s ->
+            val p = splitUrl(s.url)
+            if (s.host.isBlank() && p != null) s.copy(scheme = p.scheme, host = p.host) else s
+        }
+        fun ep(id: String?): ServiceEndpoint? {
+            val p = state.servers.firstOrNull { it.id == id }?.let { splitUrl(it.url) } ?: return null
+            return ServiceEndpoint(p.port ?: if (p.scheme == "http") 80 else 443, p.path)
+        }
+        val hubEp = ep(state.hub)
+        return state.copy(
+            servers = servers, hubEp = hubEp,
+            searchEp = ep(state.search),
+            pcEp = ep(state.pcview)?.takeIf { it != hubEp },
+            ver = 2
+        )
+    }
 
     /**
      * First run of the servers feature: the old Lumi Hub address + token become the default server (used by Hub and
@@ -50,7 +119,7 @@ object ServerLogic {
             servers += ServerProfile(SEARX_ID, searxName, searxUrl.trim())
             search = SEARX_ID
         }
-        return ServerState(servers, hub = hub, search = search, pcview = hub)
+        return upgrade(ServerState(servers, hub = hub, search = search, pcview = hub))
     }
 
     fun assign(state: ServerState, service: ServerService, id: String?): ServerState {
@@ -80,6 +149,12 @@ object ServerLogic {
         hub = state.hub.takeIf { it != id }, search = state.search.takeIf { it != id }, pcview = state.pcview.takeIf { it != id }
     )
 
+    fun setEndpoint(state: ServerState, service: ServerService, ep: ServiceEndpoint?): ServerState = when (service) {
+        ServerService.HUB -> state.copy(hubEp = ep)
+        ServerService.SEARCH -> state.copy(searchEp = ep)
+        ServerService.PCVIEW -> state.copy(pcEp = ep)
+    }
+
     fun newId(state: ServerState): String {
         var n = state.servers.size + 1
         while (state.servers.any { it.id == "s$n" }) n++
@@ -87,7 +162,7 @@ object ServerLogic {
     }
 
     fun encode(state: ServerState): String = json.encodeToString(ServerState.serializer(), state)
-    fun decode(text: String): ServerState? = runCatching { json.decodeFromString(ServerState.serializer(), text) }.getOrNull()
+    fun decode(text: String): ServerState? = runCatching { upgrade(json.decodeFromString(ServerState.serializer(), text)) }.getOrNull()
 
     private val HTTP = Regex("^https?://[A-Za-z0-9.-]+(:\\d{1,5})?(/[^\\s?#]*)?$", RegexOption.IGNORE_CASE)
 
@@ -101,7 +176,7 @@ object ServerLogic {
 }
 
 /** Why a connection test failed; every value has a localized message in the UI. */
-enum class ServerTestError { NOT_CONFIGURED, BAD_URL, UNREACHABLE, TIMEOUT, TLS, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, SERVER_ERROR, BAD_ANSWER, OTHER }
+enum class ServerTestError { NOT_CONFIGURED, BAD_URL, UNREACHABLE, TIMEOUT, TLS, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, SERVER_ERROR, BAD_ANSWER, PC_ROUTES_MISSING, PC_DISABLED, OTHER }
 
 object ServerTestErrors {
     /** [httpCode] when the server answered, [error] when it did not. */

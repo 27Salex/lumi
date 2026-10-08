@@ -87,7 +87,7 @@ fun WebSearchSettingsSection(onOpenServers: () -> Unit = {}) {
                     WebSearchBackend.SEARXNG -> {
                         val server = servers.serverFor(io.github.salex27.lumi.domain.server.ServerService.SEARCH)
                         if (server != null) {
-                            Text(stringResource(R.string.web_server_assigned, server.name, server.url), style = MaterialTheme.typography.bodyMedium, color = c.textPrimary)
+                            Text(stringResource(R.string.web_server_assigned, server.name, io.github.salex27.lumi.domain.server.ServerLogic.baseUrl(servers, io.github.salex27.lumi.domain.server.ServerService.SEARCH).orEmpty()), style = MaterialTheme.typography.bodyMedium, color = c.textPrimary)
                         } else {
                             Text(stringResource(R.string.web_server_none), style = MaterialTheme.typography.bodyMedium, color = c.textSecondary)
                             Field(searx, { searx = it }, stringResource(R.string.web_searxng_url))

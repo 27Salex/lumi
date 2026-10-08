@@ -22,6 +22,7 @@ import io.github.salex27.lumi.data.server.ServerStore
 import io.github.salex27.lumi.domain.server.ServerLogic
 import io.github.salex27.lumi.domain.server.ServerProfile
 import io.github.salex27.lumi.domain.server.ServerService
+import io.github.salex27.lumi.domain.server.ServiceEndpoint
 
 /** Where the hub is and the phone's token. The token is a secret: the "hub" prefs file is not in the backup. */
 data class HubConfig(val address: String = "", val token: String = "") {
@@ -32,7 +33,7 @@ data class HubConfig(val address: String = "", val token: String = "") {
 class HubSettings(context: Context, private val servers: ServerStore) {
     private val prefs = context.getSharedPreferences("hub", Context.MODE_PRIVATE)
     private fun configFor(service: ServerService) =
-        servers.current.serverFor(service)?.let { HubConfig(it.url, it.token) } ?: HubConfig()
+        servers.current.serverFor(service)?.let { HubConfig(ServerLogic.baseUrl(servers.current, service).orEmpty(), it.token) } ?: HubConfig()
     private val _config = MutableStateFlow(configFor(ServerService.HUB))
     /** The server assigned to the Hub / agents service. */
     val config: StateFlow<HubConfig> = _config.asStateFlow()
@@ -48,15 +49,16 @@ class HubSettings(context: Context, private val servers: ServerStore) {
             }
     }
 
-    /** Edits the Hub server (creating the default server when there is none yet). */
+    /** Edits the Hub server from an address the user typed (host or full URL; a pasted port becomes the hub port). */
     fun save(address: String, token: String) {
         val current = servers.current.serverFor(ServerService.HUB)
-        val profile = (current ?: ServerProfile(
-            ServerLogic.newId(servers.current), "Lumi Hub", "", ""
-        )).copy(url = address.trim(), token = token.trim())
+        val parsed = ServerLogic.splitUrl(address)
+        val base = current ?: ServerProfile(ServerLogic.newId(servers.current), "Lumi Hub")
+        val profile = base.copy(token = token.trim(), scheme = parsed?.scheme ?: base.scheme, host = parsed?.host ?: address.trim())
         servers.upsert(profile)
         servers.assign(ServerService.HUB, profile.id)
         if (servers.current.pcview == null) servers.assign(ServerService.PCVIEW, profile.id)
+        parsed?.port?.let { port -> servers.update { ServerLogic.setEndpoint(it, ServerService.HUB, ServiceEndpoint(port)) } }
     }
 
     /** Last event received, so a reconnection only gets what is new (the hub also resends open questions). */

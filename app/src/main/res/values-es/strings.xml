@@ -459,7 +459,7 @@
     <string name="pc_offline_title">No se puede llegar a tu PC</string>
     <string name="pc_offline_body">Comprueba que el PC está encendido, que Lumi Hub está en marcha (el comando lumi) y que Tailscale está conectado en los dos dispositivos. Si antes funcionaba, puede que el token del móvil haya cambiado.</string>
     <string name="pc_disabled_title">Mi PC está desactivado en tu PC</string>
-    <string name="pc_disabled_body">Por seguridad viene desactivado. Para activarlo, ejecuta una vez en el PC: lumi_hub.py enable-pc-view</string>
+    <string name="pc_disabled_body">La vista Mi PC está desactivada en el PC: ejecuta esto una vez en el PC y reinicia lumi: python lumi_hub.py enable-pc-view</string>
     <string name="pc_locked_title">Bloqueado</string>
     <string name="pc_locked_body">Desbloquea con tu huella, cara o bloqueo de pantalla para ver la pantalla de tu PC. Es solo para ver: no puedes controlar el PC desde aquí.</string>
     <string name="pc_expired_title">El desbloqueo ha caducado</string>
@@ -472,4 +472,8 @@
     <string name="pc_biometric_sub">Confirma que eres tú para ver la pantalla de tu PC (solo ver)</string>
     <string name="pc_auth_cancelled">Desbloqueo cancelado.</string>
     <string name="pc_monitor_n">Pantalla %1$d</string>
+    <string name="pc_old_title">Este puerto no sirve Mi PC</string>
+    <string name="pc_old_body">El servidor de esta dirección respondió, pero no tiene las rutas de Mi PC. Revisa el puerto de Mi PC en Ajustes > Servidores (el hub suele ser 8443), y actualiza el hub en el PC (git pull) y reinicia lumi.</string>
+    <string name="pc_unauth_title">El hub rechazó este teléfono</string>
+    <string name="pc_unauth_body">El token es incorrecto o no es la cuenta de Tailscale del dueño del PC. Vincula el teléfono de nuevo con el token que muestra el PC.</string>
 </resources>

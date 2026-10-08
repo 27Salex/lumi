@@ -3,7 +3,7 @@ package io.github.salex27.lumi.data.server
 import io.github.salex27.lumi.data.hub.HubSafety
 import io.github.salex27.lumi.data.search.SearchParsers
 import io.github.salex27.lumi.domain.server.ServerLogic
-import io.github.salex27.lumi.domain.server.ServerProfile
+import io.github.salex27.lumi.domain.server.ServerState
 import io.github.salex27.lumi.domain.server.ServerService
 import io.github.salex27.lumi.domain.server.ServerTestError
 import io.github.salex27.lumi.domain.server.ServerTestErrors
@@ -26,11 +26,13 @@ sealed interface ServerTestResult {
 object ServerTester {
     private val json = Json { ignoreUnknownKeys = true }
 
-    suspend fun test(service: ServerService, server: ServerProfile?): ServerTestResult = withContext(Dispatchers.IO) {
-        if (server == null || server.url.isBlank()) return@withContext ServerTestResult.Failed(ServerTestError.NOT_CONFIGURED)
+    suspend fun test(service: ServerService, state: ServerState): ServerTestResult = withContext(Dispatchers.IO) {
+        val server = state.serverFor(service)
+        if (server == null) return@withContext ServerTestResult.Failed(ServerTestError.NOT_CONFIGURED)
+        val full = ServerLogic.baseUrl(state, service) ?: return@withContext ServerTestResult.Failed(ServerTestError.BAD_URL)
         val base = when (service) {
-            ServerService.SEARCH -> ServerLogic.normalizeSearchUrl(server.url)
-            else -> HubSafety.normalizeAddress(server.url)
+            ServerService.SEARCH -> ServerLogic.normalizeSearchUrl(full)
+            else -> HubSafety.normalizeAddress(full)
         } ?: return@withContext ServerTestResult.Failed(ServerTestError.BAD_URL)
         if (service != ServerService.SEARCH && server.token.isBlank()) return@withContext ServerTestResult.Failed(ServerTestError.NOT_CONFIGURED)
         val path = when (service) {
@@ -40,7 +42,15 @@ object ServerTester {
         }
         try {
             val (code, body) = get(base + path, server.token)
+            if (code == 404 && service == ServerService.PCVIEW) {
+                // a hub that is up but older than the My PC routes answers /health and 404s /pc/*
+                val hubUp = runCatching { get(base + "/health", server.token).first in 200..299 }.getOrDefault(false)
+                return@withContext ServerTestResult.Failed(if (hubUp) ServerTestError.PC_ROUTES_MISSING else ServerTestError.NOT_FOUND, code)
+            }
             if (code !in 200..299) return@withContext ServerTestResult.Failed(ServerTestErrors.classify(code, null), code)
+            if (service == ServerService.PCVIEW && json.parseToJsonElement(body).jsonObject["state"]?.jsonPrimitive?.content == "disabled") {
+                return@withContext ServerTestResult.Failed(ServerTestError.PC_DISABLED, code)
+            }
             ServerTestResult.Ok(describe(service, body))
         } catch (e: Exception) {
             ServerTestResult.Failed(ServerTestErrors.classify(null, e))

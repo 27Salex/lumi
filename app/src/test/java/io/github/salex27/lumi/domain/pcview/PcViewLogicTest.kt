@@ -24,7 +24,8 @@ class PcViewLogicTest {
         assertEquals(PcPhase.LOCKED, f(401, "unlock_required", "revoked"))
         assertEquals(PcPhase.LOCKED, f(401, "unlock_required", "invalid"))
         assertEquals(PcPhase.LOCKED_OUT, f(429, "locked_out"))
-        assertEquals(PcPhase.HUB_OFFLINE, f(401, "unauthorized"))
+        assertEquals(PcPhase.UNAUTHORIZED, f(401, "unauthorized"))
+        assertEquals(PcPhase.HUB_OLD, f(404, "not_found"))
         assertEquals(PcPhase.RECONNECTING, f(503, "capture_failed"))
     }
 

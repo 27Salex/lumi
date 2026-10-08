@@ -31,6 +31,7 @@ import io.github.salex27.lumi.domain.server.ServerLogic
 import io.github.salex27.lumi.domain.server.ServerProfile
 import io.github.salex27.lumi.domain.server.ServerService
 import io.github.salex27.lumi.domain.server.ServerTestError
+import io.github.salex27.lumi.domain.server.ServiceEndpoint
 import io.github.salex27.lumi.presentation.components.ListDivider
 import io.github.salex27.lumi.presentation.components.ListGroup
 import io.github.salex27.lumi.presentation.components.PillButton
@@ -60,6 +61,8 @@ internal fun serverErrorText(e: ServerTestError, service: ServerService): String
     ServerTestError.NOT_FOUND -> if (service == ServerService.SEARCH) R.string.server_err_not_found_search else R.string.server_err_not_found
     ServerTestError.SERVER_ERROR -> R.string.server_err_server
     ServerTestError.BAD_ANSWER -> R.string.server_err_bad_answer
+    ServerTestError.PC_ROUTES_MISSING -> R.string.server_err_pc_routes
+    ServerTestError.PC_DISABLED -> R.string.server_err_pc_disabled
     ServerTestError.OTHER -> R.string.server_err_other
 })
 
@@ -104,7 +107,7 @@ fun ServersSettingsSection() {
             val usedBy = ServerService.entries.filter { state.idFor(it) == server.id }
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(server.name, style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
-                Text(server.url.ifBlank { "-" }, style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
+                Text(server.host.ifBlank { "-" }, style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
                 if (usedBy.isNotEmpty()) {
                     Text(stringResource(R.string.server_used_by, usedBy.joinToString { svcNames.getValue(it) }), style = MaterialTheme.typography.bodySmall, color = c.textTertiary)
                 }
@@ -122,17 +125,24 @@ fun ServersSettingsSection() {
         editing?.let { e ->
             if (state.servers.isNotEmpty() || !editingIsNew) ListDivider()
             var name by remember(e.id) { mutableStateOf(e.name) }
-            var url by remember(e.id) { mutableStateOf(e.url) }
+            var url by remember(e.id) { mutableStateOf(e.host) }
             var token by remember(e.id) { mutableStateOf(e.token) }
-            val urlOk = url.isBlank() || HubSafety.normalizeAddress(url) != null || ServerLogic.normalizeSearchUrl(url) != null
+            val parsedUrl = ServerLogic.splitUrl(url)
+            val urlOk = url.isBlank() || parsedUrl != null
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Field(name, { name = it }, stringResource(R.string.server_name))
                 Field(url, { url = it }, stringResource(R.string.server_url))
                 if (!urlOk) StatusText(stringResource(R.string.server_err_bad_url), c.danger)
                 Field(token, { token = it }, stringResource(R.string.server_token), secret = true)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PillButton(stringResource(R.string.save), enabled = urlOk && url.isNotBlank()) {
-                        app.servers.upsert(e.copy(name = name.trim().ifBlank { e.name }, url = url.trim(), token = token.trim()))
+                    PillButton(stringResource(R.string.save), enabled = urlOk && parsedUrl != null) {
+                        val p = parsedUrl!!
+                        app.servers.upsert(e.copy(name = name.trim().ifBlank { e.name }, host = p.host, scheme = if (url.contains("://")) p.scheme else e.scheme, token = token.trim()))
+                        // a pasted full URL: its port (and path) become the endpoint of every service that uses this server and has none yet
+                        if (p.port != null) ServerService.entries.filter { app.servers.current.idFor(it) == e.id }.forEach { sv ->
+                            val has = when (sv) { ServerService.HUB -> app.servers.current.hubEp; ServerService.SEARCH -> app.servers.current.searchEp; ServerService.PCVIEW -> app.servers.current.pcEp }
+                            if (has == null) app.servers.update { ServerLogic.setEndpoint(it, sv, ServiceEndpoint(p.port, if (sv == ServerService.SEARCH) p.path else "")) }
+                        }
                         results.clear(); editing = null
                     }
                     PillButton(stringResource(R.string.cancel), style = PillStyle.GHOST) { editing = null }
@@ -143,7 +153,7 @@ fun ServersSettingsSection() {
         Box(Modifier.padding(16.dp)) {
             PillButton(stringResource(R.string.server_add), style = PillStyle.SECONDARY) {
                 val id = ServerLogic.newId(state)
-                editing = ServerProfile(id, stringResource0(app, R.string.server_new_name, state.servers.size + 1), "", ""); editingIsNew = true
+                editing = ServerProfile(id, stringResource0(app, R.string.server_new_name, state.servers.size + 1)); editingIsNew = true
             }
         }
     }
@@ -168,6 +178,25 @@ fun ServersSettingsSection() {
                         Segment(s.name, assigned?.id == s.id) { app.servers.assign(service, s.id); results.remove(service) }
                     }
                 }
+                if (assigned != null) {
+                    val ep = state.endpointFor(service)
+                    var portText by remember(service, assigned.id, ep.port) { mutableStateOf(ep.port.toString()) }
+                    var pathText by remember(service, assigned.id, ep.path) { mutableStateOf(ep.path) }
+                    val portVal = portText.trim().toIntOrNull()?.takeIf { it in 1..65535 }
+                    Field(portText, { portText = it.filter(Char::isDigit).take(5) }, stringResource(R.string.svc_port))
+                    if (service == ServerService.SEARCH) Field(pathText, { pathText = it }, stringResource(R.string.svc_path))
+                    if (portVal == null) StatusText(stringResource(R.string.server_err_bad_port), c.danger)
+                    else if (portVal != ep.port || (service == ServerService.SEARCH && pathText.trim() != ep.path)) {
+                        PillButton(stringResource(R.string.save), style = PillStyle.SECONDARY) {
+                            app.servers.update { ServerLogic.setEndpoint(it, service, ServiceEndpoint(portVal, if (service == ServerService.SEARCH) pathText.trim() else "")) }
+                            results.remove(service)
+                        }
+                    }
+                    Text(
+                        stringResource(R.string.svc_full_url, ServerLogic.baseUrl(state, service) ?: "-"),
+                        style = MaterialTheme.typography.bodySmall, color = c.textSecondary
+                    )
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     PillButton(
                         stringResource(if (testing[service] == true) R.string.server_testing else R.string.server_test), style = PillStyle.SECONDARY,
@@ -175,7 +204,7 @@ fun ServersSettingsSection() {
                     ) {
                         testing[service] = true
                         scope.launch {
-                            results[service] = ServerTester.test(service, assigned)
+                            results[service] = ServerTester.test(service, state)
                             testing[service] = false
                         }
                     }

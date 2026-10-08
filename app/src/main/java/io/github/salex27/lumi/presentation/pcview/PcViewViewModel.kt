@@ -59,6 +59,9 @@ class PcViewViewModel(private val client: PcViewClient, private val settings: Hu
                 PcViewLogic.fromReply(e.reply, _state.value)
             } catch (e: IOException) {
                 PcViewLogic.fromReply(PcReply.Unreachable, _state.value)
+            } catch (e: Exception) {
+                // an answer that is not the hub's JSON (another server on this port) must not leave the screen on "Checking"
+                PcState(PcPhase.HUB_OLD)
             }
         }
     }
@@ -82,6 +85,8 @@ class PcViewViewModel(private val client: PcViewClient, private val settings: Hu
                 _state.value = PcViewLogic.fromReply(e.reply, PcState(PcPhase.LOCKED))
             } catch (e: IOException) {
                 _state.value = PcState(PcPhase.HUB_OFFLINE)
+            } catch (e: Exception) {
+                _state.value = PcState(PcPhase.HUB_OLD)
             }
         }
     }

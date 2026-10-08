@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import io.github.salex27.lumi.data.hub.HubClient
 import io.github.salex27.lumi.data.server.ServerStore
+import io.github.salex27.lumi.domain.server.ServerLogic
 import io.github.salex27.lumi.domain.server.ServerService
 import io.github.salex27.lumi.domain.assistant.Lang
 import io.github.salex27.lumi.domain.search.WebAnswers
@@ -93,7 +94,7 @@ class WebSearchService(context: Context, private val hub: HubClient, private val
     /** The SearXNG server of the Servers screen, or the address typed in this section (older setups). */
     private fun searxTarget(c: WebSearchConfig): Pair<String, Map<String, String>> {
         val server = servers?.current?.serverFor(ServerService.SEARCH)
-        val base = server?.url?.takeIf { it.isNotBlank() } ?: c.searxUrl
+        val base = servers?.current?.let { ServerLogic.baseUrl(it, ServerService.SEARCH) } ?: c.searxUrl
         val headers = server?.token?.takeIf { it.isNotBlank() }?.let { mapOf("Authorization" to "Bearer $it") }.orEmpty()
         return base to headers
     }

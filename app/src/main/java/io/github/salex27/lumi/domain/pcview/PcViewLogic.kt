@@ -4,7 +4,7 @@ import kotlin.math.max
 import kotlin.math.min
 
 /** Where the "My PC" screen is. View only: nothing here sends input to the PC. */
-enum class PcPhase { NOT_CONFIGURED, CHECKING, HUB_OFFLINE, DISABLED, LOCKED, UNLOCKING, VIEWING, EXPIRED, LOCKED_OUT, RECONNECTING, NO_SECURE_LOCK }
+enum class PcPhase { NOT_CONFIGURED, CHECKING, HUB_OFFLINE, DISABLED, LOCKED, UNLOCKING, VIEWING, EXPIRED, LOCKED_OUT, RECONNECTING, NO_SECURE_LOCK, HUB_OLD, UNAUTHORIZED }
 
 data class PcState(
     val phase: PcPhase = PcPhase.CHECKING,
@@ -40,7 +40,8 @@ object PcViewLogic {
             reply.error == "locked_out" || reply.httpCode == 429 -> PcState(PcPhase.LOCKED_OUT, retryAfterSeconds = reply.retryAfter)
             reply.error == "unlock_required" && reply.reason == "expired" -> PcState(PcPhase.EXPIRED)
             reply.error == "unlock_required" -> PcState(PcPhase.LOCKED)
-            reply.httpCode == 401 -> PcState(PcPhase.HUB_OFFLINE) // wrong token / not the owner: shown as a link problem
+            reply.httpCode == 401 -> PcState(PcPhase.UNAUTHORIZED) // wrong token / not the owner
+            reply.httpCode == 404 -> PcState(PcPhase.HUB_OLD) // a hub (or other server) on this port without the /pc routes
             else -> if (previous.phase == PcPhase.VIEWING || previous.phase == PcPhase.RECONNECTING) PcState(PcPhase.RECONNECTING, previous.expiresAtMs) else previous
         }
     }

@@ -36,12 +36,12 @@
     <string name="server_searx_name">SearXNG</string>
     <string name="server_new_name">Servidor %1$d</string>
     <string name="servers_title">Servidores</string>
-    <string name="servers_sub">Define una vez los PC o servicios con los que habla Lumi y elige cuál usa cada función.</string>
+    <string name="servers_sub">Define cada PC una vez (nombre, host, token). Luego elige cuál usa cada servicio y su puerto; si pegas una URL completa se separa sola.</string>
     <string name="servers_none">Aún no hay servidores. Añade uno para conectar Lumi Hub, Mi PC o la búsqueda web.</string>
     <string name="server_add">Añadir servidor</string>
     <string name="server_edit">Editar</string>
     <string name="server_name">Nombre</string>
-    <string name="server_url">Dirección (https://…)</string>
+    <string name="server_url">Host o dirección (portatil.ejemplo.ts.net)</string>
     <string name="server_token">Token (el del móvil en Lumi Hub; opcional para la búsqueda)</string>
     <string name="server_use_all">Usar para todo</string>
     <string name="server_used_by">Se usa para: %1$s</string>
@@ -96,4 +96,11 @@
     <string name="web_server_assigned">Servidor: %1$s (%2$s)</string>
     <string name="web_server_none">No hay servidor de búsqueda asignado. Elige o añade uno, o escribe una dirección aquí.</string>
     <string name="web_manage_servers">Elegir en Servidores y PC</string>
+    <string name="svc_port">Puerto</string>
+    <string name="svc_path">Ruta (opcional)</string>
+    <string name="svc_full_url">Dirección: %1$s</string>
+    <string name="server_err_bad_port">El puerto debe ser un número de 1 a 65535.</string>
+    <string name="server_err_pc_routes">Este puerto sirve un Lumi Hub sin las rutas de Mi PC: actualiza el hub en el PC (git pull) y reinicia lumi.</string>
+    <string name="server_err_pc_disabled">La vista Mi PC está desactivada en el PC: ejecuta lumi_hub.py enable-pc-view y reinicia lumi.</string>
+    <string name="server_err_unauthorized_pc">El hub rechazó este teléfono (token o cuenta de Tailscale). Vincula el teléfono de nuevo con el token del PC.</string>
 </resources>
