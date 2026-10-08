@@ -87,7 +87,7 @@ Read [`AGENTS.md`](AGENTS.md) for the architecture and rules, and [`MEMORY.md`](
 
 ## Install
 
-1. Download `Lumi-1.0.0.apk` from [Releases](https://github.com/27Salex/lumi/releases) and install it
+1. Download the latest `lumi-<version>.apk` from [Releases](https://github.com/27Salex/lumi/releases) and install it
    (allow installing from your browser/files app).
 2. Open Lumi and, when asked, download Gemma (Home → Local AI) on Wi-Fi.
 3. Optional: Settings → "Hey Lumi", Digital assistant, Places, Google Calendar,
@@ -99,7 +99,14 @@ Requires Android 10+. Built and tested on a Samsung Galaxy S25 (Android 16) and 
 
 **Updates.** Lumi checks the latest GitHub release when it opens (at most every 12 hours; Settings, Updates has "Check now") and offers to download and install it. Release APKs are debug-signed, so an update only installs over a Lumi signed with the same key; otherwise Lumi says so before opening the installer (uninstall first, after exporting a backup).
 
-**Chats.** Home has a Chats button: one history of every conversation (Lumi chats, Orbit threads, agent inboxes) grouped by day, with search, rename and delete (long-press). Agents and "what Lumi learned" are under Manage agents.
+**Chats.** The Chats tab in the bottom bar holds one history of every conversation (Lumi chats, Orbit threads, agent inboxes) grouped by day, with search, rename and delete (long-press). Agents and "what Lumi learned" are under Manage agents. "New chat" always starts a fresh thread with Lumi or any agent.
+
+**Servers and settings.** Settings is a short list of groups (Assistant & AI, Servers & PC, Voice, Notifications, Calendar, Appearance, Backup & updates, About) with a search box. Under Servers & PC you define one or more servers (name, URL, optional token) and choose which one Lumi Hub/agents, web search and My PC use, or one server for everything; each service has a connection test.
+
+**Web search.** By default it runs on the phone itself (optional public SearXNG, then DuckDuckGo, then Wikipedia); your own SearXNG, Brave or Claude through the Hub are options. Place requests ("where can I eat cheap") use your location and list nearby places with Google Maps links.
+
+**Claude speed.** In Orbit's Claude chat you can pick the model and reasoning level (default Sonnet, medium); the Hub keeps one Claude process warm per chat and streams the answer as it is written. `lumi` (see `tools/lumi-hub/README.md`) starts the Hub and SearXNG on the PC.
+
 The APK is debug-signed; it is a personal project, not a Play Store app.
 
 ## Build

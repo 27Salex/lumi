@@ -71,7 +71,7 @@ AICore only runs inference in the foreground, and it shows over the lock screen 
 another app). The daily brief is cached in `BriefStore` (per day and language) to save AI requests.
 
 **Assistant layer.** Weather (`WeatherService`, Open-Meteo, no key) + pure `WeatherAdvisor`; general questions
-(`QuickMath` → opt-in web search for fresh data (`WebSearchService`: Wikipedia key-less by default, SearXNG, Brave, or
+(`QuickMath` → opt-in web search for fresh data (`WebSearchService`: on-device (public SearXNG → DuckDuckGo → Wikipedia) by default, SearXNG, Brave, or
 Claude through the Hub; answers cite sources) → Gemini with `google_search` → LLM → web search when it doesn't know); day brief, smart alarm (`AlarmPlanner`), message
 reading/replying (`LumiNotificationListener`, active notifications only, in memory), routines (`RoutinesStore`),
 phone actions (`DeviceActions`), personal memory (only saved on explicit request), Lumi Hub (`data/hub` +

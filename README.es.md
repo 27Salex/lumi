@@ -71,7 +71,7 @@ El diagrama y los detalles están en el [README en inglés](README.md#how-it-wor
 
 ## Instalar
 
-1. Descarga `Lumi-1.0.0.apk` de [Releases](https://github.com/27Salex/lumi/releases) e instálalo
+1. Descarga el último `lumi-<versión>.apk` de [Releases](https://github.com/27Salex/lumi/releases) e instálalo
    (permite instalar desde el navegador o la app de archivos).
 2. Abre Lumi y descarga Gemma (Inicio → IA local) con Wi-Fi.
 3. Opcional: Ajustes → «Oye Lumi», Asistente digital, Lugares, Google Calendar,
@@ -84,7 +84,13 @@ El APK va firmado en modo depuración: es un proyecto personal, no una app de Pl
 
 **Actualizaciones.** Lumi busca la última versión en GitHub al abrirse (como máximo cada 12 horas; Ajustes, Actualizaciones tiene «Comprobar ahora») y ofrece descargarla e instalarla. Los APK de las versiones van firmados en modo depuración, así que una actualización solo se instala sobre un Lumi firmado con la misma clave; si no, Lumi lo avisa antes de abrir el instalador (desinstala antes, tras exportar una copia).
 
-**Chats.** Inicio tiene un botón Chats: un único historial de todas las conversaciones (chats con Lumi, hilos de Orbit, buzones de agentes) agrupadas por día, con búsqueda, renombrar y borrar (pulsación larga). Los agentes y «lo que Lumi ha aprendido» están en Gestionar agentes.
+**Chats.** La pestaña Chats de la barra inferior tiene un único historial de todas las conversaciones (chats con Lumi, hilos de Orbit, buzones de agentes) agrupadas por día, con búsqueda, renombrar y borrar (pulsación larga). Los agentes y «lo que Lumi ha aprendido» están en Gestionar agentes. «Nuevo chat» siempre crea un hilo nuevo con Lumi o con cualquier agente.
+
+**Servidores y ajustes.** Ajustes es una lista corta de grupos (Asistente e IA, Servidores y PC, Voz, Notificaciones, Calendario, Apariencia, Copia y actualizaciones, Acerca de) con buscador. En Servidores y PC defines uno o varios servidores (nombre, URL, token opcional) y eliges cuál usan Lumi Hub/agentes, la búsqueda web y Mi PC, o uno solo para todo; cada servicio tiene prueba de conexión.
+
+**Búsqueda web.** Por defecto funciona en el propio móvil (SearXNG público opcional, luego DuckDuckGo y Wikipedia); tu SearXNG, Brave o Claude por el Hub son opciones. Las peticiones de sitios («dónde puedo comer barato») usan tu ubicación y listan sitios cercanos con enlaces a Google Maps.
+
+**Velocidad de Claude.** En el chat de Claude de Orbit eliges modelo y nivel de razonamiento (por defecto Sonnet, medio); el Hub mantiene un proceso de Claude activo por chat y muestra la respuesta según se escribe. `lumi` (ver `tools/lumi-hub/README.md`) arranca el Hub y SearXNG en el PC.
 
 ## Compilar
 
