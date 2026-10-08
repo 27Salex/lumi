@@ -50,7 +50,7 @@ class PcViewViewModel(private val client: PcViewClient, private val settings: Hu
 
     fun refresh() {
         if (_state.value.phase == PcPhase.VIEWING || _state.value.phase == PcPhase.UNLOCKING) return
-        if (!settings.config.value.isConfigured) { _state.value = PcState(PcPhase.NOT_CONFIGURED); return }
+        if (!settings.pcConfig.value.isConfigured) { _state.value = PcState(PcPhase.NOT_CONFIGURED); return }
         _state.value = PcState(PcPhase.CHECKING)
         viewModelScope.launch {
             _state.value = try {
@@ -151,6 +151,15 @@ class PcViewViewModel(private val client: PcViewClient, private val settings: Hu
                         delay(PcViewLogic.reconnectDelayMs(attempt++) ?: run { end(PcState(PcPhase.HUB_OFFLINE), revoke = false); return@launch })
                     } else { end(next, revoke = false); break }
                 } catch (e: IOException) {
+                    tuning = PcViewLogic.degrade(tuning)
+                    _state.value = PcViewLogic.fromReply(PcReply.Unreachable, _state.value)
+                    delay(PcViewLogic.reconnectDelayMs(attempt++) ?: run { end(PcState(PcPhase.HUB_OFFLINE), revoke = false); return@launch })
+                } catch (e: OutOfMemoryError) {
+                    tuning = PcViewLogic.degrade(tuning) // a huge frame: ask for a smaller one, keep the last image
+                    delay(1_000)
+                } catch (e: RuntimeException) {
+                    // Anything unexpected (bad header, closed stream...) is a hiccup of the link, never a crash
+                    tuning = PcViewLogic.degrade(tuning)
                     _state.value = PcViewLogic.fromReply(PcReply.Unreachable, _state.value)
                     delay(PcViewLogic.reconnectDelayMs(attempt++) ?: run { end(PcState(PcPhase.HUB_OFFLINE), revoke = false); return@launch })
                 }

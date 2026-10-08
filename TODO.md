@@ -15,6 +15,7 @@ Pending work. Finished items are removed; their history is in `MEMORY.md` and gi
 - [x] Published: https://github.com/27Salex/lumi (release v1.0.0 with the APK)
 
 ## 1.1.2 pending real-device checks
+- [ ] Chats tab, Settings groups, Servers (test per service), on-device search, model picker + streaming against the new hub, My PC on a weak link (real device)
 - [ ] Keyboard pushes the Home SmartBar, assistant pill and Orbit input up; New chat creates separate threads; SearXNG answers over the tailnet
 
 ## 1.1.3 My PC (view only) pending real-device checks

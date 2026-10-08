@@ -60,24 +60,9 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun AssistantSettings(app: TaskManagerApplication) {
     val c = Lumi.colors
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val s by app.settings.settings.collectAsStateWithLifecycle()
     val weather by app.weather.latest.collectAsStateWithLifecycle()
-    fun open(intent: Intent) = runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-
-    // Access is granted on system screens: checked again when coming back to Lumi
-    var resumed by remember { mutableIntStateOf(0) }
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { resumed++ }
-    val messagesOn = remember(resumed) { LumiNotificationListener.isEnabled(context) }
-    val dndOn = remember(resumed) { context.getSystemService(NotificationManager::class.java).isNotificationPolicyAccessGranted }
-
-    var alarmPreview by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(s.alarmPrepMinutes, s.alarmTravelMinutes, s.alarmUsesWorkHours, s.workStartHour, resumed) {
-        val date = AlarmPlanner.targetDate(LocalDateTime.now())
-        alarmPreview = runCatching { app.repository.smartAlarmPlan(date) }.getOrNull()?.reason
-            ?: context.getString(R.string.set_no_alarm_needed)
-    }
 
     SectionHeader(stringResource(R.string.set_assistant), Modifier.padding(start = 4.dp, top = 12.dp))
     ListGroup {
@@ -98,6 +83,13 @@ fun AssistantSettings(app: TaskManagerApplication) {
             trailing = { Text(stringResource(R.string.refresh), style = MaterialTheme.typography.labelLarge, color = c.accentText) })
     }
 
+}
+
+/** Voice conversation timing (Settings > Voice). */
+@Composable
+fun VoiceConversationSettings(app: TaskManagerApplication) {
+    val c = Lumi.colors
+    val s by app.settings.settings.collectAsStateWithLifecycle()
     SectionHeader(stringResource(R.string.set_voice_conversation), Modifier.padding(start = 4.dp, top = 12.dp))
     ListGroup {
         Column(Modifier.padding(16.dp)) {
@@ -115,6 +107,22 @@ fun AssistantSettings(app: TaskManagerApplication) {
             trailing = { Toggle(s.continueConversation) { on -> app.settings.update { it.copy(continueConversation = on) } } })
     }
 
+}
+
+/** Smart alarm (Settings > Notifications and reminders). */
+@Composable
+fun SmartAlarmSettings(app: TaskManagerApplication) {
+    val c = Lumi.colors
+    val context = LocalContext.current
+    val s by app.settings.settings.collectAsStateWithLifecycle()
+    var resumed by remember { mutableIntStateOf(0) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { resumed++ }
+    var alarmPreview by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(s.alarmPrepMinutes, s.alarmTravelMinutes, s.alarmUsesWorkHours, s.workStartHour, resumed) {
+        val date = AlarmPlanner.targetDate(LocalDateTime.now())
+        alarmPreview = runCatching { app.repository.smartAlarmPlan(date) }.getOrNull()?.reason
+            ?: context.getString(R.string.set_no_alarm_needed)
+    }
     SectionHeader(stringResource(R.string.set_smart_alarm), Modifier.padding(start = 4.dp, top = 12.dp))
     Text(stringResource(R.string.set_smart_alarm_sub),
         style = MaterialTheme.typography.bodySmall, color = c.textSecondary, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
@@ -138,6 +146,18 @@ fun AssistantSettings(app: TaskManagerApplication) {
             trailing = { Toggle(s.alarmSuggest) { on -> app.settings.update { it.copy(alarmSuggest = on) } } })
     }
 
+}
+
+/** Message reading and Do Not Disturb access (Settings > Assistant and AI). */
+@Composable
+fun AccessSettings() {
+    val c = Lumi.colors
+    val context = LocalContext.current
+    fun open(intent: Intent) = runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    var resumed by remember { mutableIntStateOf(0) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { resumed++ }
+    val messagesOn = remember(resumed) { LumiNotificationListener.isEnabled(context) }
+    val dndOn = remember(resumed) { context.getSystemService(NotificationManager::class.java).isNotificationPolicyAccessGranted }
     SectionHeader(stringResource(R.string.set_access), Modifier.padding(start = 4.dp, top = 12.dp))
     ListGroup {
         ListRow(stringResource(R.string.set_read_messages), stringResource(if (messagesOn) R.string.set_read_messages_on else R.string.set_read_messages_off),
@@ -149,8 +169,6 @@ fun AssistantSettings(app: TaskManagerApplication) {
             trailing = { Text(stringResource(if (dndOn) R.string.enabled else R.string.enable), style = MaterialTheme.typography.labelLarge, color = if (dndOn) c.textTertiary else c.accentText) })
     }
 
-    RoutinesSection(app)
-    BackupSection(app)
 }
 
 /**
@@ -158,7 +176,7 @@ fun AssistantSettings(app: TaskManagerApplication) {
  * After importing, the app restarts to read settings, places and routines again.
  */
 @Composable
-private fun BackupSection(app: TaskManagerApplication) {
+fun BackupSection(app: TaskManagerApplication) {
     val c = Lumi.colors
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -210,7 +228,7 @@ private fun BackupSection(app: TaskManagerApplication) {
 }
 
 @Composable
-private fun RoutinesSection(app: TaskManagerApplication) {
+fun RoutinesSection(app: TaskManagerApplication) {
     val c = Lumi.colors
     val routines by app.routines.routines.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<String?>(null) }

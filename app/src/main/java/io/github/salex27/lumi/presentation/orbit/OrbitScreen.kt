@@ -353,6 +353,7 @@ private fun OrbitThread(vm: OrbitViewModel, onBack: () -> Unit) {
             items(messages, key = { it.id }) { m -> MessageItem(m, byId[m.agentId], members, vm) }
         }
 
+        if (!isInbox && session != null && members.any { AgentBackendKind.of(it.backend) == AgentBackendKind.CLAUDE_PC }) ModelChip(session?.id ?: 0L)
         val openAsk = isInbox && messages.any { OrbitUi.openAsk(it) }
         if (!isInbox && members.size > 1) LazyRow(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             items(members, key = { it.id }) { a ->

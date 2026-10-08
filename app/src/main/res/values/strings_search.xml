@@ -5,7 +5,7 @@
     <string name="web_sub">For questions Lumi can\'t answer from its own model, or about recent things. Off by default.</string>
     <string name="web_enable">Search the web</string>
     <string name="web_enable_sub">Only your question leaves the phone. Answers show their sources.</string>
-    <string name="web_wikipedia">Wikipedia (no key)</string>
+    <string name="web_wikipedia">Wikipedia only (no key)</string>
     <string name="web_wikipedia_sub">General knowledge. Not news or prices.</string>
     <string name="web_searxng">SearXNG (no key)</string>
     <string name="web_searxng_sub">Real web results from a SearXNG server you trust (yours or a public one with JSON on).</string>

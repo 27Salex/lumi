@@ -49,9 +49,15 @@ class PcViewLogicTest {
         assertEquals(0, PcViewLogic.secondsLeft(s, 900_000))
     }
 
+    @Test fun degradeAsksForLessOnAWeakLink() {
+        assertEquals(PcViewLogic.Tuning(1280, 50, 500), PcViewLogic.degrade(PcViewLogic.Tuning(1280, 60, 150)))
+        assertEquals(PcViewLogic.Tuning(960, 30, 900), PcViewLogic.degrade(PcViewLogic.Tuning(1280, 40, 900)))
+        assertEquals(PcViewLogic.Tuning(480, 30, 500), PcViewLogic.degrade(PcViewLogic.Tuning(500, 30, 100)))
+    }
+
     @Test fun reconnectBackoffGivesUp() {
-        assertEquals(listOf(1000L, 2000L, 4000L, 8000L, 8000L), (0..4).map { PcViewLogic.reconnectDelayMs(it) })
-        assertNull(PcViewLogic.reconnectDelayMs(5))
+        assertEquals(listOf(1000L, 2000L, 4000L, 8000L, 15000L, 15000L), (0..5).map { PcViewLogic.reconnectDelayMs(it) })
+        assertNull(PcViewLogic.reconnectDelayMs(PcViewLogic.MAX_RECONNECTS))
     }
 
     @Test fun qualityAdaptsToSpeed() {

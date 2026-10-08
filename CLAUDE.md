@@ -64,7 +64,7 @@ recurring task spawns the next occurrence inside `TaskRepositoryImpl.updateTask`
 the app is visible). Replies to voice requests are read aloud by `LumiSpeaker` (system TTS, voice chosen per reply
 language).
 
-**UI.** `MainActivity` hosts a bottom nav (Home / Tasks / Agenda / Progress) plus Settings and a shared
+**UI.** `MainActivity` hosts a bottom nav (Home / Tasks / Agenda / Progress / Chats) plus Settings and a shared
 `TaskEditSheet`; each tab has its own ViewModel. `AssistantActivity` is a translucent activity registered for
 `ACTION_ASSIST` and `SEND` (compact pill from outside the app, full chat from inside); it must stay an Activity because
 AICore only runs inference in the foreground, and it shows over the lock screen (asking to unlock before opening

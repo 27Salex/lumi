@@ -1,5 +1,6 @@
 package io.github.salex27.lumi.data.orbit
 
+import io.github.salex27.lumi.domain.orbit.OrbitThreads
 import io.github.salex27.lumi.data.ai.AssistantOrchestrator
 import io.github.salex27.lumi.data.hub.HubClient
 import io.github.salex27.lumi.data.hub.HubSettings
@@ -52,7 +53,7 @@ class LumiBrainBackend(private val assistant: AssistantOrchestrator) : AgentBack
 }
 
 /** Claude Code on the user's PC, woken for one turn per message by Lumi Hub (same session across messages). */
-class ClaudePcBackend(private val client: HubClient, private val settings: HubSettings) : AgentBackend {
+class ClaudePcBackend(private val client: HubClient, private val settings: HubSettings, private val choices: AgentChoices? = null) : AgentBackend {
     override val kind = AgentBackendKind.CLAUDE_PC
     override suspend fun isAvailable() = settings.config.value.isConfigured
 
@@ -68,7 +69,10 @@ class ClaudePcBackend(private val client: HubClient, private val settings: HubSe
             append(request.text)
         }.take(3_900)
         return try {
-            AgentStart.Streaming(client.chat(request.thread, "claude", text))
+            run {
+                val pick = OrbitThreads.parse(request.thread)?.let { choices?.forTurn(it.first) } ?: io.github.salex27.lumi.data.hub.ModelChoice()
+                AgentStart.Streaming(client.chat(request.thread, "claude", text, pick.model, pick.effort))
+            }
         } catch (e: HubClient.HubException) {
             AgentStart.Failed(
                 when (e.code) {

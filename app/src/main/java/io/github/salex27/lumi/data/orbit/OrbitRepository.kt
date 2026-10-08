@@ -254,22 +254,31 @@ class OrbitRepository(
         }
     }
 
+    private val streams = io.github.salex27.lumi.domain.server.TurnStreams()
+
     private suspend fun onReply(e: HubEvent) {
         val (sessionId, agentId) = OrbitThreads.parse(e.thread) ?: return
         val turn = e.turn ?: return
         turns.withLock {
             store.flush()
-            val payload = HubPayload(HubEvent.REPLY, turn = turn, state = if (e.done) STATE_DONE else HubPayload.STATE_OPEN).encode()
+            val isDelta = e.type == HubEvent.TURN_DELTA
+            // Streaming: chunks are joined in order and shown as the growing reply; the final reply event replaces them
+            val streamed = if (isDelta) streams.append(turn, e.text.orEmpty()) else streams.current(turn)
+            if (!isDelta && e.done) streams.finish(turn)
+            val payload = HubPayload(HubEvent.REPLY, turn = turn, state = if (!isDelta && e.done) STATE_DONE else HubPayload.STATE_OPEN).encode()
             val text = when {
+                isDelta -> streamed.orEmpty()
                 e.error != null && e.text.isNullOrBlank() -> ReplyLanguage.ui("Claude no ha podido responder: ", "Claude couldn't answer: ") + e.error
+                e.text.isNullOrBlank() && e.error == null && !streamed.isNullOrBlank() -> streamed // a final event without text keeps what streamed
                 else -> e.text.orEmpty()
             }
+            val failed = !isDelta && e.error != null && e.done
             val existing = store.messageWithPayload(HubPayload.turnFragment(turn))
             if (existing != null) {
                 if (HubPayload.decode(existing.payload)?.state == STATE_DONE) return@withLock // a late partial after the end
-                store.update(existing.id, text, payload, isError = e.error != null && e.done)
+                store.update(existing.id, text, payload, isError = failed)
             } else if (chatDao.session(sessionId) != null) {
-                store.append(ChatStore.Handle(sessionId, ChatSessionEntity.KIND_ORBIT), agentMessage(sessionId, agentId, text, null).copy(payload = payload, isError = e.error != null && e.done))
+                store.append(ChatStore.Handle(sessionId, ChatSessionEntity.KIND_ORBIT), agentMessage(sessionId, agentId, text, null).copy(payload = payload, isError = failed))
             }
             store.flush()
         }

@@ -33,9 +33,12 @@ import io.github.salex27.lumi.presentation.components.StatusText
 import io.github.salex27.lumi.presentation.theme.Lumi
 import kotlinx.coroutines.launch
 
+import androidx.compose.runtime.LaunchedEffect
+import io.github.salex27.lumi.presentation.orbit.ModelEffortPanel
+
 /**
- * Settings → Lumi Hub: the address of the hub on the PC (a Tailscale name) and the phone token it printed, with a
- * connection test. Self-contained (talks to the app's hub objects directly).
+ * Settings > Servers & PC > Lumi Hub: connection state of the event stream, the default Claude model and reasoning
+ * level (only when the hub offers them) and the My PC entry. The address and token live in the server list above.
  */
 @Composable
 fun HubSettingsSection(onOpenMyPc: () -> Unit = {}) {
@@ -43,57 +46,34 @@ fun HubSettingsSection(onOpenMyPc: () -> Unit = {}) {
     val app = LocalContext.current.applicationContext as TaskManagerApplication
     val config by app.hubSettings.config.collectAsState()
     val status by app.hubConnection.status.collectAsState()
-    val scope = rememberCoroutineScope()
-    var address by remember(config) { mutableStateOf(config.address) }
-    var token by remember(config) { mutableStateOf(config.token) }
-    var result by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
-    var testing by remember { mutableStateOf(false) }
-    val changed = address.trim() != config.address || token.trim() != config.token
-    val addressError = address.isNotBlank() && HubSafety.normalizeAddress(address) == null
-    val okText = stringResource(R.string.hub_test_ok)
-    val failText = stringResource(R.string.hub_test_failed)
-    val authText = stringResource(R.string.hub_test_unauthorized)
+    val options by app.agentChoices.options.collectAsState()
+    val default by app.agentChoices.default.collectAsState()
+    LaunchedEffect(config) { if (config.isConfigured) app.agentChoices.refresh() }
 
     SectionHeader(stringResource(R.string.hub_title), Modifier.padding(start = 4.dp, top = 12.dp))
     Text(stringResource(R.string.hub_sub), style = MaterialTheme.typography.bodySmall, color = c.textTertiary, modifier = Modifier.padding(horizontal = 4.dp))
     ListGroup {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Field(address, { address = it; result = null }, stringResource(R.string.hub_address))
-            if (addressError) StatusText(stringResource(R.string.hub_address_invalid), c.danger)
-            Field(token, { token = it; result = null }, stringResource(R.string.hub_token), secret = true)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (changed) PillButton(stringResource(R.string.save), style = PillStyle.PRIMARY, enabled = !addressError) {
-                    app.hubSettings.save(address, token)
-                }
-                PillButton(stringResource(R.string.hub_test), style = PillStyle.SECONDARY, enabled = !testing && !changed && config.isConfigured) {
-                    testing = true
-                    scope.launch {
-                        result = try {
-                            val h = app.hubClient.health()
-                            val agents = h.agents.joinToString { it.name }.ifBlank { "-" }
-                            String.format(okText, h.host, agents) to true
-                        } catch (e: HubClient.HubException) {
-                            (if (e.code == 401 || e.code == 403) authText else String.format(failText, e.message ?: "")) to false
-                        } catch (e: Exception) {
-                            String.format(failText, e.message ?: e.javaClass.simpleName) to false
-                        }
-                        testing = false
-                    }
-                }
-            }
-            result?.let { (text, ok) -> StatusText(text, if (ok) c.success else c.danger) }
-            if (config.isConfigured) Box {
-                StatusText(
-                    when (status) {
-                        HubConnection.Status.CONNECTED -> stringResource(R.string.hub_status_connected)
-                        HubConnection.Status.CONNECTING -> stringResource(R.string.hub_status_connecting)
-                        HubConnection.Status.OFFLINE -> stringResource(R.string.hub_status_offline)
-                        HubConnection.Status.OFF -> stringResource(R.string.hub_status_off)
-                    },
-                    if (status == HubConnection.Status.CONNECTED) c.success else c.warning
-                )
-            }
+            if (!config.isConfigured) StatusText(stringResource(R.string.hub_not_assigned), c.warning)
+            else StatusText(
+                when (status) {
+                    HubConnection.Status.CONNECTED -> stringResource(R.string.hub_status_connected)
+                    HubConnection.Status.CONNECTING -> stringResource(R.string.hub_status_connecting)
+                    HubConnection.Status.OFFLINE -> stringResource(R.string.hub_status_offline)
+                    HubConnection.Status.RECONNECTING -> stringResource(R.string.hub_status_reconnecting)
+                    HubConnection.Status.OFF -> stringResource(R.string.hub_status_off)
+                },
+                if (status == HubConnection.Status.CONNECTED) c.success else c.warning
+            )
             Text(stringResource(R.string.hub_security_note), style = MaterialTheme.typography.bodySmall, color = c.textTertiary)
+        }
+        options?.takeIf { it.models.isNotEmpty() || it.efforts.isNotEmpty() }?.let { o ->
+            ListDivider()
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.model_title), style = MaterialTheme.typography.bodyLarge, color = c.textPrimary)
+                Text(stringResource(R.string.model_default_sub), style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
+                ModelEffortPanel(o, default.validated(o), stringResource(R.string.model_default)) { app.agentChoices.setDefault(it) }
+            }
         }
         ListDivider()
         ListRow(stringResource(R.string.pc_settings_row), stringResource(R.string.pc_settings_row_sub), onClick = onOpenMyPc)

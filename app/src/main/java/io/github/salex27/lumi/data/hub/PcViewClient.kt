@@ -26,7 +26,7 @@ class PcException(val reply: PcReply.Failure) : IOException("${reply.httpCode} $
  * "My PC" calls to Lumi Hub. VIEW ONLY: there is no call that sends input or runs anything on the PC.
  * The unlock token is passed by the caller (kept in memory only) and is never logged.
  */
-class PcViewClient(private val hub: HubClient) {
+class PcViewClient(private val hub: HubClient, private val settings: HubSettings) {
     private val json = Json { ignoreUnknownKeys = true }
 
     private fun fail(conn: HttpURLConnection): Nothing {
@@ -41,7 +41,7 @@ class PcViewClient(private val hub: HubClient) {
     }
 
     private fun call(method: String, path: String, token: String? = null, etag: String? = null, timeoutMs: Int = 15_000, read: (HttpURLConnection) -> Unit) {
-        val conn = hub.open(method, path, timeoutMs)
+        val conn = hub.open(method, path, timeoutMs, settings.pcConfig.value)
         try {
             token?.let { conn.setRequestProperty("X-Lumi-Unlock", it) }
             etag?.let { conn.setRequestProperty("If-None-Match", "\"$it\"") }

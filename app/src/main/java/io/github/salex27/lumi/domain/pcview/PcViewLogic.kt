@@ -22,7 +22,8 @@ sealed interface PcReply {
 /** Pure rules of the unlock state machine (tested). The token itself never appears here. */
 object PcViewLogic {
     const val EXTEND_WHEN_LEFT_MS = 120_000L
-    const val MAX_RECONNECTS = 5
+    /** About five minutes of retries (1, 2, 4, 8 then every 15 s) before giving up; the unlock itself ends first (10 min). */
+    const val MAX_RECONNECTS = 22
 
     fun fromReply(reply: PcReply, previous: PcState): PcState = when (reply) {
         PcReply.Unreachable ->
@@ -56,8 +57,8 @@ object PcViewLogic {
 
     fun secondsLeft(state: PcState, nowMs: Long): Int = max(0, ((state.expiresAtMs - nowMs) / 1000).toInt())
 
-    /** Reconnect with a growing pause (1, 2, 4, 8, 8 s); null = give up and show the offline message. */
-    fun reconnectDelayMs(attempt: Int): Long? = if (attempt >= MAX_RECONNECTS) null else 1000L shl min(attempt, 3)
+    /** Reconnect with a growing pause (1, 2, 4, 8, then 15 s); null = give up and show the offline message. */
+    fun reconnectDelayMs(attempt: Int): Long? = if (attempt >= MAX_RECONNECTS) null else io.github.salex27.lumi.domain.server.Backoff.delayMs(attempt, 1_000L, 15_000L)
 
     /** Adaptive quality: the tuning changes with the time a frame took and its size. */
     data class Tuning(val width: Int, val quality: Int, val delayMs: Long)
@@ -69,6 +70,13 @@ object PcViewLogic {
         val width = when { slow && current.quality <= 35 -> current.width * 3 / 4; fast && current.quality >= 75 -> current.width * 5 / 4; else -> current.width }
             .coerceIn(480, 1920)
         return Tuning(width, quality, max(hubDelayMs, if (slow) 400L else 150L))
+    }
+
+    /** After a failed or timed-out frame: ask for less (smaller, more compressed, slower) so a weak link can keep up. */
+    fun degrade(current: Tuning): Tuning {
+        val quality = (current.quality - 10).coerceAtLeast(30)
+        val width = if (current.quality <= 40) (current.width * 3 / 4).coerceAtLeast(480) else current.width
+        return Tuning(width, quality, max(current.delayMs, 500L))
     }
 }
 

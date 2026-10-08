@@ -8,6 +8,8 @@ data class WebHit(val title: String, val url: String, val snippet: String)
 
 /** Where Lumi searches (opt-in). Key-less by default; the others are optional. */
 enum class WebSearchBackend {
+    /** On the phone, no PC and no key: DuckDuckGo (HTML + instant answers), Wikipedia, optionally a public SearXNG instance. */
+    DEVICE,
     /** Wikipedia's public API: no key, general knowledge (not news). */
     WIKIPEDIA,
     /** A SearXNG instance the user trusts (their own or a public one): no key, real web results. */

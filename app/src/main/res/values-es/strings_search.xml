@@ -5,7 +5,7 @@
     <string name="web_sub">Para preguntas que Lumi no sabe con su propio modelo o sobre cosas recientes. Desactivada por defecto.</string>
     <string name="web_enable">Buscar en la web</string>
     <string name="web_enable_sub">Solo tu pregunta sale del móvil. Las respuestas muestran sus fuentes.</string>
-    <string name="web_wikipedia">Wikipedia (sin clave)</string>
+    <string name="web_wikipedia">Solo Wikipedia (sin clave)</string>
     <string name="web_wikipedia_sub">Cultura general. No noticias ni precios.</string>
     <string name="web_searxng">SearXNG (sin clave)</string>
     <string name="web_searxng_sub">Resultados web reales de un servidor SearXNG de confianza (el tuyo o uno público con JSON activado).</string>

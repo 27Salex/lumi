@@ -106,15 +106,17 @@ class TaskManagerApplication : Application() {
     /** In-app update from GitHub releases (#11). */
     val updates by lazy { io.github.salex27.lumi.data.update.UpdateManager(this, appScope) }
 
-    val hubSettings by lazy { io.github.salex27.lumi.data.hub.HubSettings(this) }
+    val servers by lazy { io.github.salex27.lumi.data.server.ServerStore(this) }
+    val hubSettings by lazy { io.github.salex27.lumi.data.hub.HubSettings(this, servers) }
     val hubClient by lazy { io.github.salex27.lumi.data.hub.HubClient(hubSettings) }
-    val pcViewClient by lazy { io.github.salex27.lumi.data.hub.PcViewClient(hubClient) }
+    val pcViewClient by lazy { io.github.salex27.lumi.data.hub.PcViewClient(hubClient, hubSettings) }
+    val agentChoices by lazy { io.github.salex27.lumi.data.orbit.AgentChoices(this, hubClient) }
     val hubInbox by lazy { io.github.salex27.lumi.data.hub.HubInbox(this, chatStore, hubClient, repository) }
     /** The event stream is open only while a Lumi screen is visible (see [onCreate]). */
     val hubConnection by lazy { io.github.salex27.lumi.data.hub.HubConnection(hubSettings, hubClient, hubInbox, appScope) }
 
     /** Web search for general questions (#7, opt-in; key-less by default). */
-    val webSearch by lazy { io.github.salex27.lumi.data.search.WebSearchService(this, hubClient) }
+    val webSearch by lazy { io.github.salex27.lumi.data.search.WebSearchService(this, hubClient, servers) }
 
     /** Orbit: group chats with AI agents (Lumi's brain, Claude Code through the Hub). */
     val orbits by lazy {
@@ -122,7 +124,7 @@ class TaskManagerApplication : Application() {
             chatStore, database.chatDao(), database.orbitDao(),
             io.github.salex27.lumi.data.orbit.AgentBackends(listOf(
                 io.github.salex27.lumi.data.orbit.LumiBrainBackend(assistant),
-                io.github.salex27.lumi.data.orbit.ClaudePcBackend(hubClient, hubSettings)
+                io.github.salex27.lumi.data.orbit.ClaudePcBackend(hubClient, hubSettings, agentChoices)
             )),
             appScope,
             io.github.salex27.lumi.data.orbit.RoutingMemory(this),

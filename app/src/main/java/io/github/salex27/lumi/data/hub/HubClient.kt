@@ -18,6 +18,10 @@ import kotlinx.serialization.json.jsonPrimitive
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import io.github.salex27.lumi.data.server.ServerStore
+import io.github.salex27.lumi.domain.server.ServerLogic
+import io.github.salex27.lumi.domain.server.ServerProfile
+import io.github.salex27.lumi.domain.server.ServerService
 
 /** Where the hub is and the phone's token. The token is a secret: the "hub" prefs file is not in the backup. */
 data class HubConfig(val address: String = "", val token: String = "") {
@@ -25,15 +29,34 @@ data class HubConfig(val address: String = "", val token: String = "") {
     val isConfigured: Boolean get() = baseUrl != null && token.isNotBlank()
 }
 
-class HubSettings(context: Context) {
+class HubSettings(context: Context, private val servers: ServerStore) {
     private val prefs = context.getSharedPreferences("hub", Context.MODE_PRIVATE)
-    private val _config = MutableStateFlow(HubConfig(prefs.getString(K_ADDRESS, "").orEmpty(), prefs.getString(K_TOKEN, "").orEmpty()))
+    private fun configFor(service: ServerService) =
+        servers.current.serverFor(service)?.let { HubConfig(it.url, it.token) } ?: HubConfig()
+    private val _config = MutableStateFlow(configFor(ServerService.HUB))
+    /** The server assigned to the Hub / agents service. */
     val config: StateFlow<HubConfig> = _config.asStateFlow()
+    private val _pcConfig = MutableStateFlow(configFor(ServerService.PCVIEW))
+    /** The server assigned to My PC (the same one unless the user split them). */
+    val pcConfig: StateFlow<HubConfig> = _pcConfig.asStateFlow()
 
+    init {
+            servers.addListener {
+                val hub = configFor(ServerService.HUB)
+                if (hub != _config.value) { prefs.edit().putLong(K_LAST_EVENT, 0L).apply(); _config.value = hub }
+                _pcConfig.value = configFor(ServerService.PCVIEW)
+            }
+    }
+
+    /** Edits the Hub server (creating the default server when there is none yet). */
     fun save(address: String, token: String) {
-        val c = HubConfig(address.trim(), token.trim())
-        prefs.edit().putString(K_ADDRESS, c.address).putString(K_TOKEN, c.token).putLong(K_LAST_EVENT, 0L).apply()
-        _config.value = c
+        val current = servers.current.serverFor(ServerService.HUB)
+        val profile = (current ?: ServerProfile(
+            ServerLogic.newId(servers.current), "Lumi Hub", "", ""
+        )).copy(url = address.trim(), token = token.trim())
+        servers.upsert(profile)
+        servers.assign(ServerService.HUB, profile.id)
+        if (servers.current.pcview == null) servers.assign(ServerService.PCVIEW, profile.id)
     }
 
     /** Last event received, so a reconnection only gets what is new (the hub also resends open questions). */
@@ -83,10 +106,24 @@ class HubClient(private val settings: HubSettings) {
         }
     }
 
-    /** Wakes [agent] for one turn on [thread] (its reply arrives as `reply` events). Returns the turn id. */
-    suspend fun chat(thread: String, agent: String, text: String): String = withContext(Dispatchers.IO) {
-        val body = JsonObject(mapOf("thread" to JsonPrimitive(thread), "agent" to JsonPrimitive(agent), "text" to JsonPrimitive(text)))
-        json.parseToJsonElement(request("POST", "/chat", body.toString())).jsonObject["turn"]?.jsonPrimitive?.contentOrNull.orEmpty()
+    /**
+     * Wakes [agent] for one turn on [thread] (its reply arrives as `reply` events, with `turn_delta` chunks before the
+     * final one on newer hubs). [model] / [effort] are sent only when chosen. Returns the turn id.
+     */
+    suspend fun chat(thread: String, agent: String, text: String, model: String? = null, effort: String? = null): String = withContext(Dispatchers.IO) {
+        val fields = mutableMapOf("thread" to JsonPrimitive(thread), "agent" to JsonPrimitive(agent), "text" to JsonPrimitive(text))
+        model?.takeIf { it.isNotBlank() }?.let { fields["model"] = JsonPrimitive(it) }
+        effort?.takeIf { it.isNotBlank() }?.let { fields["effort"] = JsonPrimitive(it) }
+        json.parseToJsonElement(request("POST", "/chat", JsonObject(fields).toString())).jsonObject["turn"]?.jsonPrimitive?.contentOrNull.orEmpty()
+    }
+
+    /** Models and reasoning levels the hub offers. null on a hub that does not have the endpoint (older hubs): the picker stays hidden. */
+    suspend fun agentOptions(): AgentOptions? = withContext(Dispatchers.IO) {
+        try {
+            AgentOptions.parse(request("GET", "/agents/options", null))
+        } catch (e: HubException) {
+            if (e.code == 404 || e.code == 405 || e.code == 501) null else throw e
+        }
     }
 
     /** Web search done by Claude Code on the PC (#7): only the query is sent. Slow (up to ~2 min). */
@@ -135,8 +172,8 @@ class HubClient(private val settings: HubSettings) {
         Thread { runCatching { conn.disconnect() } }.start()
     }
 
-    internal fun open(method: String, path: String, readTimeoutMs: Int = 20_000): HttpURLConnection {
-        val c = settings.config.value
+    internal fun open(method: String, path: String, readTimeoutMs: Int = 20_000, config: HubConfig = settings.config.value): HttpURLConnection {
+        val c = config
         val base = c.baseUrl ?: throw HubException(0, "not configured")
         return (URL(base + path).openConnection() as HttpURLConnection).apply {
             requestMethod = method

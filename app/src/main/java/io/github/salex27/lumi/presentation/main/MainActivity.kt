@@ -32,10 +32,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material3.Icon
@@ -93,7 +95,8 @@ private enum class Tab(@androidx.annotation.StringRes val label: Int, val icon: 
     HOME(R.string.tab_home, Icons.Outlined.Home, Icons.Filled.Home),
     TASKS(R.string.tab_tasks, Icons.Outlined.CheckCircle, Icons.Filled.CheckCircle),
     AGENDA(R.string.agenda, Icons.Outlined.CalendarMonth, Icons.Filled.CalendarMonth),
-    STATS(R.string.tab_progress, Icons.Outlined.Insights, Icons.Filled.Insights)
+    STATS(R.string.tab_progress, Icons.Outlined.Insights, Icons.Filled.Insights),
+    CHATS(R.string.chats_title, Icons.Outlined.Forum, Icons.Filled.Forum)
 }
 
 class MainActivity : ComponentActivity() {
@@ -250,7 +253,7 @@ class MainActivity : ComponentActivity() {
                     pendingEditId.value = null
                     app.repository.getTask(id)?.let { showSettings = false; tab = Tab.TASKS; editing = it }
                 }
-                var showOrbit by rememberSaveable { mutableStateOf(false) }
+                val openThread by orbitViewModel.open.collectAsStateWithLifecycle()
                 var showMyPc by rememberSaveable { mutableStateOf(false) }
                 var showManage by rememberSaveable { mutableStateOf(false) }
                 val hubRequest by pendingHubMessage.collectAsStateWithLifecycle()
@@ -258,7 +261,7 @@ class MainActivity : ComponentActivity() {
                     val id = hubRequest ?: return@LaunchedEffect
                     pendingHubMessage.value = null
                     app.chatStore.flush()
-                    app.chatStore.message(id)?.let { showSettings = false; showOrbit = true; orbitViewModel.openThread(it.sessionId) }
+                    app.chatStore.message(id)?.let { showSettings = false; showMyPc = false; tab = Tab.CHATS; orbitViewModel.openThread(it.sessionId) }
                 }
                 BackHandler(enabled = showSettings || tab != Tab.HOME) {
                     if (showSettings) showSettings = false else tab = Tab.HOME
@@ -270,19 +273,9 @@ class MainActivity : ComponentActivity() {
                             pcViewModel, onBack = { showMyPc = false },
                             onOpenSettings = { showMyPc = false; showSettings = true }
                         )
-                    } else if (showOrbit) {
-                        val openThread by orbitViewModel.open.collectAsStateWithLifecycle()
-                        if (openThread != null || showManage) {
-                            io.github.salex27.lumi.presentation.orbit.OrbitScreen(orbitViewModel, onBack = { showManage = false })
-                        } else {
-                            io.github.salex27.lumi.presentation.orbit.ChatsScreen(
-                                orbitViewModel, onBack = { showOrbit = false }, onManage = { showManage = true },
-                                onOpenAssistantChat = { id ->
-                                    if (id == null) app.chatStore.setActive(null) else app.chatStore.requestResume(id)
-                                    startActivity(AssistantActivity.intent(this@MainActivity))
-                                }
-                            )
-                        }
+                    } else if (tab == Tab.CHATS && !showSettings && (openThread != null || showManage)) {
+                        // A thread or "Manage agents" takes the whole screen (own keyboard handling), without the tab bar
+                        io.github.salex27.lumi.presentation.orbit.OrbitScreen(orbitViewModel, onBack = { showManage = false })
                     } else if (showSettings) {
                         val state by settingsViewModel.state.collectAsStateWithLifecycle()
                         SettingsScreen(
@@ -321,7 +314,6 @@ class MainActivity : ComponentActivity() {
                                         onDownloadGemma = viewModel::startGemmaDownload,
                                         onOpenAssistant = { listen, prompt -> startActivity(AssistantActivity.intent(this@MainActivity, listen, prompt)) },
                                         onOpenSettings = { showSettings = true },
-                                        onOpenChats = { showOrbit = true },
                                         onOpenMyPc = { showMyPc = true },
                                         onOpenAgenda = { tab = Tab.AGENDA },
                                         onTaskClick = { editing = it },
@@ -348,6 +340,13 @@ class MainActivity : ComponentActivity() {
                                         onRequestCalendar = ::requestCalendar,
                                         onTaskClick = { editing = it },
                                         onToggleDone = viewModel::toggleDone
+                                    )
+                                    Tab.CHATS -> io.github.salex27.lumi.presentation.orbit.ChatsScreen(
+                                        orbitViewModel, onBack = { tab = Tab.HOME }, onManage = { showManage = true }, embedded = true,
+                                        onOpenAssistantChat = { id ->
+                                            if (id == null) app.chatStore.setActive(null) else app.chatStore.requestResume(id)
+                                            startActivity(AssistantActivity.intent(this@MainActivity))
+                                        }
                                     )
                                     Tab.STATS -> {
                                         val summary by statsViewModel.summary.collectAsStateWithLifecycle()

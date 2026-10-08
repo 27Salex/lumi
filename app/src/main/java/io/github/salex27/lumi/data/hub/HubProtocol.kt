@@ -48,6 +48,8 @@ data class HubEvent(
         const val TASK = "task"
         const val NOTIFY = "notify"
         const val REPLY = "reply"
+        /** Incremental text of a streaming turn (newer hubs): appended in order, replaced by the final reply. */
+        const val TURN_DELTA = "turn_delta"
 
         private val json = Json { ignoreUnknownKeys = true; explicitNulls = false; coerceInputValues = true }
 
@@ -57,7 +59,7 @@ data class HubEvent(
     /** Defensive copy: the hub already caps sizes, but the phone does not trust the hub's agents either. */
     fun sanitized(): HubEvent = copy(
         source = clean(source, 60).ifBlank { "Agent" },
-        text = text?.let { clean(it, 16_000) },
+        text = text?.let { if (type == TURN_DELTA) HubSafety.stripControl(it).take(16_000) else clean(it, 16_000) },
         link = link?.takeIf { HubSafety.isSafeLink(it) },
         question = question?.let { clean(it, 1_000) },
         options = options.map { clean(it, 80) }.filter { it.isNotBlank() }.distinct().take(6),
@@ -102,6 +104,9 @@ object HubSafety {
 
     /** Text without control characters or bidi overrides (they can disguise what a message says). */
     fun plain(s: String): String = CONTROL.replace(s, "").trim()
+
+    /** Like [plain] but keeps the edges: a streamed chunk may start or end with the space between two words. */
+    fun stripControl(s: String): String = CONTROL.replace(s, "")
 
     /** Only plain http(s) links without credentials can be opened from an agent message. */
     fun isSafeLink(link: String): Boolean =
@@ -196,6 +201,50 @@ data class HubPayload(
             HubEvent.TASK -> HubPayload(HubEvent.TASK, title = e.title, due = e.due, notes = e.notes, source = e.source)
             HubEvent.NOTIFY -> HubPayload(HubEvent.NOTIFY, title = e.title, source = e.source)
             else -> null
+        }
+    }
+}
+
+/** One selectable model of `GET /agents/options`. */
+data class AgentModel(val id: String, val label: String)
+
+/** Models, reasoning levels and the hub's defaults. Parsed defensively: the hub's text is untrusted. */
+data class AgentOptions(val models: List<AgentModel>, val efforts: List<String>, val defaultModel: String?, val defaultEffort: String?) {
+    companion object {
+        private val json = Json { ignoreUnknownKeys = true }
+        private val ID = Regex("^[A-Za-z0-9._:\\-\\[\\]]{1,80}$")
+
+        /** Throws on a body that is not JSON; returns options with no models/efforts as an empty picker. */
+        fun parse(body: String): AgentOptions {
+            val o = json.parseToJsonElement(body) as? kotlinx.serialization.json.JsonObject ?: throw IllegalArgumentException("not an object")
+            fun str(e: kotlinx.serialization.json.JsonElement?) = (e as? kotlinx.serialization.json.JsonPrimitive)?.content
+            val models = (o["models"] as? kotlinx.serialization.json.JsonArray).orEmpty().mapNotNull { m ->
+                val mo = m as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+                val id = str(mo["id"])?.trim()?.takeIf { ID.matches(it) } ?: return@mapNotNull null
+                AgentModel(id, HubSafety.plain(str(mo["label"]).orEmpty()).take(40).ifBlank { id })
+            }.distinctBy { it.id }.take(20)
+            val efforts = (o["efforts"] as? kotlinx.serialization.json.JsonArray).orEmpty()
+                .mapNotNull { str(it)?.trim()?.takeIf { e -> ID.matches(e) } }.distinct().take(10)
+            val d = o["defaults"] as? kotlinx.serialization.json.JsonObject
+            return AgentOptions(models, efforts, str(d?.get("model"))?.takeIf { m -> models.any { it.id == m } }, str(d?.get("effort"))?.takeIf { it in efforts })
+        }
+
+        private fun kotlinx.serialization.json.JsonArray?.orEmpty(): List<kotlinx.serialization.json.JsonElement> = this ?: emptyList()
+    }
+}
+
+/** A chosen model and/or reasoning level; null = the hub's default. */
+data class ModelChoice(val model: String? = null, val effort: String? = null) {
+    /** Drops what the hub no longer offers (a model retired since it was saved). */
+    fun validated(options: AgentOptions?): ModelChoice = if (options == null) ModelChoice()
+        else ModelChoice(model?.takeIf { m -> options.models.any { it.id == m } }, effort?.takeIf { it in options.efforts })
+
+    companion object {
+        /** Thread choice wins field by field over the settings default. */
+        fun resolve(thread: ModelChoice, default: ModelChoice, options: AgentOptions?): ModelChoice {
+            if (options == null) return ModelChoice() // older hub: send nothing
+            val t = thread.validated(options); val d = default.validated(options)
+            return ModelChoice(t.model ?: d.model, t.effort ?: d.effort)
         }
     }
 }

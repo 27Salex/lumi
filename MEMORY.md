@@ -6,6 +6,16 @@ translated when the project went public; version numbers before 1.0.0 refer to t
 
 ---
 
+## 2026-10-08 — Chats tab, grouped Settings, Servers, on-device search, model picker, My PC robustness
+
+- **Nav.** Chats is the 5th bottom tab (Home header pill removed; My PC icon stays). A thread or Manage agents takes the whole screen without the tab bar (own IME handling). `ChatsScreen(embedded=true)` skips the nav-bar inset.
+- **Settings.** Top level = 8 grouped rows (+ search over title, subtitle, keywords) opening sub-screens (`SettingsPage`); same composables wrapped in `if (page == ...)`, no behaviour change. `AssistantSettings` split into Morning/VoiceConversation/SmartAlarm/Access pieces.
+- **Servers.** `domain/server/ServerProfiles` (pure) + `data/server/ServerStore` (prefs "servers", not in backup). First read migrates old hub address/token into a default server (Hub + My PC) and a chosen SearXNG address into a search server; old prefs untouched. `HubSettings.config` (Hub) and `.pcConfig` (My PC) derive from the assignments. Per-service connection test (`ServerTester`) with classified, localized errors.
+- **On-device search.** `WebSearchBackend.DEVICE` is the default (old Wikipedia-only default migrated once): optional public SearXNG, DuckDuckGo HTML, DDG instant answer, Wikipedia, 5/8 s timeouts, stops at 3 hits, throws only if every source failed. Parsers tested with real saved responses (`src/test/resources/search`). DDG HTML may show a captcha: yields no hits and falls through.
+- **Model/effort.** Client of `GET /agents/options` (404 hides picker), `/chat` body gets model/effort only when chosen, `turn_delta` chunks appended (not trimmed) by `TurnStreams` and replaced by the final reply. Per-thread choice + default in `AgentChoices`. ASSUMPTION: `turn_delta.text` is a chunk, not cumulative.
+- **Robustness.** SSE: backoff with jitter, slow retry on 401/403, RECONNECTING status. My PC: unbounded-type errors no longer crash the loop, quality/size degrade after failures, last frame kept, ~5 min of retries.
+- **Not verified on device:** real hub (options, deltas), Tailscale latency, dark/Spanish screenshots.
+
 ## 2026-10-07 — My PC (view only) 1.1.3
 
 - **What.** A screen to see the PC screens from the phone (Home icon and Settings > Lumi Hub row). View only by decision: no input, terminal or commands; those go through Tailscale SSH / RDP.

@@ -82,7 +82,9 @@ fun ChatsScreen(
     onBack: () -> Unit,
     onManage: () -> Unit,
     /** null = a new, empty Lumi chat. */
-    onOpenAssistantChat: (Long?) -> Unit
+    onOpenAssistantChat: (Long?) -> Unit,
+    /** True as a bottom-nav tab: the tab bar already takes the navigation-bar inset and there is no back arrow. */
+    embedded: Boolean = false
 ) {
     val c = Lumi.colors
     val rows by vm.chats.collectAsStateWithLifecycle()
@@ -102,10 +104,10 @@ fun ChatsScreen(
     val today = remember { LocalDate.now() }
 
     BackHandler(onBack = onBack)
-    Box(Modifier.fillMaxSize().background(c.background).statusBarsPadding().navigationBarsPadding()) {
+    Box(Modifier.fillMaxSize().background(c.background).statusBarsPadding().then(if (embedded) Modifier else Modifier.navigationBarsPadding())) {
         Column(Modifier.fillMaxSize()) {
-            Row(Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back), tint = c.textPrimary) }
+            Row(Modifier.padding(start = if (embedded) 20.dp else 8.dp, end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (!embedded) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back), tint = c.textPrimary) }
                 Text(stringResource(R.string.chats_title), style = MaterialTheme.typography.headlineMedium, color = c.textPrimary, modifier = Modifier.weight(1f))
                 IconButton(onClick = onManage) { Icon(Icons.Outlined.Tune, stringResource(R.string.orbit_manage_title), tint = c.textPrimary) }
             }

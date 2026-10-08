@@ -32,11 +32,12 @@ import io.github.salex27.lumi.presentation.theme.Lumi
 
 /** Settings → Web search (#7): opt-in, and where to search (key-less by default). Self-contained. */
 @Composable
-fun WebSearchSettingsSection() {
+fun WebSearchSettingsSection(onOpenServers: () -> Unit = {}) {
     val c = Lumi.colors
     val app = LocalContext.current.applicationContext as TaskManagerApplication
     val config by app.webSearch.config.collectAsState()
     val hub by app.hubSettings.config.collectAsState()
+    val servers by app.servers.state.collectAsState()
     var searx by remember(config.searxUrl) { mutableStateOf(config.searxUrl) }
     var brave by remember(config.braveKey) { mutableStateOf(config.braveKey) }
 
@@ -58,6 +59,7 @@ fun WebSearchSettingsSection() {
                     ) {
                         Text(
                             stringResource(when (b) {
+                                WebSearchBackend.DEVICE -> R.string.web_device
                                 WebSearchBackend.WIKIPEDIA -> R.string.web_wikipedia
                                 WebSearchBackend.SEARXNG -> R.string.web_searxng
                                 WebSearchBackend.BRAVE -> R.string.web_brave
@@ -67,6 +69,7 @@ fun WebSearchSettingsSection() {
                         )
                         Text(
                             stringResource(when (b) {
+                                WebSearchBackend.DEVICE -> R.string.web_device_sub
                                 WebSearchBackend.WIKIPEDIA -> R.string.web_wikipedia_sub
                                 WebSearchBackend.SEARXNG -> R.string.web_searxng_sub
                                 WebSearchBackend.BRAVE -> R.string.web_brave_sub
@@ -77,9 +80,20 @@ fun WebSearchSettingsSection() {
                     }
                 }
                 when (config.backend) {
-                    WebSearchBackend.SEARXNG -> {
-                        Field(searx, { searx = it }, stringResource(R.string.web_searxng_url))
+                    WebSearchBackend.DEVICE -> {
+                        Field(searx, { searx = it }, stringResource(R.string.web_device_instance))
                         if (searx.trim() != config.searxUrl) PillButton(stringResource(R.string.save)) { app.webSearch.save(config.copy(searxUrl = searx)) }
+                    }
+                    WebSearchBackend.SEARXNG -> {
+                        val server = servers.serverFor(io.github.salex27.lumi.domain.server.ServerService.SEARCH)
+                        if (server != null) {
+                            Text(stringResource(R.string.web_server_assigned, server.name, server.url), style = MaterialTheme.typography.bodyMedium, color = c.textPrimary)
+                        } else {
+                            Text(stringResource(R.string.web_server_none), style = MaterialTheme.typography.bodyMedium, color = c.textSecondary)
+                            Field(searx, { searx = it }, stringResource(R.string.web_searxng_url))
+                            if (searx.trim() != config.searxUrl) PillButton(stringResource(R.string.save)) { app.webSearch.save(config.copy(searxUrl = searx)) }
+                        }
+                        PillButton(stringResource(R.string.web_manage_servers), style = io.github.salex27.lumi.presentation.components.PillStyle.SECONDARY, onClick = onOpenServers)
                     }
                     WebSearchBackend.BRAVE -> {
                         Field(brave, { brave = it }, stringResource(R.string.web_brave_key), secret = true)

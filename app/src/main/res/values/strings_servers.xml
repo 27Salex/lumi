@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Settings home -->
+    <string name="settings_search">Search settings</string>
+    <string name="settings_no_results">No settings match that search.</string>
+    <string name="sg_assistant">Assistant &amp; AI</string>
+    <string name="sg_assistant_sub">Brain, web search, memory, routines, access</string>
+    <string name="sg_assistant_keys">gemma gemini cloud api key anthropic openai nano brain model memory contacts routines web search messages do not disturb dnd assistant cerebro memoria rutinas busqueda</string>
+    <string name="sg_servers">Servers &amp; PC</string>
+    <string name="sg_servers_sub">Servers, Lumi Hub, My PC, Claude model</string>
+    <string name="sg_servers_keys">hub tailscale token searxng pc screen claude model reasoning effort servidor ordenador pantalla modelo razonamiento</string>
+    <string name="sg_voice">Voice &amp; wake word</string>
+    <string name="sg_voice_sub">Hey Lumi, voice language, spoken replies</string>
+    <string name="sg_voice_keys">wake word hey lumi oye lumi microphone speech tts voice match voz microfono idioma hablar</string>
+    <string name="sg_notifications">Notifications &amp; reminders</string>
+    <string name="sg_notifications_sub">Work hours, reminders, morning summary, smart alarm</string>
+    <string name="sg_notifications_keys">reminder alarm morning summary check-in live update now bar work hours exact alarms recordatorio alarma resumen manana notificaciones horario</string>
+    <string name="sg_calendar">Calendar, tasks &amp; places</string>
+    <string name="sg_calendar_sub">Google Calendar, Google Tasks, places, maps</string>
+    <string name="sg_calendar_keys">google calendar tasks sync places home work maps directions calendario tareas lugares casa trabajo mapas</string>
+    <string name="sg_appearance">Appearance &amp; language</string>
+    <string name="sg_appearance_sub">Theme and app language</string>
+    <string name="sg_appearance_keys">theme dark light language english spanish tema oscuro claro idioma</string>
+    <string name="sg_backup">Backup &amp; updates</string>
+    <string name="sg_backup_sub">Export, import, app updates</string>
+    <string name="sg_backup_keys">backup export import restore update version copia seguridad exportar importar actualizar</string>
+    <string name="sg_about">About</string>
+    <string name="sg_about_sub">Version and project</string>
+    <string name="sg_about_keys">version license source github about acerca licencia</string>
+    <string name="about_version">Version %1$s</string>
+    <string name="about_source">Source code and releases</string>
+    <string name="about_note">Lumi is open source. Your data stays on your phone unless you connect a server of your own.</string>
+
+    <!-- Servers -->
+    <string name="server_default_name">My PC</string>
+    <string name="server_searx_name">SearXNG</string>
+    <string name="server_new_name">Server %1$d</string>
+    <string name="servers_title">Servers</string>
+    <string name="servers_sub">Define the PCs or services Lumi talks to once, then choose which one each feature uses.</string>
+    <string name="servers_none">No servers yet. Add one to connect Lumi Hub, My PC or web search.</string>
+    <string name="server_add">Add server</string>
+    <string name="server_edit">Edit</string>
+    <string name="server_name">Name</string>
+    <string name="server_url">Address (https://…)</string>
+    <string name="server_token">Token (the Lumi Hub phone token; optional for search)</string>
+    <string name="server_use_all">Use for everything</string>
+    <string name="server_used_by">Used for: %1$s</string>
+    <string name="server_services">Which server each service uses</string>
+    <string name="svc_hub">Agents (Lumi Hub)</string>
+    <string name="svc_hub_sub">Claude and other agents on your PC, and their messages.</string>
+    <string name="svc_search">Web search</string>
+    <string name="svc_search_sub">A SearXNG server. Without one, Lumi searches from the phone.</string>
+    <string name="svc_pcview">My PC</string>
+    <string name="svc_pcview_sub">The server whose screens you can view.</string>
+    <string name="svc_search_phone">This phone</string>
+    <string name="svc_none">None</string>
+    <string name="server_test">Test</string>
+    <string name="server_testing">Testing…</string>
+    <string name="server_test_ok">Connected.</string>
+    <string name="server_test_ok_detail">Connected: %1$s</string>
+    <string name="server_test_ok_search">Connected: %1$s results for a test search.</string>
+    <string name="server_err_not_configured">Not set up: add the address (and the token for the hub).</string>
+    <string name="server_err_bad_url">That address is not valid. Use https://name (plain http only for the emulator).</string>
+    <string name="server_err_unreachable">Can\'t reach the server. Is it running, and is Tailscale on in both devices?</string>
+    <string name="server_err_unreachable_search">Can\'t reach the search server. Check the address and that it is running.</string>
+    <string name="server_err_timeout">The server took too long to answer. Check the connection (Tailscale) and try again.</string>
+    <string name="server_err_tls">The secure connection failed. Check the https address and the server certificate.</string>
+    <string name="server_err_unauthorized">Wrong or expired token. Copy the phone token again from the hub.</string>
+    <string name="server_err_forbidden">The server refused this phone (not the owner, or the feature is off).</string>
+    <string name="server_err_forbidden_search">The search server refused the request. Turn on the JSON format in its settings.</string>
+    <string name="server_err_not_found">The server answered but this address is not a Lumi Hub. Check the address.</string>
+    <string name="server_err_not_found_search">The address answered but has no search page. Check it points to the SearXNG root.</string>
+    <string name="server_err_server">The server has an internal error. Look at its log.</string>
+    <string name="server_err_bad_answer">The server answered with something Lumi does not understand. Is it the right kind of server?</string>
+    <string name="server_err_other">The connection test failed.</string>
+    <string name="hub_not_assigned">No server is assigned to the agents. Add one above and choose it.</string>
+    <string name="hub_status_reconnecting">Connection lost; reconnecting…</string>
+
+    <!-- Model and reasoning -->
+    <string name="model_title">Model and reasoning</string>
+    <string name="model_model">Model</string>
+    <string name="model_effort">Reasoning level</string>
+    <string name="model_default">Default</string>
+    <string name="model_default_sub">Used by Claude chats unless a chat picks its own (tap the chip in the chat).</string>
+    <string name="model_done">Done</string>
+    <string name="effort_low">Low</string>
+    <string name="effort_medium">Medium</string>
+    <string name="effort_high">High</string>
+    <string name="effort_xhigh">Extra high</string>
+    <string name="effort_max">Max</string>
+
+    <!-- On-device web search -->
+    <string name="web_device">On this phone (no PC)</string>
+    <string name="web_device_sub">DuckDuckGo and Wikipedia, queried straight from the phone. No server, no key.</string>
+    <string name="web_device_instance">Public SearXNG instance (optional, tried first)</string>
+    <string name="web_server_assigned">Server: %1$s (%2$s)</string>
+    <string name="web_server_none">No search server assigned. Choose or add one, or type an address here.</string>
+    <string name="web_manage_servers">Choose in Servers &amp; PC</string>
+</resources>

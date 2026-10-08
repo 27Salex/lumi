@@ -7,6 +7,9 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +32,15 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.CloudUpload
+import androidx.compose.material.icons.outlined.Dns
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.CircularProgressIndicator
@@ -99,17 +111,28 @@ fun SettingsScreen(
     val context = LocalContext.current
     fun open(intent: Intent) = runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
     val s = state.settings
+    val app = context.applicationContext as io.github.salex27.lumi.TaskManagerApplication
+    var pageName by rememberSaveable { mutableStateOf<String?>(null) }
+    val page = pageName?.let { n -> SettingsPage.entries.firstOrNull { it.name == n } }
+    var query by remember { mutableStateOf("") }
+    val scroll = rememberScrollState()
+    LaunchedEffect(pageName) { scroll.scrollTo(0) }
+    BackHandler(enabled = page != null) { pageName = null }
+    val openServers = { pageName = SettingsPage.SERVERS.name }
+
 
     Column(
         Modifier.fillMaxSize().background(c.background).statusBarsPadding().navigationBarsPadding()
-            .verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+            .verticalScroll(scroll).padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back), tint = c.textPrimary) }
-            Text(stringResource(R.string.settings), style = MaterialTheme.typography.headlineMedium, color = c.textPrimary)
+            IconButton(onClick = { if (page != null) pageName = null else onBack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back), tint = c.textPrimary) }
+            Text(stringResource(page?.title ?: R.string.settings), style = MaterialTheme.typography.headlineMedium, color = c.textPrimary)
         }
+        if (page == null) SettingsHome(query, { query = it }) { pageName = it.name }
 
+if (page == SettingsPage.APPEARANCE) {
         // ── Appearance ──────────────────────────────────────────────────────
         SectionHeader(stringResource(R.string.appearance), Modifier.padding(start = 4.dp))
         ListGroup {
@@ -123,9 +146,14 @@ fun SettingsScreen(
                 AppLanguagePicker()
             }
         }
+}
 
+if (page == SettingsPage.BACKUP) {
         io.github.salex27.lumi.presentation.update.UpdatesSettingsSection()
+BackupSection(app)
+}
 
+if (page == SettingsPage.VOICE) {
         // ── Voice ───────────────────────────────────────────────────────────
         SectionHeader(stringResource(R.string.voice), Modifier.padding(start = 4.dp, top = 12.dp))
         ListGroup {
@@ -188,7 +216,10 @@ fun SettingsScreen(
             ListRow(stringResource(R.string.spoken_replies), stringResource(R.string.spoken_replies_sub),
                 trailing = { Toggle(s.speakReplies, actions::setSpeakReplies) })
         }
+VoiceConversationSettings(app)
+}
 
+if (page == SettingsPage.ASSISTANT) {
         // ── Intelligence ────────────────────────────────────────────────────
         SectionHeader(stringResource(R.string.intelligence), Modifier.padding(start = 4.dp, top = 12.dp))
         Text(stringResource(R.string.intelligence_sub),
@@ -272,7 +303,9 @@ fun SettingsScreen(
 
         // ── Lumi's brain (#2) ───────────────────────────────────────────────
         BrainSettingsSection()
+}
 
+if (page == SettingsPage.CALENDAR) {
         // ── Integrations ────────────────────────────────────────────────────
         SectionHeader(stringResource(R.string.integrations), Modifier.padding(start = 4.dp, top = 12.dp))
         ListGroup {
@@ -312,13 +345,20 @@ fun SettingsScreen(
             ListRow(stringResource(R.string.gtasks_setup), stringResource(R.string.gtasks_setup_sub), onClick = { showGuide = !showGuide })
             if (showGuide) Box(Modifier.padding(16.dp)) { GoogleTasksGuide(context.packageName, state.system.signingSha1) }
         }
+}
 
+if (page == SettingsPage.SERVERS) {
         // ── Lumi Hub (agents on the PC) ───────────────────────────────────────
+        ServersSettingsSection()
         HubSettingsSection(onOpenMyPc)
+}
 
+if (page == SettingsPage.ASSISTANT) {
         // ── Web search (opt-in) ─────────────────────────────────────────────
-        WebSearchSettingsSection()
+        WebSearchSettingsSection(openServers)
+}
 
+if (page == SettingsPage.ASSISTANT) {
         // ── System assistant ────────────────────────────────────────────────
         SectionHeader(stringResource(R.string.open_anywhere), Modifier.padding(start = 4.dp, top = 12.dp))
         ListGroup {
@@ -331,9 +371,14 @@ fun SettingsScreen(
             Text(stringResource(R.string.open_anywhere_note),
                 style = MaterialTheme.typography.bodySmall, color = c.textTertiary, modifier = Modifier.padding(16.dp))
         }
+}
 
+if (page == SettingsPage.NOTIFICATIONS) {
         assistantSection()
+SmartAlarmSettings(app)
+}
 
+if (page == SettingsPage.ASSISTANT) {
         // ── Memory ──────────────────────────────────────────────────────────
         SectionHeader(stringResource(R.string.memory), Modifier.padding(start = 4.dp, top = 12.dp))
         Text(stringResource(R.string.memory_sub),
@@ -345,14 +390,20 @@ fun SettingsScreen(
         Text(stringResource(R.string.quick_contacts_sub),
             style = MaterialTheme.typography.bodySmall, color = c.textSecondary, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
         AliasSection(aliases, onRemoveAlias, onAddAlias)
+AccessSettings()
+RoutinesSection(app)
+}
 
+if (page == SettingsPage.CALENDAR) {
         // ── Places ──────────────────────────────────────────────────────────
         SectionHeader(stringResource(R.string.places), Modifier.padding(start = 4.dp, top = 12.dp))
         Text(stringResource(R.string.places_sub),
             style = MaterialTheme.typography.bodySmall, color = c.textSecondary, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
         PlacesSection(state.extras.places, actions, onSavePlaceHere, onRequestBackgroundLocation)
         MapsAppPicker(s.mapsApp, actions::setMapsApp)
+}
 
+if (page == SettingsPage.NOTIFICATIONS) {
         // ── Schedule and reminders ────────────────────────────────────────────────
         SectionHeader(stringResource(R.string.schedule_reminders), Modifier.padding(start = 4.dp, top = 12.dp))
         ListGroup {
@@ -405,6 +456,8 @@ fun SettingsScreen(
                 }, trailing = { Text(stringResource(R.string.allow), style = MaterialTheme.typography.labelLarge, color = c.accentText) })
             }
         }
+}
+        if (page == SettingsPage.ABOUT) AboutSection()
         Spacer(Modifier.height(32.dp))
     }
 }
@@ -806,5 +859,69 @@ private fun AppLanguagePicker() {
                 }
             }
         }
+    }
+}
+
+/** The top-level groups of Settings; each opens its own screen. [keys] are search words (en + es) besides title and subtitle. */
+internal enum class SettingsPage(
+    @androidx.annotation.StringRes val title: Int,
+    @androidx.annotation.StringRes val sub: Int,
+    @androidx.annotation.StringRes val keys: Int,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector
+) {
+    ASSISTANT(R.string.sg_assistant, R.string.sg_assistant_sub, R.string.sg_assistant_keys, Icons.Outlined.AutoAwesome),
+    SERVERS(R.string.sg_servers, R.string.sg_servers_sub, R.string.sg_servers_keys, Icons.Outlined.Dns),
+    VOICE(R.string.sg_voice, R.string.sg_voice_sub, R.string.sg_voice_keys, Icons.Outlined.Mic),
+    NOTIFICATIONS(R.string.sg_notifications, R.string.sg_notifications_sub, R.string.sg_notifications_keys, Icons.Outlined.Notifications),
+    CALENDAR(R.string.sg_calendar, R.string.sg_calendar_sub, R.string.sg_calendar_keys, Icons.Outlined.CalendarMonth),
+    APPEARANCE(R.string.sg_appearance, R.string.sg_appearance_sub, R.string.sg_appearance_keys, Icons.Outlined.Palette),
+    BACKUP(R.string.sg_backup, R.string.sg_backup_sub, R.string.sg_backup_keys, Icons.Outlined.CloudUpload),
+    ABOUT(R.string.sg_about, R.string.sg_about_sub, R.string.sg_about_keys, Icons.Outlined.Info)
+}
+
+/** Does [query] (any word, accent-insensitive) match the group's title, subtitle or keywords? Pure; blank matches all. */
+internal fun settingsMatches(query: String, vararg texts: String): Boolean {
+    fun norm(s: String) = java.text.Normalizer.normalize(s.lowercase(), java.text.Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "")
+    val words = norm(query).split(Regex("\\s+")).filter { it.isNotBlank() }
+    if (words.isEmpty()) return true
+    val hay = norm(texts.joinToString(" "))
+    return words.all { it in hay }
+}
+
+@Composable
+private fun SettingsHome(query: String, onQuery: (String) -> Unit, onOpen: (SettingsPage) -> Unit) {
+    val c = Lumi.colors
+    Field(query, onQuery, stringResource(R.string.settings_search))
+    val shown = SettingsPage.entries.filter {
+        settingsMatches(query, stringResource(it.title), stringResource(it.sub), stringResource(it.keys))
+    }
+    if (shown.isEmpty()) {
+        Text(stringResource(R.string.settings_no_results), style = MaterialTheme.typography.bodyMedium, color = c.textTertiary, modifier = Modifier.padding(16.dp))
+    } else ListGroup {
+        shown.forEachIndexed { i, p ->
+            if (i > 0) ListDivider()
+            ListRow(
+                stringResource(p.title), stringResource(p.sub), onClick = { onOpen(p) },
+                leading = { Icon(p.icon, null, tint = c.accentText, modifier = Modifier.size(22.dp)) },
+                trailing = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = c.textTertiary) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun AboutSection() {
+    val c = Lumi.colors
+    val context = LocalContext.current
+    val version = remember { runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty() }
+    SectionHeader(stringResource(R.string.sg_about), Modifier.padding(start = 4.dp))
+    ListGroup {
+        ListRow("Lumi", stringResource(R.string.about_version, version))
+        ListDivider()
+        ListRow(stringResource(R.string.about_source), "github.com/27Salex/lumi", onClick = {
+            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/27Salex/lumi")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        })
+        ListDivider()
+        Text(stringResource(R.string.about_note), style = MaterialTheme.typography.bodySmall, color = c.textTertiary, modifier = Modifier.padding(16.dp))
     }
 }
