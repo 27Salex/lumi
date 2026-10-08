@@ -138,10 +138,9 @@ fun ServersSettingsSection() {
                     PillButton(stringResource(R.string.save), enabled = urlOk && parsedUrl != null) {
                         val p = parsedUrl!!
                         app.servers.upsert(e.copy(name = name.trim().ifBlank { e.name }, host = p.host, scheme = if (url.contains("://")) p.scheme else e.scheme, token = token.trim()))
-                        // a pasted full URL: its port (and path) become the endpoint of every service that uses this server and has none yet
+                        // a pasted port is the user's explicit choice: it becomes the endpoint of every service that uses this server
                         if (p.port != null) ServerService.entries.filter { app.servers.current.idFor(it) == e.id }.forEach { sv ->
-                            val has = when (sv) { ServerService.HUB -> app.servers.current.hubEp; ServerService.SEARCH -> app.servers.current.searchEp; ServerService.PCVIEW -> app.servers.current.pcEp }
-                            if (has == null) app.servers.update { ServerLogic.setEndpoint(it, sv, ServiceEndpoint(p.port, if (sv == ServerService.SEARCH) p.path else "")) }
+                            app.servers.update { ServerLogic.setEndpoint(it, sv, ServiceEndpoint(p.port, if (sv == ServerService.SEARCH) p.path else "")) }
                         }
                         results.clear(); editing = null
                     }

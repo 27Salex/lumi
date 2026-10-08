@@ -36,7 +36,7 @@ object PhoneControl {
             if (Regex("\\b(maximo|max|maximum|full|al maximo|a tope)\\b").containsMatchIn(n)) return D.Volume(D.VolumeAction.SET, 100)
             if (Regex("\\b(minimo|minimum|lowest)\\b").containsMatchIn(n)) return D.Volume(D.VolumeAction.SET, 10)
             Regex("\\b(?:al?|to|at)\\s+(\\d{1,3})\\b").find(n)?.let { m ->
-                if (m.groupValues[1].toInt() in 0..100 && !up && !down) return D.Volume(D.VolumeAction.SET, m.groupValues[1].toInt())
+                if (m.groupValues[1].toInt() in 0..100) return D.Volume(D.VolumeAction.SET, m.groupValues[1].toInt())
             }
             if (up && !down) return D.Volume(D.VolumeAction.UP, null)
             if (down && !up) return D.Volume(D.VolumeAction.DOWN, null)

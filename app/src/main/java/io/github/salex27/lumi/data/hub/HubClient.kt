@@ -50,15 +50,17 @@ class HubSettings(context: Context, private val servers: ServerStore) {
     }
 
     /** Edits the Hub server from an address the user typed (host or full URL; a pasted port becomes the hub port). */
-    fun save(address: String, token: String) {
+    fun save(address: String, token: String): Boolean {
         val current = servers.current.serverFor(ServerService.HUB)
         val parsed = ServerLogic.splitUrl(address)
+        if (parsed == null && address.isNotBlank()) return false // not an http(s) address: keep what is saved instead of storing garbage
         val base = current ?: ServerProfile(ServerLogic.newId(servers.current), "Lumi Hub")
-        val profile = base.copy(token = token.trim(), scheme = parsed?.scheme ?: base.scheme, host = parsed?.host ?: address.trim())
+        val profile = base.copy(token = token.trim(), scheme = parsed?.scheme ?: base.scheme, host = parsed?.host ?: "")
         servers.upsert(profile)
         servers.assign(ServerService.HUB, profile.id)
         if (servers.current.pcview == null) servers.assign(ServerService.PCVIEW, profile.id)
         parsed?.port?.let { port -> servers.update { ServerLogic.setEndpoint(it, ServerService.HUB, ServiceEndpoint(port)) } }
+        return true
     }
 
     /** Last event received, so a reconnection only gets what is new (the hub also resends open questions). */

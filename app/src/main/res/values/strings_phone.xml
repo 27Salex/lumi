@@ -12,4 +12,5 @@
     <string name="set_wake_alarms">Wake-up alarms</string>
     <string name="set_wake_alarms_sub">Alarms Lumi set in your clock app (for example \"wake me at 7 with 3 alarms every 10 minutes\"). Deleting here removes them from the clock.</string>
     <string name="set_wake_alarms_none">No alarms set by Lumi.</string>
+    <string name="set_wake_alarms_delete_failed">Could not delete the alarm: delete it in the clock app.</string>
 </resources>

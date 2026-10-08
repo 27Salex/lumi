@@ -71,8 +71,8 @@ fun WakeAlarmsSettings(app: TaskManagerApplication) {
     var tick by remember { mutableIntStateOf(0) }
     val entries = remember(tick) { app.alarmSets.live() }
     fun delete(minutes: Int) {
-        AlarmSetStore.delete(context, minutes)
-        app.alarmSets.remove(minutes); tick++
+        if (AlarmSetStore.delete(context, minutes)) { app.alarmSets.remove(minutes); tick++ }
+        else android.widget.Toast.makeText(context, context.getString(R.string.set_wake_alarms_delete_failed), android.widget.Toast.LENGTH_LONG).show()
     }
     SectionHeader(stringResource(R.string.set_wake_alarms), Modifier.padding(start = 4.dp, top = 12.dp))
     Text(stringResource(R.string.set_wake_alarms_sub),

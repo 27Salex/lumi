@@ -111,20 +111,22 @@ class AlarmSetStore(context: Context) {
             .putExtra(AlarmClock.EXTRA_MESSAGE, label).putExtra(AlarmClock.EXTRA_SKIP_UI, true)
 
         /**
-         * Asks the clock app to delete the alarm at that time: the DELETE_ALARM action (Android 12+ clocks) first, then
-         * DISMISS_ALARM by time. Returns false if no clock app handled either (the user deletes it there).
+         * Asks the clock app to delete the alarm at that time (DELETE_ALARM, Android 12+ clocks). Returns true only when a
+         * clock app accepted that request. DISMISS_ALARM is tried as a best effort but only silences a ringing alarm, so it
+         * never counts as deleted: the caller keeps its record and the user deletes the alarm in the clock app.
          */
         fun delete(context: Context, minutes: Int): Boolean {
-            for (action in listOf("android.intent.action.DELETE_ALARM", AlarmClock.ACTION_DISMISS_ALARM)) {
-                val intent = Intent(action)
+            fun send(action: String) = runCatching {
+                context.startActivity(Intent(action)
                     .putExtra(AlarmClock.EXTRA_ALARM_SEARCH_MODE, AlarmClock.ALARM_SEARCH_MODE_TIME)
                     .putExtra(AlarmClock.EXTRA_HOUR, minutes / 60)
                     .putExtra(AlarmClock.EXTRA_MINUTES, minutes % 60)
                     .putExtra(AlarmClock.EXTRA_IS_PM, minutes / 60 >= 12)
                     .putExtra(AlarmClock.EXTRA_SKIP_UI, true)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                if (runCatching { context.startActivity(intent) }.isSuccess) return true
-            }
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }.isSuccess
+            if (send("android.intent.action.DELETE_ALARM")) return true
+            send(AlarmClock.ACTION_DISMISS_ALARM)
             return false
         }
     }

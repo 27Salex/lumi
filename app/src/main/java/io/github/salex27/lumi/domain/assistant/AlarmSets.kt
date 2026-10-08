@@ -70,8 +70,11 @@ internal object Say {
         val pm = s.startsWith("p") || s == "de la tarde" || s == "de la noche" || s == "in the evening" || s == "at night"
         val am = s.startsWith("a") || s == "de la manana" || s == "de la madrugada" || s == "in the morning"
         if (h !in 0..23 || (s.isNotEmpty() && h > 12)) return null
+        val night = s == "de la noche" || s == "at night"
         if (pm && h < 12) h += 12
+        else if (night && h == 12) h = 0 // "12 de la noche" is midnight
         else if (am && h == 12) h = 0
+        else if (s.isEmpty() && h == 12 && pmFrom < 12) h = 0 // a bedtime "a las 12" is midnight
         else if (s.isEmpty() && h in pmFrom..11) h += 12
         return h * 60 + min
     }

@@ -322,13 +322,19 @@ object DeviceActions {
         val app = context.applicationContext as io.github.salex27.lumi.TaskManagerApplication
         val entries = app.alarmSets.live()
         if (entries.isEmpty()) return Outcome.Done(ReplyLanguage.t("No tengo alarmas mías pendientes que quitar.", "I have no alarms of mine to remove."))
+        val removed = mutableListOf<Int>()
+        val kept = mutableListOf<Int>()
         for (e in entries) {
-            io.github.salex27.lumi.service.checkin.AlarmSetStore.delete(context, e.minutes)
+            if (io.github.salex27.lumi.service.checkin.AlarmSetStore.delete(context, e.minutes)) {
+                app.alarmSets.remove(e.minutes); removed += e.minutes
+            } else kept += e.minutes
             Thread.sleep(150)
         }
-        app.alarmSets.clear()
-        return Outcome.Done(ReplyLanguage.t("Quitadas: ", "Removed: ") + io.github.salex27.lumi.domain.assistant.AlarmLog.summary(entries.map { it.minutes }) +
-            ReplyLanguage.t(". Si alguna sigue en el reloj, bórrala allí.", ". If one is still in the clock app, delete it there."))
+        val log = io.github.salex27.lumi.domain.assistant.AlarmLog
+        val head = if (removed.isEmpty()) "" else ReplyLanguage.t("Quitadas: ", "Removed: ") + log.summary(removed) + ". "
+        val tail = if (kept.isEmpty()) ReplyLanguage.t("Si alguna sigue en el reloj, bórrala allí.", "If one is still in the clock app, delete it there.")
+        else ReplyLanguage.t("No he podido quitar ", "I couldn't remove ") + log.summary(kept) + ReplyLanguage.t(": bórralas en el reloj.", ": delete them in the clock app.")
+        return Outcome.Done(head + tail)
     }
 
     // ── Volume, brightness, media, info ──────────────────────────────────────
@@ -435,6 +441,10 @@ object DeviceActions {
         val lm = context.getSystemService(LocationManager::class.java)
         val loc = lm.getProviders(true).mapNotNull { runCatching { lm.getLastKnownLocation(it) }.getOrNull() }.maxByOrNull { it.time }
             ?: return Outcome.Failed(ReplyLanguage.t("Aún no sé dónde estás: abre un mapa un momento y vuelve a pedírmelo.", "I don't know where you are yet: open a map for a moment and ask me again."))
+        // a cached fix from hours ago would send a contact the wrong place
+        if (System.currentTimeMillis() - loc.time > 10 * 60_000L) {
+            return Outcome.Failed(ReplyLanguage.t("Mi última ubicación es antigua: abre un mapa un momento y vuelve a pedírmelo.", "My last location is out of date: open a map for a moment and ask me again."))
+        }
         val link = "https://maps.google.com/?q=${loc.latitude},${loc.longitude}"
         val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, ReplyLanguage.t("Estoy aquí: ", "I am here: ") + link)
         return start(context, Intent.createChooser(send, null))

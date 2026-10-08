@@ -41,6 +41,7 @@ object PcViewLogic {
             reply.error == "unlock_required" && reply.reason == "expired" -> PcState(PcPhase.EXPIRED)
             reply.error == "unlock_required" -> PcState(PcPhase.LOCKED)
             reply.httpCode == 401 -> PcState(PcPhase.UNAUTHORIZED) // wrong token / not the owner
+            reply.error == "no_such_monitor" -> previous // a runtime error of a working hub, not a missing route
             reply.httpCode == 404 -> PcState(PcPhase.HUB_OLD) // a hub (or other server) on this port without the /pc routes
             else -> if (previous.phase == PcPhase.VIEWING || previous.phase == PcPhase.RECONNECTING) PcState(PcPhase.RECONNECTING, previous.expiresAtMs) else previous
         }

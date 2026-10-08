@@ -93,11 +93,12 @@ object ServerLogic {
             val p = state.servers.firstOrNull { it.id == id }?.let { splitUrl(it.url) } ?: return null
             return ServiceEndpoint(p.port ?: if (p.scheme == "http") 80 else 443, p.path)
         }
-        val hubEp = ep(state.hub)
+        // endpoints already set are kept: a state built in the new format must not lose its ports
+        val hubEp = state.hubEp ?: ep(state.hub)
         return state.copy(
             servers = servers, hubEp = hubEp,
-            searchEp = ep(state.search),
-            pcEp = ep(state.pcview)?.takeIf { it != hubEp },
+            searchEp = state.searchEp ?: ep(state.search),
+            pcEp = state.pcEp ?: ep(state.pcview)?.takeIf { it != hubEp },
             ver = 2
         )
     }

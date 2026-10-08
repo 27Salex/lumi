@@ -207,7 +207,12 @@ class AssistantActivity : ComponentActivity() {
                             ?: (cmd as? io.github.salex27.lumi.domain.assistant.DeviceCommand.Message)?.contact
                         spoken?.let { app.contactAliases.save(it, contact) }
                     }
-                    when (val outcome = io.github.salex27.lumi.presentation.agent.DeviceActions.execute(this@AssistantActivity, cmd, contact, app.contactAliases)) {
+                    // Alarm sets pause between clock-app calls: off the main thread so the pill does not freeze
+                    val blocking = cmd is io.github.salex27.lumi.domain.assistant.DeviceCommand.AlarmSet || cmd is io.github.salex27.lumi.domain.assistant.DeviceCommand.CancelAlarms
+                    val result = if (blocking) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        io.github.salex27.lumi.presentation.agent.DeviceActions.execute(this@AssistantActivity, cmd, contact, app.contactAliases)
+                    } else io.github.salex27.lumi.presentation.agent.DeviceActions.execute(this@AssistantActivity, cmd, contact, app.contactAliases)
+                    when (val outcome = result) {
                         is io.github.salex27.lumi.presentation.agent.DeviceActions.Outcome.Done -> {
                             outcome.note?.let { viewModel.say(it, isError = false) }
                             // Routine: next action. If nothing is left and the action opened another app (call, WhatsApp…),
