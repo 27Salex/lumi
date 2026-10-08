@@ -148,14 +148,18 @@ class BackupManager(
             val editor = context.getSharedPreferences(name, Context.MODE_PRIVATE).edit()
             values.keys().forEach { k ->
                 if (k in skippedKeys) return@forEach
-                val e = values.getJSONObject(k)
-                when (e.getString("t")) {
-                    "b" -> editor.putBoolean(k, e.getBoolean("v"))
-                    "i" -> editor.putInt(k, e.getInt("v"))
-                    "l" -> editor.putLong(k, e.getLong("v"))
-                    "f" -> editor.putFloat(k, e.getDouble("v").toFloat())
-                    "s" -> editor.putString(k, e.getString("v"))
-                    "ss" -> editor.putStringSet(k, e.getJSONArray("v").let { a -> (0 until a.length()).map { a.getString(it) }.toSet() })
+                // Untrusted file: only known keys with the right type (and valid content) are written
+                runCatching {
+                    val e = values.getJSONObject(k)
+                    val type = e.getString("t")
+                    val text = if (type == "ss") null else e.get("v").toString()
+                    if (!BackupPrefsValidator.accept(name, k, type, text)) return@forEach
+                    when (type) {
+                        "b" -> editor.putBoolean(k, e.getBoolean("v"))
+                        "i" -> editor.putInt(k, e.getInt("v"))
+                        "l" -> editor.putLong(k, e.getLong("v"))
+                        "s" -> editor.putString(k, e.getString("v"))
+                    }
                 }
             }
             editor.commit()
