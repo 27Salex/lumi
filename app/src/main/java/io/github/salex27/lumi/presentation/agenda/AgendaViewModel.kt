@@ -32,6 +32,14 @@ data class AgendaUiState(
     val todayEvents: List<AgendaEvent> = emptyList()
 )
 
+/** The Plan screen: the week of the selected day, day by day, plus to-dos left from earlier days. */
+data class PlanState(
+    val selected: LocalDate = LocalDate.now(),
+    val weekStart: LocalDate = LocalDate.now(),
+    val days: List<io.github.salex27.lumi.domain.schedule.PlanBuilder.Day> = emptyList(),
+    val overdue: List<Task> = emptyList()
+)
+
 class AgendaViewModel(
     repository: TaskRepository,
     private val calendar: DeviceCalendar,
@@ -44,6 +52,22 @@ class AgendaViewModel(
     private val _events = MutableStateFlow<List<AgendaEvent>>(emptyList())
     private val _todayEvents = MutableStateFlow<List<AgendaEvent>>(emptyList())
     private val _allowed = MutableStateFlow(calendar.canRead())
+    private val _weekEvents = MutableStateFlow<Map<LocalDate, List<AgendaEvent>>>(emptyMap())
+    private var loadedWeek: LocalDate? = null
+
+    val plan: StateFlow<PlanState> = combine(repository.getAllTasks(), _date, _weekEvents) { tasks, date, events ->
+        val monday = weekStart(date)
+        PlanState(
+            selected = date,
+            weekStart = monday,
+            days = io.github.salex27.lumi.domain.schedule.PlanBuilder.week(tasks, events, monday, zone = zone),
+            overdue = io.github.salex27.lumi.domain.schedule.PlanBuilder.overdue(tasks, LocalDate.now(), zone)
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PlanState())
+
+    fun shiftWeeks(weeks: Long) = selectDate(_date.value.plusWeeks(weeks))
+
+    private fun weekStart(date: LocalDate) = date.minusDays(date.dayOfWeek.value - 1L)
 
     val state: StateFlow<AgendaUiState> = combine(
         repository.getAllTasks(), _date, _events, _todayEvents, _allowed
@@ -74,13 +98,18 @@ class AgendaViewModel(
     /** Reload when returning to the app or after the calendar permission is granted. */
     fun refresh() {
         _allowed.value = calendar.canRead()
-        loadEvents()
+        loadEvents(force = true)
         viewModelScope.launch { _todayEvents.value = eventsFor(LocalDate.now()) }
     }
 
-    private fun loadEvents() {
+    private fun loadEvents(force: Boolean = false) {
         val date = _date.value
         viewModelScope.launch { _events.update { eventsFor(date) } }
+        val monday = weekStart(date)
+        if (force || monday != loadedWeek) {
+            loadedWeek = monday
+            viewModelScope.launch { _weekEvents.value = (0 until 7L).associate { monday.plusDays(it) to eventsFor(monday.plusDays(it)) } }
+        }
     }
 
     private suspend fun eventsFor(date: LocalDate): List<AgendaEvent> {

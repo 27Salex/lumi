@@ -128,9 +128,19 @@ data class Task(
     /** Whether Lumi picks reminders automatically (on top of custom ones). */
     val autoReminders: Boolean = true,
     val priority: TaskPriority = TaskPriority.NONE,
-    val placeTrigger: PlaceTrigger? = null
+    val placeTrigger: PlaceTrigger? = null,
+    /** Task, reminder or schedule block (see [TaskKind]). */
+    val kind: TaskKind = TaskKind.TASK,
+    /** Length of a schedule block in minutes (from [dueAt]); null for tasks and reminders. */
+    val durationMinutes: Int? = null
 ) {
     val isActive: Boolean get() = status == TaskStatus.TODO || status == TaskStatus.IN_PROGRESS
+
+    /** End of a block, or null when it has no start or no length. */
+    val endAt: Long? get() = if (dueAt != null && dueHasTime && durationMinutes != null) dueAt + durationMinutes * 60_000L else null
+
+    /** A to-do the user checks off (not a reminder or a schedule block). */
+    val isTodo: Boolean get() = kind == TaskKind.TASK
 }
 
 /**

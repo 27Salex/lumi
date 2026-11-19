@@ -73,6 +73,8 @@ import io.github.salex27.lumi.domain.model.TaskPriority
 import io.github.salex27.lumi.presentation.components.PriorityFlag
 import io.github.salex27.lumi.domain.model.Recurrence
 import io.github.salex27.lumi.domain.model.Task
+import io.github.salex27.lumi.domain.model.TaskKind
+import io.github.salex27.lumi.presentation.theme.icon
 import io.github.salex27.lumi.domain.model.TaskCategory
 import io.github.salex27.lumi.domain.model.TaskReminder
 import io.github.salex27.lumi.domain.model.TaskStatus
@@ -128,6 +130,9 @@ fun TaskEditSheet(
     var autoReminders by remember { mutableStateOf(task.autoReminders) }
     var priority by remember { mutableStateOf(task.priority) }
     var placeTrigger by remember { mutableStateOf(task.placeTrigger) }
+    var kind by remember { mutableStateOf(task.kind) }
+    var endTime by remember { mutableStateOf(task.endAt?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalTime() }) }
+    var showEnd by remember { mutableStateOf(false) }
     var askDiscard by remember { mutableStateOf(false) }
     val initialDate = remember { date }
     val initialTime = remember { time }
@@ -145,7 +150,13 @@ fun TaskEditSheet(
 
     fun buildTask(): Task {
         val dueAt = date?.atTime(time ?: LocalTime.of(9, 0))?.atZone(zone)?.toInstant()?.toEpochMilli()
+        val start = time
+        val end = endTime
+        val duration = if (kind == TaskKind.BLOCK && start != null && end != null) {
+            (end.toSecondOfDay() / 60 - start.toSecondOfDay() / 60).let { if (it <= 0) it + 24 * 60 else it }
+        } else null
         return task.copy(
+            kind = kind, durationMinutes = duration,
             title = title.trim(), description = description.trim(), category = category, status = status,
             dueAt = dueAt, dueHasTime = dueAt != null && time != null, recurrence = recurrence,
             meeting = meeting, autoReminders = autoReminders, priority = priority, placeTrigger = placeTrigger
@@ -157,7 +168,8 @@ fun TaskEditSheet(
         return title.trim() != task.title.trim() || description.trim() != task.description.trim() ||
             category != task.category || status != task.status || date != initialDate || time != initialTime ||
             recurrence != task.recurrence || meeting != task.meeting || autoReminders != task.autoReminders ||
-            priority != task.priority || placeTrigger != task.placeTrigger ||
+            priority != task.priority || placeTrigger != task.placeTrigger || kind != task.kind ||
+            endTime != task.endAt?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalTime() } ||
             addedOffsets.isNotEmpty() || removedIds.isNotEmpty()
     }
 
@@ -203,26 +215,45 @@ fun TaskEditSheet(
                 )
             }
 
+            KindSelector(kind) { k ->
+                kind = k
+                // A schedule block needs a start: suggest 9:00-10:00 so it lands on the timeline
+                if (k == TaskKind.BLOCK) {
+                    if (date == null) date = LocalDate.now()
+                    val start = time ?: LocalTime.of(9, 0)
+                    time = start
+                    if (endTime == null) endTime = start.plusHours(1)
+                }
+            }
+
             SectionHeader(stringResource(R.string.edit_area))
             ChipRow(TaskCategory.entries, category, { it.uiLabel }, leading = { cat ->
                 Icon(cat.icon(), null, tint = cat.color(c.isDark), modifier = Modifier.size(16.dp))
             }) { category = it }
 
-            SectionHeader(stringResource(R.string.edit_priority))
-            ChipRow(TaskPriority.entries, priority, { it.uiLabel }, leading = { p ->
-                if (p != TaskPriority.NONE) PriorityFlag(p, Modifier.size(16.dp))
-            }) { priority = it }
+            if (kind == TaskKind.TASK) {
+                SectionHeader(stringResource(R.string.edit_priority))
+                ChipRow(TaskPriority.entries, priority, { it.uiLabel }, leading = { p ->
+                    if (p != TaskPriority.NONE) PriorityFlag(p, Modifier.size(16.dp))
+                }) { priority = it }
 
-            SectionHeader(stringResource(R.string.edit_status))
-            ChipRow(TaskStatus.entries, status, { statusLabel(it) }) { status = it }
+                SectionHeader(stringResource(R.string.edit_status))
+                ChipRow(TaskStatus.entries, status, { statusLabel(it) }) { status = it }
+            }
 
             SectionHeader(stringResource(R.string.edit_when))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Pill(date?.let { DueDateFormatter.format(it.atTime(9, 0).atZone(zone).toInstant().toEpochMilli(), false, lang = ReplyLanguage.app).replaceFirstChar { ch -> ch.uppercase() } } ?: stringResource(R.string.edit_no_date)) { showDate = true }
                 if (date != null) {
                     Pill(time?.let { "%02d:%02d".format(it.hour, it.minute) } ?: stringResource(R.string.edit_add_time)) { showTime = true }
-                    Pill(stringResource(R.string.edit_remove), subtle = true) { date = null; time = null }
+                    if (kind == TaskKind.BLOCK && time != null) {
+                        Pill(endTime?.let { stringResource(R.string.edit_until, "%02d:%02d".format(it.hour, it.minute)) } ?: stringResource(R.string.edit_add_end)) { showEnd = true }
+                    }
+                    Pill(stringResource(R.string.edit_remove), subtle = true) { date = null; time = null; endTime = null }
                 }
+            }
+            if (kind != TaskKind.TASK) {
+                Text(stringResource(R.string.edit_kind_not_in_calendar), style = MaterialTheme.typography.bodySmall, color = c.textTertiary)
             }
 
             SectionHeader(stringResource(R.string.edit_repeat))
@@ -249,7 +280,7 @@ fun TaskEditSheet(
                 Switch(autoReminders, { autoReminders = it }, colors = SwitchDefaults.colors(checkedTrackColor = c.accent, checkedThumbColor = c.onAccent))
             }
             // Preview of what Lumi will schedule with the current values
-            val preview = remember(date, time, meeting, autoReminders, category, status) {
+            val preview = remember(date, time, meeting, autoReminders, category, status, kind, endTime) {
                 ReminderPlanner.plan(buildTask().copy(id = task.id), System.currentTimeMillis())
             }
             if (autoReminders) preview.forEach { p ->
@@ -307,6 +338,17 @@ fun TaskEditSheet(
             confirmButton = { TextButton(onClick = { state.selectedDateMillis?.let { date = Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate() }; showDate = false }) { Text(stringResource(R.string.ok)) } },
             dismissButton = { TextButton(onClick = { showDate = false }) { Text(stringResource(R.string.cancel)) } }
         ) { DatePicker(state) }
+    }
+    if (showEnd) {
+        val state = rememberTimePickerState(
+            initialHour = endTime?.hour ?: (((time?.hour ?: 9) + 1) % 24), initialMinute = endTime?.minute ?: (time?.minute ?: 0), is24Hour = true
+        )
+        AlertDialog(
+            onDismissRequest = { showEnd = false },
+            confirmButton = { TextButton(onClick = { endTime = LocalTime.of(state.hour, state.minute); showEnd = false }) { Text(stringResource(R.string.ok)) } },
+            dismissButton = { TextButton(onClick = { endTime = null; showEnd = false }) { Text(stringResource(R.string.edit_no_end)) } },
+            text = { TimePicker(state) }
+        )
     }
     if (showTime) {
         val state = rememberTimePickerState(initialHour = time?.hour ?: 9, initialMinute = time?.minute ?: 0, is24Hour = true)
@@ -517,6 +559,30 @@ private fun ReminderLine(whenText: String, label: String, removable: Boolean, on
         Text(label, style = MaterialTheme.typography.labelMedium, color = c.textTertiary)
         if (removable) Icon(Icons.Default.Close, stringResource(R.string.reminder_remove), tint = c.textSecondary,
             modifier = Modifier.padding(start = 8.dp).size(16.dp).clickable(onClick = onRemove))
+    }
+}
+
+/** Task / Reminder / Schedule as a segmented control: what the item is decides reminders, calendar and the timeline. */
+@Composable
+private fun KindSelector(selected: TaskKind, onSelect: (TaskKind) -> Unit) {
+    val c = Lumi.colors
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.muted).padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        TaskKind.entries.forEach { k ->
+            val sel = k == selected
+            Row(
+                Modifier.weight(1f).clip(RoundedCornerShape(11.dp))
+                    .background(if (sel) c.background else androidx.compose.ui.graphics.Color.Transparent)
+                    .clickable { onSelect(k) }.padding(vertical = 9.dp),
+                horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(k.icon(), null, tint = if (sel) c.accentText else c.textSecondary, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(k.uiLabel, style = MaterialTheme.typography.labelLarge, color = if (sel) c.textPrimary else c.textSecondary, maxLines = 1)
+            }
+        }
     }
 }
 

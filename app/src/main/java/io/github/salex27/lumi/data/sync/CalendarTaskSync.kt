@@ -6,7 +6,7 @@ import io.github.salex27.lumi.data.settings.SettingsRepository
 import io.github.salex27.lumi.domain.repository.TaskChangeListener
 
 /**
- * Keeps one event in the chosen calendar for every ACTIVE timed task (appointments).
+ * Keeps one event in the chosen calendar for every ACTIVE timed to-do (appointments); reminders and blocks are skipped.
  * When the task is completed, loses its time or is deleted, the event is removed.
  */
 class CalendarTaskSync(
@@ -20,7 +20,8 @@ class CalendarTaskSync(
         if (!s.calendarSyncEnabled || s.calendarId < 0) return
         val entity = dao.getTaskById(taskId) ?: return
         val task = entity.toDomain()
-        if (task.isActive && task.dueAt != null && task.dueHasTime) {
+        // Only to-dos with a time: reminders and schedule blocks stay in Lumi so the calendar is not flooded
+        if (task.isActive && task.isTodo && task.dueAt != null && task.dueHasTime) {
             val eventId = calendar.upsertTaskEvent(task, s.calendarId, entity.calendarEventId)
             if (eventId != entity.calendarEventId) dao.setCalendarEventId(taskId, eventId)
         } else if (entity.calendarEventId != null) {

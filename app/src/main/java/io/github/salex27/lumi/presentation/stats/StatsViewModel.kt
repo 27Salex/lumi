@@ -23,7 +23,7 @@ class StatsViewModel(repository: TaskRepository) : ViewModel() {
     private val _range = MutableStateFlow(StatsRange.WEEK)
 
     val summary: StateFlow<StatsSummary?> = combine(repository.getAllTasks(), _range) { tasks, range ->
-        StatsCalculator.compute(tasks, range)
+        StatsCalculator.compute(tasks.filter { it.isTodo }, range) // reminders and blocks close themselves
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     fun setRange(range: StatsRange) { _range.value = range }

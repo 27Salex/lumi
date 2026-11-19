@@ -9,6 +9,7 @@ import io.github.salex27.lumi.domain.model.TaskPriority
 import io.github.salex27.lumi.domain.model.Recurrence
 import io.github.salex27.lumi.domain.model.Task
 import io.github.salex27.lumi.domain.model.TaskCategory
+import io.github.salex27.lumi.domain.model.TaskKind
 import io.github.salex27.lumi.domain.model.TaskStatus
 
 @Entity(tableName = "tasks")
@@ -38,7 +39,10 @@ data class TaskEntity(
     @ColumnInfo(name = "auto_reminders") val autoReminders: Boolean = true,
     // v6: priority and place reminder
     @ColumnInfo(name = "priority") val priority: TaskPriority = TaskPriority.NONE,
-    @ColumnInfo(name = "place_trigger") val placeTrigger: String? = null
+    @ColumnInfo(name = "place_trigger") val placeTrigger: String? = null,
+    // v10: reminders and schedule blocks
+    @ColumnInfo(name = "kind") val kind: TaskKind = TaskKind.TASK,
+    @ColumnInfo(name = "duration_minutes") val durationMinutes: Int? = null
 )
 
 fun TaskEntity.toDomain(): Task = Task(
@@ -47,7 +51,9 @@ fun TaskEntity.toDomain(): Task = Task(
     meeting = if (meetingEventId != null && meetingStart != null) LinkedMeeting(meetingEventId, meetingTitle.orEmpty(), meetingStart) else null,
     autoReminders = autoReminders,
     priority = priority,
-    placeTrigger = PlaceTrigger.parse(placeTrigger)
+    placeTrigger = PlaceTrigger.parse(placeTrigger),
+    kind = kind,
+    durationMinutes = durationMinutes
 )
 
 /** New tasks only. To update use [mergeFrom] so sync ids are not lost. */
@@ -57,7 +63,9 @@ fun Task.toEntity(): TaskEntity = TaskEntity(
     meetingEventId = meeting?.eventId, meetingTitle = meeting?.title, meetingStart = meeting?.start,
     autoReminders = autoReminders,
     priority = priority,
-    placeTrigger = placeTrigger?.serialize()
+    placeTrigger = placeTrigger?.serialize(),
+    kind = kind,
+    durationMinutes = durationMinutes
 )
 
 /** Applies the editable domain fields while keeping sync metadata. */
@@ -76,5 +84,7 @@ fun TaskEntity.mergeFrom(task: Task): TaskEntity = copy(
     meetingStart = task.meeting?.start,
     autoReminders = task.autoReminders,
     priority = task.priority,
-    placeTrigger = task.placeTrigger?.serialize()
+    placeTrigger = task.placeTrigger?.serialize(),
+    kind = task.kind,
+    durationMinutes = task.durationMinutes
 )

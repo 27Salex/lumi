@@ -102,6 +102,14 @@ internal val MIGRATION_8_9 = object : Migration(8, 9) {
     }
 }
 
+// v10: reminders and schedule blocks (kind) and the length of a block
+internal val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE tasks ADD COLUMN kind TEXT NOT NULL DEFAULT 'TASK'")
+        db.execSQL("ALTER TABLE tasks ADD COLUMN duration_minutes INTEGER")
+    }
+}
+
 /** SQL of the Orbit tables, shared by the migration and its check. Must match OrbitEntities exactly (Room checks it). */
 internal object OrbitSchema {
     val CREATE_V9 = listOf(
@@ -121,7 +129,7 @@ internal object OrbitSchema {
         TaskEntity::class, SyncTombstone::class, ReminderEntity::class, MemoryEntity::class, ChatSessionEntity::class,
         ChatMessageEntity::class, AgentEntity::class, OrbitMemberEntity::class
     ],
-    version = 9, exportSchema = false
+    version = 10, exportSchema = false
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -146,7 +154,7 @@ abstract class AppDatabase : RoomDatabase() {
             AppDatabase::class.java,
             "lumi.db"
         )
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
             .addCallback(object : Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)

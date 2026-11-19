@@ -159,11 +159,16 @@ fun TaskRow(
     onToggleDone: () -> Unit,
     onTomorrow: () -> Unit,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Row background: the screen's background, or the card's surface when rows sit in a [ListGroup]. */
+    container: Color = Lumi.colors.background
 ) {
     val c = Lumi.colors
     val done = task.status == TaskStatus.COMPLETED
-    val overdue = task.isActive && task.dueAt?.let { DueDateFormatter.isOverdue(it, task.dueHasTime) } == true
+    val kind = task.kind
+    // Reminders and blocks close themselves: they are never shown as overdue
+    val overdue = kind == io.github.salex27.lumi.domain.model.TaskKind.TASK && task.isActive &&
+        task.dueAt?.let { DueDateFormatter.isOverdue(it, task.dueHasTime) } == true
     val swipe = rememberSwipeToDismissBoxState(
         confirmValueChange = {
             when (it) {
@@ -191,7 +196,7 @@ fun TaskRow(
         }
     ) {
         Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.background).clickable(onClick = onClick)
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(container).clickable(onClick = onClick)
                 .padding(horizontal = 4.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -199,11 +204,20 @@ fun TaskRow(
                 Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onToggleDone),
                 contentAlignment = Alignment.Center
             ) {
-                Box(
-                    Modifier.size(22.dp).clip(CircleShape)
-                        .then(if (done) Modifier.background(c.accent) else Modifier.border(1.6.dp, if (overdue) c.danger else c.textTertiary, CircleShape)),
-                    contentAlignment = Alignment.Center
-                ) { if (done) Icon(Icons.Default.Check, stringResource(R.string.swipe_done), tint = c.onAccent, modifier = Modifier.size(14.dp)) }
+                when {
+                    done -> Box(Modifier.size(22.dp).clip(CircleShape).background(c.accent), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Check, stringResource(R.string.swipe_done), tint = c.onAccent, modifier = Modifier.size(14.dp))
+                    }
+                    kind == io.github.salex27.lumi.domain.model.TaskKind.TASK -> Box(
+                        Modifier.size(22.dp).clip(CircleShape).border(1.6.dp, if (overdue) c.danger else c.textTertiary, CircleShape)
+                    )
+                    kind == io.github.salex27.lumi.domain.model.TaskKind.BLOCK -> Box(
+                        Modifier.size(width = 4.dp, height = 30.dp).clip(RoundedCornerShape(2.dp)).background(task.category.color(c.isDark))
+                    )
+                    else -> Box(Modifier.size(28.dp).clip(CircleShape).background(c.accentContainer), contentAlignment = Alignment.Center) {
+                        Icon(kind.icon(), null, tint = c.accentText, modifier = Modifier.size(16.dp))
+                    }
+                }
             }
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {
@@ -220,7 +234,9 @@ fun TaskRow(
                         }
                     }
                     task.dueAt?.let {
-                        MetaItem(Icons.Outlined.Schedule, DueDateFormatter.format(it, task.dueHasTime, lang = ReplyLanguage.app), if (overdue) c.danger else c.textSecondary)
+                        val start = DueDateFormatter.format(it, task.dueHasTime, lang = ReplyLanguage.app)
+                        val end = task.endAt?.let { e -> java.time.Instant.ofEpochMilli(e).atZone(java.time.ZoneId.systemDefault()).toLocalTime() }
+                        MetaItem(Icons.Outlined.Schedule, if (end != null) "$start–%02d:%02d".format(end.hour, end.minute) else start, if (overdue) c.danger else c.textSecondary)
                     }
                     CategoryLabel(task.category)
                     task.recurrence?.let { MetaItem(Icons.Outlined.Repeat, null, c.textSecondary) }

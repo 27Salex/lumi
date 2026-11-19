@@ -1,0 +1,17 @@
+{
+  "name": "lumi-relay",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Remote MCP connector for Lumi: Claude reads and edits your tasks; the phone applies the changes.",
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261119.1",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.165.0"
+  }
+}

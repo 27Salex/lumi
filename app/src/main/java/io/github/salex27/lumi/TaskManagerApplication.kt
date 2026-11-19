@@ -25,6 +25,7 @@ import io.github.salex27.lumi.service.reminder.AlarmReminderScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -235,13 +236,25 @@ class TaskManagerApplication : Application() {
     }
     private val widgetUpdater: WidgetUpdater by lazy { WidgetUpdater(this) }
 
+    /** Claude connector (tools/lumi-relay): Claude reads and edits the tasks from the Claude app. */
+    val claudeRelay: io.github.salex27.lumi.data.relay.ClaudeRelay by lazy {
+        io.github.salex27.lumi.data.relay.ClaudeRelay(this, { repository }, appScope)
+    }
+
+    /** Closes the reminders and schedule blocks whose time is over (recurring ones roll to the next occurrence). */
+    suspend fun sweepSchedule() {
+        val now = System.currentTimeMillis()
+        val over = io.github.salex27.lumi.domain.schedule.ScheduleSweep.overdue(repository.getAllTasks().first(), now)
+        over.forEach { repository.updateTask(it.copy(status = io.github.salex27.lumi.domain.model.TaskStatus.COMPLETED, updatedAt = now)) }
+    }
+
     val repository: TaskRepository by lazy {
         TaskRepositoryImpl(
             taskDao = database.taskDao(),
             assistant = assistant,
             reminders = reminderScheduler,
             settings = settings,
-            listeners = listOf<TaskChangeListener>(calendarSync, googleTasksSync, widgetUpdater, placeReminders, liveUpdates),
+            listeners = listOf<TaskChangeListener>(calendarSync, googleTasksSync, widgetUpdater, placeReminders, liveUpdates, claudeRelay),
             calendar = deviceCalendar,
             isPlaceKnown = places::isKnown,
             placeCoordinates = { key -> places.get(key)?.let { it.lat to it.lng } },
@@ -276,7 +289,12 @@ class TaskManagerApplication : Application() {
         super.onCreate()
         updateAppLanguage()
         createNotificationChannels()
-        registerActivityLifecycleCallbacks(VisibleScreens { hubConnection.setVisible(it) })
+        registerActivityLifecycleCallbacks(VisibleScreens { visible ->
+            hubConnection.setVisible(visible)
+            claudeRelay.setVisible(visible)
+            if (visible) appScope.launch { runCatching { sweepSchedule() } }
+        })
+        io.github.salex27.lumi.service.relay.LumiSyncWorker.schedule(this)
         orbits.start(hubConnection.replies) // agent replies streamed by Lumi Hub land in their Orbit
         updates.checkOnStart() // at most every 12 h, off the main thread, silent on failure
 

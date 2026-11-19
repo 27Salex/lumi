@@ -14,6 +14,7 @@ import java.util.Locale
 val TaskCategory.uiLabel: String get() = label(ReplyLanguage.app)
 val TaskPriority.uiLabel: String get() = label(ReplyLanguage.app)
 val PlaceTrigger.uiLabel: String get() = describe(ReplyLanguage.app)
+val io.github.salex27.lumi.domain.model.TaskKind.uiLabel: String get() = label(ReplyLanguage.app)
 
 /** Locale for dates on screen ("Monday, March 3" / "lunes, 3 de marzo"). */
 val uiLocale: Locale get() = if (ReplyLanguage.app == Lang.EN) Locale.ENGLISH else Locale.forLanguageTag("es-ES")

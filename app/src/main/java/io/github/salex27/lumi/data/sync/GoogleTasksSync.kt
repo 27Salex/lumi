@@ -153,7 +153,8 @@ class GoogleTasksSync(
         for (local in dao.getAllTasksSnapshot()) {
             val gid = local.googleTaskId
             when {
-                local.status == TaskStatus.CANCELLED -> if (gid != null) {
+                // Reminders and schedule blocks stay in Lumi (they would flood Google Tasks and Calendar)
+                local.status == TaskStatus.CANCELLED || local.kind != io.github.salex27.lumi.domain.model.TaskKind.TASK -> if (gid != null) {
                     http(token, "DELETE", "/lists/$listId/tasks/$gid")
                     dao.updateTask(local.copy(googleTaskId = null, remoteUpdatedAt = null))
                 }

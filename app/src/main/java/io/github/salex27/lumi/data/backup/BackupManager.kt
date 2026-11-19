@@ -87,6 +87,7 @@ class BackupManager(
             .putOpt("placeTrigger", t.placeTrigger).putOpt("googleTaskId", t.googleTaskId)
             .putOpt("meetingTitle", t.meetingTitle).putOpt("meetingStart", t.meetingStart)
             .put("customReminders", JSONArray(custom))
+            .put("kind", t.kind.name).putOpt("durationMinutes", t.durationMinutes)
     }
 
     /**
@@ -116,7 +117,9 @@ class BackupManager(
                 dueAt = o.optLongOrNull("dueAt"), dueHasTime = o.optBoolean("dueHasTime"), completedAt = o.optLongOrNull("completedAt"),
                 recurrence = o.optStringOrNull("recurrence"), autoReminders = o.optBoolean("autoReminders", true),
                 placeTrigger = o.optStringOrNull("placeTrigger"), googleTaskId = o.optStringOrNull("googleTaskId"),
-                meetingTitle = o.optStringOrNull("meetingTitle"), meetingStart = o.optLongOrNull("meetingStart")
+                meetingTitle = o.optStringOrNull("meetingTitle"), meetingStart = o.optLongOrNull("meetingStart"),
+                kind = io.github.salex27.lumi.domain.model.TaskKind.fromString(o.optString("kind")) ?: io.github.salex27.lumi.domain.model.TaskKind.TASK,
+                durationMinutes = o.optLongOrNull("durationMinutes")?.toInt()
             )
             // Through the repository: reminders, geofences and the widget get scheduled
             val id = repository.insertTask(entity.toDomain())

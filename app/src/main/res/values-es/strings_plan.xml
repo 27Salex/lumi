@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="edit_until">Hasta las %1$s</string>
+    <string name="edit_add_end">Añadir fin</string>
+    <string name="edit_no_end">Sin fin</string>
+    <string name="edit_kind_not_in_calendar">Los recordatorios y los bloques de horario se quedan en Lumi: nunca van a tu calendario ni a Google Tasks, y se cierran solos cuando pasa su hora.</string>
+    <string name="kind_all">Todo</string>
+    <string name="kind_tasks">Tareas</string>
+    <string name="kind_reminders">Recordatorios</string>
+    <string name="kind_schedule">Horario</string>
+    <string name="tasks_summary">%1$d pendientes · %2$d hoy</string>
+    <string name="tasks_today_progress">%1$d de %2$d hechas hoy</string>
+    <string name="tasks_empty_reminders">Sin recordatorios. Pídeselo a Lumi o a Claude: «recuérdame tomar la pastilla a las 22:00».</string>
+    <string name="tasks_empty_schedule">Sin bloques de horario. Planifica la semana desde Agenda o pídele a Claude que te la organice.</string>
+    <string name="agenda_new_block">Nuevo bloque</string>
+    <string name="agenda_summary">%1$d en el horario · %2$d tareas · %3$d eventos</string>
+    <string name="time_range">%1$s–%2$s</string>
+
+    <string name="sg_claude">Claude</string>
+    <string name="sg_claude_sub">Planifica y edita tus tareas desde la app de Claude</string>
+    <string name="sg_claude_keys">claude connector mcp relay anthropic plan week schedule conector planificar semana horario</string>
+    <string name="claude_title">Conector de Claude</string>
+    <string name="claude_intro">Lumi habla con un pequeño relay en internet. Añádelo en la app de Claude como conector personalizado y Claude podrá leer, crear y editar tus tareas, recordatorios y horario, aunque el PC esté apagado. Con Lumi abierto los cambios llegan al momento; si no, en unos 15 minutos.</string>
+    <string name="claude_relay_address">Dirección del relay (https://…workers.dev)</string>
+    <string name="claude_connect">Conectar</string>
+    <string name="claude_connecting">Conectando…</string>
+    <string name="claude_status_off">Sin conectar</string>
+    <string name="claude_status_connected">Conectado</string>
+    <string name="claude_status_synced">Conectado · sincronizado %1$s</string>
+    <string name="claude_link_title">Dirección para Claude</string>
+    <string name="claude_copy">Copiar</string>
+    <string name="claude_copied">Copiado</string>
+    <string name="claude_steps">En la app de Claude: Ajustes › Conectores › Añadir conector personalizado. Nombre: Lumi. URL: pega esta dirección. Luego pídele a Claude, por ejemplo, «planifícame la semana en Lumi».</string>
+    <string name="claude_link_private">Quien tenga esta dirección puede ver y editar tus tareas. No la compartas; si se filtra, toca Nuevo enlace.</string>
+    <string name="claude_sync_now">Sincronizar ahora</string>
+    <string name="claude_syncing">Sincronizando…</string>
+    <string name="claude_new_link">Nuevo enlace</string>
+    <string name="claude_disconnect">Desconectar</string>
+    <string name="claude_applied">%1$d cambios de Claude aplicados</string>
+    <!-- Plan (pantalla principal) -->
+    <string name="plan_title">Plan</string>
+    <string name="plan_mode_day">Día</string>
+    <string name="plan_mode_week">Semana</string>
+    <string name="plan_mode_hours">Horas</string>
+    <string name="plan_free">Libre</string>
+    <string name="plan_nothing">Nada planificado. Toca + para añadir un bloque.</string>
+    <string name="plan_planned">%1$s planificadas</string>
+    <string name="plan_tasks_done">%1$d/%2$d tareas</string>
+    <string name="plan_items">%1$d elementos</string>
+    <string name="plan_all_day">Todo el día</string>
+    <string name="plan_overdue">Pendiente de días anteriores (%1$d)</string>
+    <string name="plan_repeats">se repite</string>
+    <string name="kind_one_task">Tarea</string>
+    <string name="kind_one_reminder">Recordatorio</string>
+    <string name="kind_one_block">Horario</string>
+</resources>

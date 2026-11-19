@@ -80,6 +80,8 @@ see AGENTS.md rule 9), Orbit (`data/orbit`, `presentation/orbit`: chats with AI 
 "Chat with Claude" through the Hub). New intents are recognised in
 `data/ai/AssistantIntents.kt` (Spanish) and `EnglishCommands` (English) and are RULES_FIRST.
 
-**Persistence.** Room DB version 9 with hand-written migrations (`exportSchema = false`); enums stored as names; seed
+**Claude connector.** `tools/lumi-relay` (Cloudflare Worker, remote MCP) lets the Claude app read/edit tasks without the PC; `ClaudeRelay` uploads a snapshot and applies Claude's queued changes (long poll while visible, `LumiSyncWorker` every 15 min). Items have a `TaskKind` (task / reminder / schedule block); reminders and blocks stay out of the calendar and Google Tasks and close themselves (`ScheduleSweep`).
+
+**Persistence.** Room DB version 10 with hand-written migrations (`exportSchema = false`); enums stored as names; seed
 data on first create (in the app language). Settings are SharedPreferences exposed as `StateFlow<AppSettings>`.
 `BackupManager` exports/imports everything as JSON, except the API key and phone-tied ids.

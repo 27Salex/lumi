@@ -53,6 +53,12 @@ import io.github.salex27.lumi.data.sync.DeviceCalendar
 import io.github.salex27.lumi.domain.model.AgendaEvent
 import io.github.salex27.lumi.domain.model.Task
 import io.github.salex27.lumi.domain.model.TaskStatus
+import io.github.salex27.lumi.domain.model.TaskKind
+import io.github.salex27.lumi.presentation.theme.color
+import io.github.salex27.lumi.presentation.theme.icon
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.draw.shadow
+import androidx.compose.material.icons.filled.Add
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -64,7 +70,10 @@ import java.util.Locale
 private val HOUR_HEIGHT = 60.dp
 
 
-/** Day view in the style of Google Calendar: timed tasks + events from the phone calendar. */
+/**
+ * Day view in the style of Google Calendar: the user's schedule blocks, reminders and timed tasks from Lumi, plus the
+ * events of the phone calendar. Blocks and reminders live only here (they are not written to the calendar).
+ */
 @Composable
 fun AgendaScreen(
     state: AgendaUiState,
@@ -72,7 +81,10 @@ fun AgendaScreen(
     onSelectDate: (LocalDate) -> Unit,
     onRequestCalendar: () -> Unit,
     onTaskClick: (Task) -> Unit,
-    onToggleDone: (Task) -> Unit
+    onToggleDone: (Task) -> Unit,
+    onNewBlock: (LocalDate) -> Unit = {},
+    /** Inside the Plan screen: no status bar inset (the Plan header already has it). */
+    embedded: Boolean = false
 ) {
     val c = Lumi.colors
     val zone = remember { ZoneId.systemDefault() }
@@ -86,18 +98,19 @@ fun AgendaScreen(
         scroll.scrollTo(with(density) { (HOUR_HEIGHT * hour).roundToPx() })
     }
 
-    Column(Modifier.fillMaxSize().background(c.background).statusBarsPadding()) {
-        // ── Header with day navigation ───────────────────────────────────────
-        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Box(Modifier.fillMaxSize().background(c.background)) {
+    Column(Modifier.fillMaxSize().then(if (embedded) Modifier else Modifier.statusBarsPadding())) {
+        // ── Header with day navigation (the Plan screen has its own) ─────────
+        if (!embedded) Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(
                     state.date.format(DateTimeFormatter.ofPattern(uiDayPattern, uiLocale)).replaceFirstChar { it.uppercase() },
                     style = MaterialTheme.typography.titleLarge, color = c.textPrimary
                 )
-                val taskCount = state.timedTasks.size + state.dayTasks.size
+                val all = state.timedTasks + state.dayTasks
+                val blocks = all.count { it.kind != TaskKind.TASK }
                 Text(
-                    stringResource(if (taskCount == 1) R.string.count_tasks_one else R.string.count_tasks_other, taskCount) + " · " +
-                        stringResource(if (state.events.size == 1) R.string.count_events_one else R.string.count_events_other, state.events.size),
+                    stringResource(R.string.agenda_summary, blocks, all.size - blocks, state.events.size),
                     color = c.textSecondary, fontSize = 13.sp
                 )
             }
@@ -131,8 +144,8 @@ fun AgendaScreen(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                allDay.forEach { e -> AllDayChip("🗓️ ${e.title}", Color(e.color)) {} }
-                state.dayTasks.forEach { t -> AllDayChip("${t.category.emoji} ${t.title}", c.accent, done = t.status == TaskStatus.COMPLETED) { onTaskClick(t) } }
+                allDay.forEach { e -> AllDayChip(e.title, Color(e.color)) {} }
+                state.dayTasks.forEach { t -> AllDayChip(t.title, t.category.color(c.isDark), done = t.status == TaskStatus.COMPLETED) { onTaskClick(t) } }
             }
         }
 
@@ -188,6 +201,18 @@ fun AgendaScreen(
             }
         }
     }
+        // New schedule block on the shown day
+        Row(
+            Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp)
+                .shadow(10.dp, RoundedCornerShape(18.dp)).clip(RoundedCornerShape(18.dp)).background(c.accent)
+                .clickable { onNewBlock(state.date) }.padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Add, null, tint = c.onAccent, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(stringResource(R.string.agenda_new_block), color = c.onAccent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
 }
 
 @Composable
@@ -241,7 +266,30 @@ private fun BlockView(block: Block, zone: ZoneId, modifier: Modifier, onTaskClic
             Text(block.event.title, color = c.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("$time · ${block.event.calendarName}", color = c.textSecondary, fontSize = 10.sp, maxLines = 1)
         }
-        is Block.TaskBlock -> {
+        is Block.TaskBlock -> if (block.task.kind == TaskKind.BLOCK) {
+            // Schedule block: category tint with a solid edge, its time range, no checkbox
+            val t = block.task
+            val tint = t.category.color(c.isDark)
+            val range = t.endAt?.let { stringResource(R.string.time_range, time, Instant.ofEpochMilli(it).atZone(zone).format(hm)) } ?: time
+            val past = t.status != TaskStatus.TODO && t.status != TaskStatus.IN_PROGRESS
+            Row(modifier.clip(RoundedCornerShape(8.dp)).background(tint.copy(alpha = if (past) 0.10f else 0.20f)).clickable { onTaskClick(t) }) {
+                Box(Modifier.width(4.dp).fillMaxHeight().background(tint))
+                Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+                    Text(t.title, color = if (past) c.textSecondary else c.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(range, color = c.textSecondary, fontSize = 10.sp, maxLines = 1)
+                }
+            }
+        } else if (block.task.kind == TaskKind.REMINDER) {
+            val t = block.task
+            Row(
+                modifier.clip(RoundedCornerShape(8.dp)).background(c.muted).clickable { onTaskClick(t) }.padding(horizontal = 6.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(TaskKind.REMINDER.icon(), null, tint = c.accentText, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(5.dp))
+                Text("$time  ${t.title}", color = c.textPrimary, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        } else {
             val t = block.task
             val done = t.status == TaskStatus.COMPLETED
             Row(
@@ -258,7 +306,7 @@ private fun BlockView(block: Block, zone: ZoneId, modifier: Modifier, onTaskClic
                 Spacer(Modifier.width(6.dp))
                 Column {
                     Text(
-                        "${t.category.emoji} ${t.title}", color = if (done) c.textTertiary else c.textPrimary, fontSize = 12.sp,
+                        t.title, color = if (done) c.textTertiary else c.textPrimary, fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         textDecoration = if (done) TextDecoration.LineThrough else null
                     )
@@ -282,7 +330,7 @@ private sealed interface Block {
 
     data class TaskBlock(val task: Task) : Block {
         override val start get() = task.dueAt!!
-        override val end get() = task.dueAt!! + DeviceCalendar.EVENT_DURATION_MS
+        override val end get() = task.endAt ?: (task.dueAt!! + if (task.kind == TaskKind.REMINDER) 30 * 60_000L else DeviceCalendar.EVENT_DURATION_MS)
     }
 }
 

@@ -25,6 +25,12 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.height
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.text.style.TextAlign
+import io.github.salex27.lumi.domain.model.TaskKind
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -70,20 +76,35 @@ fun TasksScreen(
     onToggleDone: (Task) -> Unit,
     onTomorrow: (Task) -> Unit,
     onEdit: (Task) -> Unit,
-    onNew: () -> Unit
+    onNew: (TaskKind) -> Unit
 ) {
     val c = Lumi.colors
     var showDone by rememberSaveable { mutableStateOf(false) }
-    val groups = remember(tasks) { group(tasks) }
+    // null = everything; otherwise only tasks, reminders or schedule blocks
+    var kindName by rememberSaveable { mutableStateOf<String?>(null) }
+    val kind = kindName?.let { TaskKind.fromString(it) }
+    val shown = remember(tasks, kind) { if (kind == null) tasks else tasks.filter { it.kind == kind } }
+    val groups = remember(shown) { group(shown) }
+    val today = remember(tasks) { todayStats(tasks) }
 
     Box(Modifier.fillMaxSize().background(c.background)) {
         LazyColumn(
             Modifier.fillMaxSize().statusBarsPadding(),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 110.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             item {
-                Text(stringResource(R.string.tab_tasks), style = MaterialTheme.typography.headlineMedium, color = c.textPrimary, modifier = Modifier.padding(start = 4.dp, top = 8.dp))
+                Column(Modifier.padding(start = 4.dp, top = 8.dp)) {
+                    Text(stringResource(R.string.tab_tasks), style = MaterialTheme.typography.headlineMedium, color = c.textPrimary)
+                    Text(
+                        stringResource(R.string.tasks_summary, today.pending, today.dueToday),
+                        style = MaterialTheme.typography.bodyMedium, color = c.textSecondary
+                    )
+                }
+            }
+            if (today.total > 0) item { TodayProgress(today.done, today.total, Modifier.padding(top = 14.dp)) }
+            item {
+                KindTabs(kind, tasks, Modifier.padding(top = 14.dp)) { kindName = it?.name }
             }
             item {
                 val allAreas = stringResource(R.string.filter_all_areas)
@@ -95,7 +116,7 @@ fun TasksScreen(
                 val byDate = stringResource(R.string.sort_by_date)
                 fun priorityName(p: TaskPriority) = if (p == TaskPriority.NONE) noPriority
                     else priorityX.format(p.uiLabel.let { if (ReplyLanguage.app == Lang.EN) it else it.lowercase() })
-                Row(Modifier.padding(vertical = 12.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.padding(top = 10.dp, bottom = 4.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterDropdown(
                         label = filters.category?.uiLabel ?: allAreas,
                         active = filters.category != null,
@@ -124,14 +145,21 @@ fun TasksScreen(
                 }
             }
 
-            if (tasks.isEmpty()) {
+            if (shown.isEmpty()) {
                 item {
                     Row(Modifier.fillMaxWidth().padding(top = 60.dp, bottom = 12.dp), horizontalArrangement = Arrangement.Center) {
                         LumiMark(LumiState.IDLE, size = 56.dp)
                     }
                     Text(
-                        stringResource(if (filters.copy(sortByPriority = true) != Filters()) R.string.tasks_empty_filtered else R.string.tasks_empty),
-                        style = MaterialTheme.typography.bodyMedium, color = c.textTertiary,
+                        stringResource(
+                            when {
+                                filters.copy(sortByPriority = true) != Filters() -> R.string.tasks_empty_filtered
+                                kind == TaskKind.REMINDER -> R.string.tasks_empty_reminders
+                                kind == TaskKind.BLOCK -> R.string.tasks_empty_schedule
+                                else -> R.string.tasks_empty
+                            }
+                        ),
+                        style = MaterialTheme.typography.bodyMedium, color = c.textTertiary, textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)
                     )
                 }
@@ -146,14 +174,19 @@ fun TasksScreen(
                     }
                 }
                 if (!isDone || showDone) {
-                    items(list, key = { it.id }) { task ->
-                        TaskRow(
-                            task = task,
-                            onToggleDone = { onToggleDone(task) },
-                            onTomorrow = { onTomorrow(task) },
-                            onClick = { onEdit(task) },
-                            modifier = Modifier.animateItem()
-                        )
+                    // Each group is one rounded card: the first and last rows carry the corners
+                    itemsIndexed(list, key = { _, t -> t.id }) { i, task ->
+                        val shape = cardShape(i, list.size)
+                        Column(Modifier.animateItem().clip(shape).background(c.surface)) {
+                            if (i > 0) Box(Modifier.fillMaxWidth().padding(start = 56.dp).height(0.5.dp).background(c.outline))
+                            TaskRow(
+                                task = task,
+                                onToggleDone = { onToggleDone(task) },
+                                onTomorrow = { onTomorrow(task) },
+                                onClick = { onEdit(task) },
+                                container = c.surface
+                            )
+                        }
                     }
                 }
             }
@@ -161,7 +194,7 @@ fun TasksScreen(
 
         Box(
             Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp).size(56.dp)
-                .shadow(10.dp, RoundedCornerShape(18.dp)).clip(RoundedCornerShape(18.dp)).background(c.accent).clickable(onClick = onNew),
+                .shadow(10.dp, RoundedCornerShape(18.dp)).clip(RoundedCornerShape(18.dp)).background(c.accent).clickable { onNew(kind ?: TaskKind.TASK) },
             contentAlignment = Alignment.Center
         ) { Icon(Icons.Default.Add, stringResource(R.string.new_task), tint = c.onAccent) }
     }
@@ -191,6 +224,79 @@ private fun <T> FilterDropdown(label: String, active: Boolean, options: List<Pai
 }
 
 private val DONE_GROUP = R.string.group_done
+
+private fun cardShape(index: Int, size: Int): RoundedCornerShape {
+    val r = 18.dp
+    return when {
+        size == 1 -> RoundedCornerShape(r)
+        index == 0 -> RoundedCornerShape(topStart = r, topEnd = r)
+        index == size - 1 -> RoundedCornerShape(bottomStart = r, bottomEnd = r)
+        else -> RoundedCornerShape(0.dp)
+    }
+}
+
+private data class TodayStats(val pending: Int, val dueToday: Int, val done: Int, val total: Int)
+
+/** Header numbers: active to-dos, how many are for today, and today's progress (to-dos only). */
+private fun todayStats(tasks: List<Task>): TodayStats {
+    val zone = ZoneId.systemDefault()
+    val today = LocalDate.now()
+    val todos = tasks.filter { it.kind == TaskKind.TASK && it.status != TaskStatus.CANCELLED }
+    val ofToday = todos.filter { t ->
+        val day = t.dueAt?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() }
+        day == today || (t.status == TaskStatus.COMPLETED && t.completedAt?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() } == today)
+    }
+    return TodayStats(
+        pending = todos.count { it.isActive },
+        dueToday = ofToday.count { it.isActive },
+        done = ofToday.count { it.status == TaskStatus.COMPLETED },
+        total = ofToday.size
+    )
+}
+
+@Composable
+private fun TodayProgress(done: Int, total: Int, modifier: Modifier = Modifier) {
+    val c = Lumi.colors
+    val fraction by animateFloatAsState(if (total == 0) 0f else done.toFloat() / total, label = "today")
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface).padding(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.group_today), style = MaterialTheme.typography.labelLarge, color = c.textPrimary, modifier = Modifier.weight(1f))
+            Text(stringResource(R.string.tasks_today_progress, done, total), style = MaterialTheme.typography.labelMedium, color = c.textSecondary)
+        }
+        Box(Modifier.padding(top = 10.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(c.muted)) {
+            Box(Modifier.fillMaxWidth(fraction).height(6.dp).clip(RoundedCornerShape(3.dp)).background(if (done == total) c.success else c.accent))
+        }
+    }
+}
+
+/** All / Tasks / Reminders / Schedule, with how many active items each has. */
+@Composable
+private fun KindTabs(selected: TaskKind?, tasks: List<Task>, modifier: Modifier = Modifier, onSelect: (TaskKind?) -> Unit) {
+    val c = Lumi.colors
+    val counts = remember(tasks) { tasks.filter { it.isActive }.groupingBy { it.kind }.eachCount() }
+    val options = listOf<Pair<TaskKind?, Int>>(
+        null to R.string.kind_all, TaskKind.TASK to R.string.kind_tasks,
+        TaskKind.REMINDER to R.string.kind_reminders, TaskKind.BLOCK to R.string.kind_schedule
+    )
+    Row(
+        modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.muted).padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        options.forEach { (k, label) ->
+            val sel = k == selected
+            val n = if (k == null) counts.values.sum() else counts[k] ?: 0
+            Column(
+                Modifier.weight(1f).clip(RoundedCornerShape(11.dp))
+                    .background(if (sel) c.background else androidx.compose.ui.graphics.Color.Transparent)
+                    .clickable { onSelect(k) }.padding(vertical = 7.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(stringResource(label), style = MaterialTheme.typography.labelMedium, color = if (sel) c.textPrimary else c.textSecondary, maxLines = 1)
+                Text("$n", style = MaterialTheme.typography.labelSmall, color = if (sel) c.accentText else c.textTertiary)
+            }
+        }
+    }
+}
 
 /** Groups by urgency: Overdue → Today → Upcoming → No date → Done. Titles are string resources. */
 private fun group(tasks: List<Task>): List<Pair<Int, List<Task>>> {

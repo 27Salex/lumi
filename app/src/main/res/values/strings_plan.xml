@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Task kinds: task / reminder / schedule block -->
+    <string name="edit_until">Until %1$s</string>
+    <string name="edit_add_end">Add end</string>
+    <string name="edit_no_end">No end</string>
+    <string name="edit_kind_not_in_calendar">Reminders and schedule blocks stay in Lumi: they never go to your calendar or Google Tasks, and they close by themselves when their time is over.</string>
+    <string name="kind_all">All</string>
+    <string name="kind_tasks">Tasks</string>
+    <string name="kind_reminders">Reminders</string>
+    <string name="kind_schedule">Schedule</string>
+    <string name="tasks_summary">%1$d pending · %2$d today</string>
+    <string name="tasks_today_progress">%1$d of %2$d done today</string>
+    <string name="tasks_empty_reminders">No reminders. Ask Lumi or Claude: “remind me to take the pill at 22:00”.</string>
+    <string name="tasks_empty_schedule">No schedule blocks. Plan your week from Agenda or ask Claude to plan it.</string>
+    <string name="agenda_new_block">New block</string>
+    <string name="agenda_summary">%1$d in schedule · %2$d tasks · %3$d events</string>
+    <string name="time_range">%1$s–%2$s</string>
+
+    <!-- Claude connector -->
+    <string name="sg_claude">Claude</string>
+    <string name="sg_claude_sub">Plan and edit your tasks from the Claude app</string>
+    <string name="sg_claude_keys">claude connector mcp relay anthropic plan week schedule conector planificar semana horario</string>
+    <string name="claude_title">Claude connector</string>
+    <string name="claude_intro">Lumi talks to a small relay on the internet. Add it in the Claude app as a custom connector and Claude can read, create and edit your tasks, reminders and schedule, even with your PC off. Changes land at once while Lumi is open, otherwise within about 15 minutes.</string>
+    <string name="claude_relay_address">Relay address (https://…workers.dev)</string>
+    <string name="claude_connect">Connect</string>
+    <string name="claude_connecting">Connecting…</string>
+    <string name="claude_status_off">Not connected</string>
+    <string name="claude_status_connected">Connected</string>
+    <string name="claude_status_synced">Connected · synced %1$s</string>
+    <string name="claude_link_title">Address for Claude</string>
+    <string name="claude_copy">Copy</string>
+    <string name="claude_copied">Copied</string>
+    <string name="claude_steps">In the Claude app: Settings › Connectors › Add custom connector. Name: Lumi. URL: paste this address. Then ask Claude, for example, “plan my week in Lumi”.</string>
+    <string name="claude_link_private">Anyone with this address can see and edit your tasks. Keep it private; if it leaks, tap New link.</string>
+    <string name="claude_sync_now">Sync now</string>
+    <string name="claude_syncing">Syncing…</string>
+    <string name="claude_new_link">New link</string>
+    <string name="claude_disconnect">Disconnect</string>
+    <string name="claude_applied">%1$d changes from Claude applied</string>
+    <!-- Plan (main screen) -->
+    <string name="plan_title">Plan</string>
+    <string name="plan_mode_day">Day</string>
+    <string name="plan_mode_week">Week</string>
+    <string name="plan_mode_hours">Hours</string>
+    <string name="plan_free">Free</string>
+    <string name="plan_nothing">Nothing planned. Tap + to add a block.</string>
+    <string name="plan_planned">%1$s planned</string>
+    <string name="plan_tasks_done">%1$d/%2$d tasks</string>
+    <string name="plan_items">%1$d items</string>
+    <string name="plan_all_day">All day</string>
+    <string name="plan_overdue">Left from earlier days (%1$d)</string>
+    <string name="plan_repeats">repeats</string>
+    <string name="kind_one_task">Task</string>
+    <string name="kind_one_reminder">Reminder</string>
+    <string name="kind_one_block">Schedule</string>
+</resources>

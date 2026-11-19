@@ -3,6 +3,9 @@ package io.github.salex27.lumi.presentation.theme
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.NotificationsNone
+import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material.icons.outlined.ViewTimeline
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.PersonOutline
 import androidx.compose.material.icons.outlined.School
@@ -135,6 +138,12 @@ val LumiTypography = Typography(
 )
 
 // ── Categories: icon + color (light/dark steps of the validated reference palette) ──
+
+fun io.github.salex27.lumi.domain.model.TaskKind.icon(): ImageVector = when (this) {
+    io.github.salex27.lumi.domain.model.TaskKind.TASK -> Icons.Outlined.TaskAlt
+    io.github.salex27.lumi.domain.model.TaskKind.REMINDER -> Icons.Outlined.NotificationsNone
+    io.github.salex27.lumi.domain.model.TaskKind.BLOCK -> Icons.Outlined.ViewTimeline
+}
 
 fun TaskCategory.icon(): ImageVector = when (this) {
     TaskCategory.WORK -> Icons.Outlined.WorkOutline

@@ -80,6 +80,7 @@ import io.github.salex27.lumi.data.sync.GoogleTasksAuth
 import io.github.salex27.lumi.domain.model.Task
 import io.github.salex27.lumi.presentation.agenda.AgendaScreen
 import io.github.salex27.lumi.presentation.agenda.AgendaViewModel
+import io.github.salex27.lumi.presentation.agenda.PlanScreen
 import io.github.salex27.lumi.presentation.assistant.AssistantActivity
 import io.github.salex27.lumi.presentation.settings.SettingsScreen
 import io.github.salex27.lumi.presentation.settings.SettingsViewModel
@@ -92,9 +93,10 @@ import io.github.salex27.lumi.presentation.theme.Lumi
 import io.github.salex27.lumi.service.wakeword.WakeWordService
 import kotlinx.coroutines.launch
 private enum class Tab(@androidx.annotation.StringRes val label: Int, val icon: ImageVector, val selectedIcon: ImageVector) {
+    // Plan is the main screen (day / week / hours); the hour timeline that was the Agenda tab lives inside it
+    PLAN(R.string.plan_title, Icons.Outlined.CalendarMonth, Icons.Filled.CalendarMonth),
     HOME(R.string.tab_home, Icons.Outlined.Home, Icons.Filled.Home),
     TASKS(R.string.tab_tasks, Icons.Outlined.CheckCircle, Icons.Filled.CheckCircle),
-    AGENDA(R.string.agenda, Icons.Outlined.CalendarMonth, Icons.Filled.CalendarMonth),
     STATS(R.string.tab_progress, Icons.Outlined.Insights, Icons.Filled.Insights),
     CHATS(R.string.chats_title, Icons.Outlined.Forum, Icons.Filled.Forum)
 }
@@ -243,7 +245,7 @@ class MainActivity : ComponentActivity() {
                     onDispose {}
                 }
 
-                var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
+                var tab by rememberSaveable { mutableStateOf(Tab.PLAN) }
                 var showSettings by rememberSaveable { mutableStateOf(false) }
                 var editing by remember { mutableStateOf<Task?>(null) }
                 // The assistant asked to edit a task → its editor opens
@@ -263,8 +265,8 @@ class MainActivity : ComponentActivity() {
                     app.chatStore.flush()
                     app.chatStore.message(id)?.let { showSettings = false; showMyPc = false; tab = Tab.CHATS; orbitViewModel.openThread(it.sessionId) }
                 }
-                BackHandler(enabled = showSettings || tab != Tab.HOME) {
-                    if (showSettings) showSettings = false else tab = Tab.HOME
+                BackHandler(enabled = showSettings || tab != Tab.PLAN) {
+                    if (showSettings) showSettings = false else tab = Tab.PLAN
                 }
 
                 Box(Modifier.fillMaxSize().background(Lumi.colors.background)) {
@@ -315,7 +317,7 @@ class MainActivity : ComponentActivity() {
                                         onOpenAssistant = { listen, prompt -> startActivity(AssistantActivity.intent(this@MainActivity, listen, prompt)) },
                                         onOpenSettings = { showSettings = true },
                                         onOpenMyPc = { showMyPc = true },
-                                        onOpenAgenda = { tab = Tab.AGENDA },
+                                        onOpenAgenda = { tab = Tab.PLAN },
                                         onTaskClick = { editing = it },
                                         onStartTask = { viewModel.updateTaskStatus(it, io.github.salex27.lumi.domain.model.TaskStatus.IN_PROGRESS) },
                                         onCompleteTask = { viewModel.updateTaskStatus(it, io.github.salex27.lumi.domain.model.TaskStatus.COMPLETED) },
@@ -331,15 +333,18 @@ class MainActivity : ComponentActivity() {
                                         onToggleDone = viewModel::toggleDone,
                                         onTomorrow = viewModel::moveToTomorrow,
                                         onEdit = { editing = it },
-                                        onNew = { editing = Task(title = "") }
+                                        onNew = { kind -> editing = newItem(kind) }
                                     )
-                                    Tab.AGENDA -> AgendaScreen(
-                                        state = agenda,
+                                    Tab.PLAN -> PlanScreen(
+                                        plan = agendaViewModel.plan.collectAsStateWithLifecycle().value,
+                                        agenda = agenda,
                                         onShiftDays = agendaViewModel::shiftDays,
+                                        onShiftWeeks = agendaViewModel::shiftWeeks,
                                         onSelectDate = agendaViewModel::selectDate,
                                         onRequestCalendar = ::requestCalendar,
                                         onTaskClick = { editing = it },
-                                        onToggleDone = viewModel::toggleDone
+                                        onToggleDone = viewModel::toggleDone,
+                                        onNewBlock = { day -> editing = newItem(io.github.salex27.lumi.domain.model.TaskKind.BLOCK, day) }
                                     )
                                     Tab.CHATS -> io.github.salex27.lumi.presentation.orbit.ChatsScreen(
                                         orbitViewModel, onBack = { tab = Tab.HOME }, onManage = { showManage = true }, embedded = true,
@@ -482,4 +487,14 @@ private fun LumiNavItem(tab: Tab, selected: Boolean, modifier: Modifier, onClick
         Spacer(Modifier.height(4.dp))
         Text(stringResource(tab.label), style = MaterialTheme.typography.labelMedium, color = textColor, maxLines = 1)
     }
+}
+
+/** A blank item of [kind]; a schedule block starts today at the next full hour, one hour long. */
+internal fun newItem(kind: io.github.salex27.lumi.domain.model.TaskKind, day: java.time.LocalDate? = null): Task {
+    if (kind != io.github.salex27.lumi.domain.model.TaskKind.BLOCK) return Task(title = "", kind = kind)
+    val now = java.time.LocalDateTime.now()
+    val date = day ?: now.toLocalDate()
+    val hour = if (day == null || day == now.toLocalDate()) (now.hour + 1).coerceAtMost(23) else 9
+    val start = date.atTime(hour, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+    return Task(title = "", kind = kind, dueAt = start, dueHasTime = true, durationMinutes = 60)
 }

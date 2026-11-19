@@ -44,7 +44,19 @@ object ReminderPlanner {
         val out = mutableListOf<Planned>()
         val due = task.dueAt
 
-        if (task.autoReminders && due != null) {
+        if (task.kind != io.github.salex27.lumi.domain.model.TaskKind.TASK) {
+            // A reminder rings at its moment, a schedule block when it starts; no "due today" nagging
+            if (task.autoReminders && due != null) {
+                val at = if (task.dueHasTime) due
+                    else Instant.ofEpochMilli(due).atZone(zone).toLocalDate().atTime(LocalTime.of(morningHour, 0)).atZone(zone).toInstant().toEpochMilli()
+                if (task.dueHasTime || task.kind == io.github.salex27.lumi.domain.model.TaskKind.REMINDER) {
+                    out += Planned(at, when {
+                        task.kind == io.github.salex27.lumi.domain.model.TaskKind.BLOCK -> if (en) "Starts now" else "Empieza ahora"
+                        else -> if (en) "Now" else "Ahora"
+                    })
+                }
+            }
+        } else if (task.autoReminders && due != null) {
             val dueDate = Instant.ofEpochMilli(due).atZone(zone).toLocalDate()
             fun at(date: java.time.LocalDate, time: LocalTime) = date.atTime(time).atZone(zone).toInstant().toEpochMilli()
 

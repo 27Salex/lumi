@@ -14,8 +14,8 @@ android {
         applicationId = "io.github.salex27.lumi"
         minSdk = 29
         targetSdk = 36
-        versionCode = 11
-        versionName = "1.1.8"
+        versionCode = 12
+        versionName = "1.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -127,6 +127,9 @@ dependencies {
     // Place reminders (geofences) and "Save here"
     implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
+
+    // Background job: closes finished reminders/blocks and syncs the Claude connector every 15 minutes
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")

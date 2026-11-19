@@ -36,6 +36,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CloudUpload
+import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Mic
@@ -345,6 +346,10 @@ if (page == SettingsPage.CALENDAR) {
             ListRow(stringResource(R.string.gtasks_setup), stringResource(R.string.gtasks_setup_sub), onClick = { showGuide = !showGuide })
             if (showGuide) Box(Modifier.padding(16.dp)) { GoogleTasksGuide(context.packageName, state.system.signingSha1) }
         }
+}
+
+if (page == SettingsPage.CLAUDE) {
+        ClaudeConnectorSection()
 }
 
 if (page == SettingsPage.SERVERS) {
@@ -872,6 +877,7 @@ internal enum class SettingsPage(
     val icon: androidx.compose.ui.graphics.vector.ImageVector
 ) {
     ASSISTANT(R.string.sg_assistant, R.string.sg_assistant_sub, R.string.sg_assistant_keys, Icons.Outlined.AutoAwesome),
+    CLAUDE(R.string.sg_claude, R.string.sg_claude_sub, R.string.sg_claude_keys, Icons.Outlined.Hub),
     SERVERS(R.string.sg_servers, R.string.sg_servers_sub, R.string.sg_servers_keys, Icons.Outlined.Dns),
     VOICE(R.string.sg_voice, R.string.sg_voice_sub, R.string.sg_voice_keys, Icons.Outlined.Mic),
     NOTIFICATIONS(R.string.sg_notifications, R.string.sg_notifications_sub, R.string.sg_notifications_keys, Icons.Outlined.Notifications),

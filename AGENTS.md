@@ -40,7 +40,7 @@ data/
                                # LlmEngine (base) → GeminiNanoEngine, GemmaLocalEngine (+GemmaModelManager), CloudGeminiEngine,
                                # ApiEngines (AnthropicEngine, OpenAiEngine for OpenAI + compatible servers; ApiFormats tested)
                                # AssistantOrchestrator (chain + reconcile), AssistantPrompts (shared prompts)
-  local/                       # Room (v9: tasks, reminders, sync_tombstones, memories, chat_sessions/messages, agents,
+  local/                       # Room (v10: tasks (+ kind: task/reminder/block), reminders, sync_tombstones, memories, chat_sessions/messages, agents,
                                # orbit_members) + BriefStore
   chat/                        # ChatStore (sessions shared by pill and app), ChatMemory (rolling summary for the LLM)
   hub/                         # Lumi Hub client: HubProtocol (events, SSE, safety; pure, tested), HubClient, HubConnection
@@ -68,6 +68,7 @@ presentation/
   theme/LumiTheme.kt           # LumiColors light/dark tokens, Inter, category icons/colors
   widget/QuickTaskWidget.kt    # Glance + WidgetUpdater
 docs/GOOGLE_TASKS_SETUP.md     # OAuth client for Google Tasks (the user does it once)
+tools/lumi-relay/              # Claude connector: remote MCP on Cloudflare Workers; Lumi side = data/relay/ClaudeRelay + domain/relay/RelayItems
 tools/lumi-hub/                # PC side of Lumi Hub: MCP server + relay + wake-per-message Claude Code (stdlib Python)
 tools/intent_eval.sh           # Scores the top-level routing of a device's engine on app/src/test/resources/intent_eval.tsv
 tools/gemma_batch.sh           # Runs a batch of phrases through the real Gemma on a device and greps the log
@@ -121,7 +122,7 @@ tools/gemma_batch.sh           # Runs a batch of phrases through the real Gemma 
 - Resource names can't be Java keywords (`import`, `package`…): the resource merger fails.
 
 ### 3. Data
-- Room v9 with hand-written migrations (`exportSchema = false`): any schema change = bump the version + a `Migration`.
+- Room v10 with hand-written migrations (`exportSchema = false`): any schema change = bump the version + a `Migration`.
 - Update tasks with `TaskEntity.mergeFrom(task)` (keeps `google_task_id`, `calendar_event_id`…), never `toEntity()`.
 - Every write goes through `TaskRepository` → notifies `TaskChangeListener`s (calendar, Google Tasks, widget, places,
   live update) and the reminders.
@@ -160,6 +161,11 @@ tools/gemma_batch.sh           # Runs a batch of phrases through the real Gemma 
   `processNaturalLanguageCommand`, the LLM interpreter, `DeviceActions` or an Intent; a proposed task becomes a Task
   only on an explicit tap, built by rules (`HubTaskProposal`). Links: http(s) only (`HubSafety.isSafeLink`).
 - The hub token lives in the `hub` prefs file, which is NOT in the backup.
+
+### 9a. The Claude connector (tools/lumi-relay) is untrusted too
+- Items queued by Claude are structured data: `RelayItems` validates them into task fields and `ClaudeRelay` applies them
+  through `TaskRepository` only. Never route them to the interpreter, `DeviceActions` or an Intent. Removing = CANCELLED.
+- Reminders and schedule blocks (`TaskKind.REMINDER/BLOCK`) never go to the phone calendar or Google Tasks.
 
 ### 9b. My PC is view only
 - Never add input injection, a terminal or command execution to the hub or the app (decision 2026-10-07). Unlock tokens stay in memory, never in logs or the backup; the screen uses FLAG_SECURE and locks when it is left.
