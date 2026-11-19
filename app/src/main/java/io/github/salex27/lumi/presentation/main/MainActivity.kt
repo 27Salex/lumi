@@ -340,6 +340,7 @@ class MainActivity : ComponentActivity() {
                                         agenda = agenda,
                                         onShiftDays = agendaViewModel::shiftDays,
                                         onShiftWeeks = agendaViewModel::shiftWeeks,
+                                        onOpenSettings = { showSettings = true },
                                         onSelectDate = agendaViewModel::selectDate,
                                         onRequestCalendar = ::requestCalendar,
                                         onTaskClick = { editing = it },

@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Repeat
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -88,7 +89,8 @@ fun PlanScreen(
     onRequestCalendar: () -> Unit,
     onTaskClick: (Task) -> Unit,
     onToggleDone: (Task) -> Unit,
-    onNewBlock: (LocalDate) -> Unit
+    onNewBlock: (LocalDate) -> Unit,
+    onOpenSettings: () -> Unit = {}
 ) {
     val c = Lumi.colors
     var modeName by rememberSaveable { mutableStateOf(PlanMode.WEEK.name) }
@@ -119,6 +121,9 @@ fun PlanScreen(
                 }
                 IconButton(onClick = { if (mode == PlanMode.WEEK) onShiftWeeks(1) else onShiftDays(1) }) {
                     Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, stringResource(R.string.next_day), tint = c.textSecondary)
+                }
+                IconButton(onClick = onOpenSettings) {
+                    Icon(Icons.Outlined.Settings, stringResource(R.string.settings), tint = c.textSecondary)
                 }
             }
             ModeTabs(mode, Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) { modeName = it.name }
