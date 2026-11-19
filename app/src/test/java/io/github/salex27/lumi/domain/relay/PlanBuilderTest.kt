@@ -34,3 +34,13 @@ class PlanBuilderTest {
         assertEquals(3, day.openTasks)
     }
 }
+
+class ReminderPhraseTest {
+    @Test fun `reminder phrases`() {
+        val yes = listOf("Recuérdame tomar la pastilla a las 22", "recuerdame llamar a mamá mañana a las 6", "Avísame a las 5 de sacar la ropa",
+            "remind me to call Ana at 6pm", "Oye, recuérdame regar a las 8")
+        val no = listOf("Llamar al dentista mañana a las 5", "Tengo reunión a las 10", "Prepara el informe", "Remember the milk")
+        yes.forEach { org.junit.Assert.assertTrue(it, io.github.salex27.lumi.domain.schedule.ReminderPhrase.isReminder(it)) }
+        no.forEach { org.junit.Assert.assertFalse(it, io.github.salex27.lumi.domain.schedule.ReminderPhrase.isReminder(it)) }
+    }
+}

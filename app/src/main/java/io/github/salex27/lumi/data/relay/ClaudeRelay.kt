@@ -76,6 +76,7 @@ class ClaudeRelay(
 
     private var uploadJob: Job? = null
     private var pollJob: Job? = null
+    @Volatile private var visible = false
 
     private fun readState() = State(
         url = prefs.getString(KEY_URL, null) ?: DEFAULT_URL,
@@ -113,13 +114,15 @@ class ClaudeRelay(
             prefs.edit().putString(KEY_URL, base).putString(KEY_MCP_SECRET, secret).putBoolean(KEY_CONNECTED, true).apply()
             _state.value = readState()
         }.onFailure { e -> _state.update { it.copy(error = e.message) } }
-            .also { if (it.isSuccess) syncNow() }
+            // Connected while Lumi is on screen: start listening right away (setVisible only runs on app start/stop)
+            .also { if (it.isSuccess) { if (visible) setVisible(true) else syncNow() } }
     }
 
     /** Stops syncing and forgets the Claude link (the connector in Claude stops working until reconnected). */
     fun disconnect() {
         prefs.edit().putBoolean(KEY_CONNECTED, false).remove(KEY_MCP_SECRET).apply()
         pollJob?.cancel()
+        pollJob = null
         _state.value = readState()
     }
 
@@ -155,6 +158,7 @@ class ClaudeRelay(
 
     /** While Lumi is on screen, keep a long poll open so Claude's changes land at once. */
     fun setVisible(visible: Boolean) {
+        this.visible = visible
         pollJob?.cancel()
         if (!visible || !prefs.getBoolean(KEY_CONNECTED, false)) return
         pollJob = scope.launch {
@@ -305,7 +309,7 @@ class ClaudeRelay(
         private const val TAG = "ClaudeRelay"
         const val PREFS = "claude_relay"
         /** The author's relay (Cloudflare Workers). Anyone else deploys tools/lumi-relay and types their own address. */
-        const val DEFAULT_URL = "https://"
+        const val DEFAULT_URL = "https://lumi-relay.lumi-6bf4dffd.workers.dev"
         private const val KEY_URL = "url"
         private const val KEY_CONNECTED = "connected"
         private const val KEY_DEVICE_TOKEN = "device_token"

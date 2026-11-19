@@ -46,7 +46,7 @@
     <string name="plan_nothing">Nada planificado. Toca + para añadir un bloque.</string>
     <string name="plan_planned">%1$s planificadas</string>
     <string name="plan_tasks_done">%1$d/%2$d tareas</string>
-    <string name="plan_items">%1$d elementos</string>
+    <string name="plan_items">%1$d en el plan</string>
     <string name="plan_all_day">Todo el día</string>
     <string name="plan_overdue">Pendiente de días anteriores (%1$d)</string>
     <string name="plan_repeats">se repite</string>

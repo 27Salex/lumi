@@ -30,7 +30,8 @@ Claude app: **Settings › Connectors › Add custom connector** (name Lumi).
 ## Security
 
 - Single tenant: the first phone that calls `/api/claim` owns the relay (only that device token may claim it again).
-  To reset ownership delete the Durable Object data (`wrangler delete` + deploy) or redeploy under another name.
+  To reset ownership: `npx wrangler secret put ADMIN_KEY` once, then
+  `curl -X POST https://<relay>/api/admin/reset -H "x-admin-key: <key>"` (wipes claim, snapshot and queue).
 - The Claude address is a capability URL (`/mcp/<43-char secret>`); the relay only stores SHA-256 hashes of both
   secrets. "New link" in Lumi rotates it.
 - Tool arguments are validated here and again in Lumi (`RelayItems`); they only become task fields, never commands,

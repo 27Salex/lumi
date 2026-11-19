@@ -386,7 +386,10 @@ class TaskRepositoryImpl(
             recurrence = Recurrence.parse(command.recurrence),
             meeting = meeting,
             priority = TaskPriority.fromString(command.priority) ?: TaskPriority.NONE,
-            placeTrigger = command.place?.takeIf { it.isNotBlank() }?.let { resolveTrigger(it, command.placeOnArrive) }
+            placeTrigger = command.place?.takeIf { it.isNotBlank() }?.let { resolveTrigger(it, command.placeOnArrive) },
+            // "Remind me to X at 18:00" is a nudge at a moment, not a to-do (stays out of the calendar)
+            kind = if (hasTime && io.github.salex27.lumi.domain.schedule.ReminderPhrase.isReminder(prompt))
+                io.github.salex27.lumi.domain.model.TaskKind.REMINDER else io.github.salex27.lumi.domain.model.TaskKind.TASK
         )
         val saved = task.copy(id = insertTask(task))
         command.remindBeforeMinutes.forEach { reminders.addCustom(saved, it) }

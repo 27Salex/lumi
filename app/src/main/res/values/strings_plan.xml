@@ -48,7 +48,7 @@
     <string name="plan_nothing">Nothing planned. Tap + to add a block.</string>
     <string name="plan_planned">%1$s planned</string>
     <string name="plan_tasks_done">%1$d/%2$d tasks</string>
-    <string name="plan_items">%1$d items</string>
+    <string name="plan_items">%1$d on the plan</string>
     <string name="plan_all_day">All day</string>
     <string name="plan_overdue">Left from earlier days (%1$d)</string>
     <string name="plan_repeats">repeats</string>

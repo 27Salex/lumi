@@ -16,6 +16,8 @@
 
 export interface Env {
   RELAY: DurableObjectNamespace
+  /** Optional (`wrangler secret put ADMIN_KEY`): POST /api/admin/reset with header x-admin-key wipes the relay. */
+  ADMIN_KEY?: string
 }
 
 export default {
@@ -74,7 +76,7 @@ export class Relay {
   private waiters = new Map<string, (op: Op) => void>()
   private pollers = new Set<() => void>()
 
-  constructor(private state: DurableObjectState, _env: Env) {}
+  constructor(private state: DurableObjectState, private env: Env) {}
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url)
@@ -82,6 +84,12 @@ export class Relay {
     try {
       if (path.startsWith("/mcp/")) return await this.mcp(request, path.slice(5).replace(/\/+$/, ""))
       if (path === "/api/claim" && request.method === "POST") return await this.claim(request)
+      if (path === "/api/admin/reset" && request.method === "POST") {
+        const key = request.headers.get("x-admin-key") ?? ""
+        if (!this.env.ADMIN_KEY || key.length < 16 || !safeEqual(await sha256(key), await sha256(this.env.ADMIN_KEY))) return json({ error: "unauthorized" }, 401)
+        await this.state.storage.deleteAll()
+        return json({ ok: true })
+      }
       if (path.startsWith("/api/")) {
         if (!(await this.deviceOk(request))) return json({ error: "unauthorized" }, 401)
         await this.state.storage.put("lastSeen", Date.now())
